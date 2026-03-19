@@ -1,0 +1,42 @@
+{
+  "project_id": "export-agent",
+  "external_skills": {
+    "path": "~/.codex/skills",
+    "priority": "secondary"
+  },
+  "local_memory": {
+    "path": "./memory/",
+    "priority": "primary",
+    "manifest": "./memory/manifest.json",
+    "acceptance_criteria": "./memory/acceptance-criteria.md",
+    "role_mapping": {
+      "refactor": "role-technology.md",
+      "test": "role-qa-security.md",
+      "product": "role-presales-pm.md",
+      "ops": "role-project-ops.md",
+      "data": "role-data-knowledge.md",
+      "assistant": "role-assistant.md",
+      "boundaries": "role-execution-boundaries.md"
+    }
+  },
+  "execution_logic": "Before using external skills or tools, filter decisions through local memory constraints and acceptance criteria. If critical product, compliance, or customer data is missing, stop and request a human decision.",
+  "shared_skills": {
+    "path": "./skills/",
+    "index": "./skills/manifest.json",
+    "note": "Project-local skills for export-sales agent development."
+  },
+  "project_defaults": {
+    "language": "zh-CN",
+    "runtime_preference": [
+      "nodejs",
+      "typescript"
+    ],
+    "development_focus": [
+      "agent-workflows",
+      "tool-integration",
+      "evaluation",
+      "observability"
+    ]
+  }
+}
+

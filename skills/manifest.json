@@ -1,0 +1,10 @@
+{
+  "description": "Project-local skills for export-agent",
+  "skills": {
+    "foreign-trade-domain": "./foreign-trade-domain/SKILL.md",
+    "export-agent-bootstrap": "./export-agent-bootstrap/SKILL.md"
+  },
+  "version": "1.0",
+  "last_updated": "2026-03-19"
+}
+
