@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import {
   MAX_FILES,
-  buildAssistantReply,
   formQuestionSchema,
   uploadedFileSchema
 } from '@/lib/assistant/mock-agent';
+import { runAssistant } from '@/lib/assistant/service';
 
 export async function POST(request: Request) {
   const formData = await request.formData();
@@ -30,7 +30,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload = buildAssistantReply({
+  const payload = await runAssistant({
+    channel: 'web',
     question,
     files
   });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AssistantReply, UploadedFile } from '@/lib/assistant/types';
 
 export const MAX_FILES = 5;
 
@@ -15,17 +16,6 @@ export const uploadedFileSchema = z.object({
   size: z.number().nonnegative().max(20 * 1024 * 1024),
   type: z.string().min(1).max(120)
 });
-
-export type UploadedFile = z.infer<typeof uploadedFileSchema>;
-
-export type AssistantReply = {
-  intent: 'summary' | 'reply' | 'quote' | 'handoff';
-  intentLabel: string;
-  summary: string;
-  nextActions: string[];
-  riskAlerts: string[];
-  draftDirection: string;
-};
 
 const intentKeywords = {
   quote: ['报价', 'price', 'quotation', 'quote', '成本', '交期'],

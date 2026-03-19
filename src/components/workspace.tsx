@@ -1,7 +1,7 @@
 'use client';
 
 import { useDeferredValue, useState, useTransition } from 'react';
-import type { AssistantReply } from '@/lib/assistant/mock-agent';
+import type { AssistantReply } from '@/lib/assistant/types';
 
 const quickPrompts = [
   '帮我提炼这份询盘邮件的重点，并列出还缺哪些报价信息。',
@@ -126,6 +126,10 @@ export function Workspace() {
             <span className="signal-label">真实模型</span>
             <span className="signal-value">待接入</span>
           </div>
+          <div className="signal-row">
+            <span className="signal-label">Bot 扩展层</span>
+            <span className="signal-value">Feishu-ready</span>
+          </div>
         </aside>
       </section>
 
@@ -205,6 +209,9 @@ export function Workspace() {
 
           <p className="footer-note">
             现在返回的是本地 mock 流程，后面会替换成真实智能体，包括文件解析、知识检索、回复草拟和人工接管规则。
+          </p>
+          <p className="footer-note">
+            另外已预留渠道适配层，后续可把网页端、Feishu Bot、Slack、企微统一接到同一套 agent 服务。
           </p>
         </div>
 
