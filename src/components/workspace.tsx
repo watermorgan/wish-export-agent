@@ -1,12 +1,27 @@
 'use client';
 
-import { useDeferredValue, useState, useTransition } from 'react';
-import type { AssistantReply } from '@/lib/assistant/types';
+import { useDeferredValue, useEffect, useState, useTransition } from 'react';
+import {
+  roleOptions,
+  skillCatalog,
+  taskTypeOptions,
+  workflowTemplates
+} from '@/lib/assistant/catalog';
+import type {
+  AssistantReply,
+  AssistantRole,
+  PendingConfirmation,
+  ReviewEntry,
+  SkillDefinition,
+  TaskRecord,
+  TaskType,
+  WorkflowTemplate
+} from '@/lib/assistant/types';
 
 const quickPrompts = [
-  '帮我提炼这份询盘邮件的重点，并列出还缺哪些报价信息。',
-  '根据客户附件，生成一封更专业的英文初次回复。',
-  '总结客户的采购需求，并判断适合转给谁继续跟进。'
+  '请整理工艺单附件，输出结构化 BOM，并列出缺失字段。',
+  '请保留英文原文，在每段下方增加中文翻译，仅做翻译，不做归并。',
+  '请基于客户邮件和附件，生成英文回复草稿，并把高风险承诺单独列出。'
 ];
 
 type FileDescriptor = {
@@ -15,10 +30,52 @@ type FileDescriptor = {
   type: string;
 };
 
+const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit'
+});
+
+function getConfirmationStatusLabel(status: PendingConfirmation['status']) {
+  switch (status) {
+    case 'required':
+      return '必须确认';
+    case 'recommended':
+      return '建议确认';
+    case 'confirmed':
+      return '已确认';
+    case 'returned':
+      return '已退回';
+  }
+}
+
+function getRoleLabel(role: AssistantRole) {
+  return role === 'sales' ? '业务员' : '主管';
+}
+
+function getReviewDecisionLabel(decision: ReviewEntry['decision']) {
+  return decision === 'approved' ? '审核通过' : '退回处理';
+}
+
 export function Workspace() {
-  const [question, setQuestion] = useState(quickPrompts[0]);
+  const defaultTemplate = workflowTemplates.find(
+    (template) => template.taskType === 'reply'
+  );
+
+  const [role, setRole] = useState<AssistantRole>('sales');
+  const [taskType, setTaskType] = useState<TaskType>('reply');
+  const [question, setQuestion] = useState(quickPrompts[2]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    defaultTemplate?.id ?? null
+  );
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(
+    defaultTemplate?.steps ?? ['comment-translator', 'customer-reply-drafter']
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [reply, setReply] = useState<AssistantReply | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [recentTasks, setRecentTasks] = useState<TaskRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -26,6 +83,57 @@ export function Workspace() {
 
   function onFileChange(nextFiles: FileList | null) {
     setFiles(nextFiles ? Array.from(nextFiles) : []);
+  }
+
+  function hydrateFromReply(nextReply: AssistantReply) {
+    setReply(nextReply);
+    setActiveTaskId(nextReply.task?.id ?? null);
+    setRole(nextReply.role);
+    setTaskType(nextReply.taskType);
+    setQuestion(nextReply.task?.question ?? question);
+    setSelectedTemplateId(nextReply.selectedTemplate?.id ?? null);
+    setSelectedSkillIds(nextReply.selectedSkills.map((skill) => skill.id));
+    setFiles([]);
+  }
+
+  async function refreshTasks() {
+    const response = await fetch('/api/tasks', {
+      method: 'GET'
+    });
+
+    if (!response.ok) {
+      throw new Error('任务列表加载失败。');
+    }
+
+    const data = (await response.json()) as {
+      tasks: TaskRecord[];
+    };
+    setRecentTasks(data.tasks);
+  }
+
+  useEffect(() => {
+    refreshTasks().catch(() => {
+      return;
+    });
+  }, []);
+
+  function applyTemplate(template: WorkflowTemplate) {
+    setTaskType(template.taskType);
+    setSelectedTemplateId(template.id);
+    setSelectedSkillIds(template.steps);
+    const promptIndex =
+      template.taskType === 'bom' ? 0 : template.taskType === 'feedback' ? 1 : 2;
+    setQuestion(quickPrompts[promptIndex]);
+  }
+
+  function toggleSkill(skill: SkillDefinition) {
+    setSelectedTemplateId(null);
+    setTaskType(skill.taskTypes[0]);
+    setSelectedSkillIds((current) =>
+      current.includes(skill.id)
+        ? current.filter((skillId) => skillId !== skill.id)
+        : [...current, skill.id]
+    );
   }
 
   function formatBytes(size: number) {
@@ -46,7 +154,14 @@ export function Workspace() {
     startTransition(async () => {
       try {
         const formData = new FormData();
+        formData.append('role', role);
+        formData.append('taskType', taskType);
         formData.append('question', question);
+        formData.append('selectedSkillIds', JSON.stringify(selectedSkillIds));
+
+        if (selectedTemplateId) {
+          formData.append('selectedTemplateId', selectedTemplateId);
+        }
 
         for (const file of files) {
           formData.append('files', file);
@@ -63,7 +178,9 @@ export function Workspace() {
           throw new Error(data.error ?? '请求失败，请稍后再试。');
         }
 
-        setReply(data as AssistantReply);
+        const parsed = data as AssistantReply;
+        hydrateFromReply(parsed);
+        setRecentTasks(parsed.recentTasks ?? []);
       } catch (submitError) {
         setReply(null);
         setError(
@@ -81,73 +198,291 @@ export function Workspace() {
     type: file.type || '未知类型'
   }));
 
+  const currentTemplate = workflowTemplates.find(
+    (template) => template.id === selectedTemplateId
+  );
+  const currentTask = reply?.task ?? null;
+  const pendingReviewTasks = recentTasks.filter(
+    (task) => task.reviewStatus === 'pending_review'
+  );
+  const visibleRecentTasks =
+    role === 'supervisor'
+      ? recentTasks
+      : recentTasks.filter((task) => task.role === role);
+  const visibleFiles =
+    fileDescriptors.length > 0
+      ? fileDescriptors
+      : (currentTask?.files ?? []).map((file) => ({
+          name: file.name,
+          size: file.size,
+          type: file.type || '未知类型'
+	        }));
+  const canEditConfirmations = ['pending_user_confirmation', 'returned'].includes(
+    currentTask?.status ?? ''
+  );
+  const reviewHistory = reply?.reviewHistory ?? [];
+
+  async function runTaskAction(
+    endpoint: string,
+    init?: RequestInit
+  ) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      ...init
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error ?? '任务操作失败。');
+    }
+
+    const nextReply = data.reply as AssistantReply;
+    hydrateFromReply(nextReply);
+    await refreshTasks();
+  }
+
+  function saveCurrentTask() {
+    if (!currentTask) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/tasks/${currentTask.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            role,
+            taskType,
+            question,
+            selectedSkillIds,
+            selectedTemplateId
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error ?? '保存任务失败。');
+        }
+
+        const nextReply = data.reply as AssistantReply;
+        hydrateFromReply(nextReply);
+        await refreshTasks();
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : '保存任务失败。');
+      }
+    });
+  }
+
+  function openTask(taskId: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: 'GET'
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error ?? '任务详情加载失败。');
+        }
+
+        hydrateFromReply(data.reply as AssistantReply);
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : '任务详情加载失败。');
+      }
+    });
+  }
+
+  function submitForReview() {
+    if (!currentTask) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await runTaskAction(`/api/tasks/${currentTask.id}/submit`);
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : '提交审核失败。');
+      }
+    });
+  }
+
+  function reviewCurrentTask(decision: 'approved' | 'returned') {
+    if (!currentTask) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await runTaskAction(`/api/tasks/${currentTask.id}/review`, {
+          body: JSON.stringify({
+            decision,
+            reviewer: role,
+            comment:
+              decision === 'returned'
+                ? '当前示例为主管退回，请业务员继续处理待确认项。'
+                : '当前示例为主管审核通过。'
+          })
+        });
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : '审核失败。');
+      }
+    });
+  }
+
+  function exportCurrentTask() {
+    if (!currentTask) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await runTaskAction(`/api/tasks/${currentTask.id}/export`);
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : '导出失败。');
+      }
+    });
+  }
+
+  function updateConfirmationStatus(
+    confirmationId: string,
+    status: PendingConfirmation['status']
+  ) {
+    if (!currentTask) {
+      return;
+    }
+
+    setError(null);
+    startTransition(async () => {
+      try {
+        await runTaskAction(`/api/tasks/${currentTask.id}/confirmations/${confirmationId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status })
+        });
+      } catch (actionError) {
+        setError(actionError instanceof Error ? actionError.message : '更新待确认项失败。');
+      }
+    });
+  }
+
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero-card">
-          <span className="eyebrow">Export Desk</span>
-          <h1>上传资料，直接得到外贸动作建议。</h1>
-          <p>
-            这是一个为非技术外贸人员准备的工作台骨架。当前版本支持上传文件、输入业务问题，
-            然后由后台智能体返回摘要、风险提示、下一步动作和回复草稿方向。
-          </p>
-
-          <div className="hero-grid">
-            <div className="hero-metric">
-              <strong>3步</strong>
-              <span>上传资料、提出问题、拿到执行建议</span>
-            </div>
-            <div className="hero-metric">
-              <strong>双语</strong>
-              <span>后续适合扩展为中英回复与报价支持</span>
-            </div>
-            <div className="hero-metric">
-              <strong>PWA</strong>
-              <span>网页先上线，后续可像应用一样安装</span>
-            </div>
-          </div>
+      <section className="workspace-topbar">
+        <div>
+          <h1>外贸助手工作台</h1>
+          <p>选任务、传文件、直接处理。</p>
         </div>
-
-        <aside className="status-card">
-          <h2>当前骨架内置能力</h2>
-          <div className="signal-row">
-            <span className="signal-label">上传文件</span>
-            <span className="signal-value">已接线</span>
-          </div>
-          <div className="signal-row">
-            <span className="signal-label">问答 API</span>
-            <span className="signal-value">Mock Agent</span>
-          </div>
-          <div className="signal-row">
-            <span className="signal-label">PWA 安装</span>
-            <span className="signal-value">已预留</span>
-          </div>
-          <div className="signal-row">
-            <span className="signal-label">真实模型</span>
-            <span className="signal-value">待接入</span>
-          </div>
-          <div className="signal-row">
-            <span className="signal-label">Bot 扩展层</span>
-            <span className="signal-value">Feishu-ready</span>
-          </div>
-        </aside>
+        <div className="workspace-topbar-meta">
+          <span className="tag">{role === 'sales' ? '业务员' : '主管'}</span>
+          <span className="tag">待审核 {pendingReviewTasks.length}</span>
+        </div>
       </section>
 
       <section className="workspace-grid">
         <div className="panel">
           <div className="panel-header">
             <div>
-              <h2>上传与提问</h2>
-              <p>支持邮件、报价单、产品资料、聊天记录、Excel、PDF 等外贸常见文件。</p>
+              <h2>新任务</h2>
+              <p>填写最少信息后直接执行。</p>
             </div>
-            <span className="tag">MVP</span>
+            <span className="tag">{currentTemplate?.name ?? '手动组合'}</span>
+          </div>
+
+          <div className="section-stack">
+            <div className="section-title">
+              <h3>角色</h3>
+            </div>
+            <div className="choice-grid compact-grid">
+              {roleOptions.map((option) => (
+                <button
+                  className={`choice-card ${role === option.id ? 'choice-card-active' : ''}`}
+                  key={option.id}
+                  type="button"
+                  onClick={() => setRole(option.id)}
+                >
+                  <strong>{option.label}</strong>
+                  <span>{option.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="section-stack">
+            <div className="section-title">
+              <h3>任务类型</h3>
+            </div>
+            <div className="choice-grid">
+              {taskTypeOptions.map((option, index) => (
+                <button
+                  className={`choice-card ${taskType === option.id ? 'choice-card-active' : ''}`}
+                  key={option.id}
+                  type="button"
+                  onClick={() => {
+                    setTaskType(option.id);
+                    setQuestion(quickPrompts[index]);
+                  }}
+                >
+                  <strong>{option.label}</strong>
+                  <span>{option.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="section-stack">
+            <div className="section-title">
+              <h3>模板</h3>
+            </div>
+            <div className="choice-grid">
+              {workflowTemplates.map((template) => (
+                <button
+                  className={`choice-card ${selectedTemplateId === template.id ? 'choice-card-active' : ''}`}
+                  key={template.id}
+                  type="button"
+                  onClick={() => applyTemplate(template)}
+                >
+                  <strong>{template.name}</strong>
+                  <span>{template.goal}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="section-stack">
+            <div className="section-title">
+              <h3>技能</h3>
+            </div>
+            <div className="choice-grid">
+              {skillCatalog.map((skill) => (
+                <button
+                  className={`choice-card ${selectedSkillIds.includes(skill.id) ? 'choice-card-active' : ''}`}
+                  key={skill.id}
+                  type="button"
+                  onClick={() => toggleSkill(skill)}
+                >
+                  <strong>{skill.name}</strong>
+                  <span>{skill.purpose}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="dropzone">
-            <strong>拖入文件，或点击选择</strong>
-            <p>
-              推荐先上传客户询盘、产品规格、报价草稿，再输入你想让智能体帮你完成的事。
-            </p>
+            <strong>上传文件</strong>
+            <p>支持 PDF、Word、Excel、邮件、TXT。</p>
             <input
               aria-label="上传文件"
               type="file"
@@ -157,9 +492,9 @@ export function Workspace() {
             />
           </div>
 
-          {fileDescriptors.length > 0 ? (
+          {visibleFiles.length > 0 ? (
             <div className="file-list">
-              {fileDescriptors.map((file) => (
+              {visibleFiles.map((file) => (
                 <div className="file-item" key={`${file.name}-${file.size}`}>
                   <span className="file-name">{file.name}</span>
                   <span className="file-meta">
@@ -171,12 +506,12 @@ export function Workspace() {
           ) : null}
 
           <div className="composer">
-            <label htmlFor="question">告诉外贸助手你要完成什么</label>
+            <label htmlFor="question">处理要求</label>
             <textarea
               id="question"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
-              placeholder="例如：请帮我总结客户需求，并生成英文初次回复草稿。"
+              placeholder="例如：请保留英文原文，在每段下方增加中文翻译，仅做翻译，不做归并。"
             />
 
             <div className="chip-row">
@@ -194,34 +529,41 @@ export function Workspace() {
 
             <div className="submit-row">
               <span className="submit-hint">
-                当前问题长度：{deferredQuestion.trim().length} 字
+                {activeTaskId ? `当前任务：${activeTaskId} · ` : ''}
+                {currentTemplate?.name ?? `${selectedSkillIds.length} 个技能`} ·
+                输入 {deferredQuestion.trim().length} 字
               </span>
-              <button
-                className="primary-button"
-                type="button"
-                disabled={isPending}
-                onClick={submit}
-              >
-                {isPending ? '处理中...' : '生成建议'}
-              </button>
+              <div className="submit-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={isPending || !currentTask}
+                  onClick={saveCurrentTask}
+                >
+                  保存当前任务
+                </button>
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={isPending}
+                  onClick={submit}
+                >
+                  {isPending ? '处理中...' : currentTask ? '新开一次执行' : '开始处理'}
+                </button>
+              </div>
             </div>
           </div>
-
-          <p className="footer-note">
-            现在返回的是本地 mock 流程，后面会替换成真实智能体，包括文件解析、知识检索、回复草拟和人工接管规则。
-          </p>
-          <p className="footer-note">
-            另外已预留渠道适配层，后续可把网页端、Feishu Bot、Slack、企微统一接到同一套 agent 服务。
-          </p>
         </div>
 
         <div className="panel">
           <div className="panel-header">
             <div>
-              <h2>智能体输出预览</h2>
-              <p>先给摘要，再给风险，再给下一步动作，避免一上来就是长篇聊天记录。</p>
+              <h2>处理结果</h2>
+              <p>这里查看结果、待确认项和任务动作。</p>
             </div>
-            <span className="tag">{reply?.intentLabel ?? 'Waiting'}</span>
+            <span className="tag">
+              {reply ? `${reply.intentLabel} · ${reply.statusLabel}` : 'Waiting'}
+            </span>
           </div>
 
           {error ? (
@@ -232,45 +574,310 @@ export function Workspace() {
           ) : null}
 
           <div className="answer-grid">
-            <div className="answer-card">
-              <h3>摘要</h3>
+	            <div className="answer-card">
+	              <h3>任务摘要</h3>
               <p>
                 {reply?.summary ??
-                  '上传文件并提交问题后，这里会展示客户需求、文件重点和智能体的第一结论。'}
+                  '提交任务后，这里会展示执行摘要、当前状态和人工处理建议。'}
               </p>
+	              {currentTask ? (
+	                <p className="meta-note">
+	                  任务ID：{currentTask.id} · 审核状态：
+	                  {reply?.reviewStatusLabel ?? currentTask.reviewStatus}
+	                </p>
+	              ) : null}
+	              {currentTask?.reviewedBy ? (
+	                <p className="meta-note">
+	                  最近审核人：{getRoleLabel(currentTask.reviewedBy)}
+	                  {currentTask.reviewComment ? ` · 审核意见：${currentTask.reviewComment}` : ''}
+	                </p>
+	              ) : null}
+	            </div>
+
+            <div className="answer-card">
+              <h3>执行链</h3>
+              <ul>
+                {(reply?.executionPlan ?? []).length > 0
+                  ? reply?.executionPlan.map((step) => (
+                      <li key={step.id}>
+                        {step.name} · {step.status === 'completed' ? '已生成' : '已阻断'} ·{' '}
+                        {step.summary}
+                      </li>
+                    ))
+                  : [
+                      '选择模板或手动组合技能后，系统会在这里展示每一步执行状态和说明。'
+                    ].map((item) => <li key={item}>{item}</li>)}
+              </ul>
             </div>
 
             <div className="answer-card">
               <h3>建议动作</h3>
               <ul>
                 {(reply?.nextActions ?? [
-                  '先定义“询盘解析 / 回复草拟 / 报价前检查”三条 MVP 工作流。',
-                  '明确哪些字段由系统抽取，哪些字段必须人工确认。',
-                  '把真实大模型和知识库接到当前 API 路由。'
+                  '先上传资料并执行一次任务。',
+                  '处理完待确认项后，再提交主管审核。',
+                  '审核通过后再导出正式结果。'
                 ]).map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>
             </div>
 
-            <div className="answer-card">
-              <h3>待确认项</h3>
-              <ul>
-                {(reply?.riskAlerts ?? [
-                  '价格、交期、认证和付款条件不应由系统直接承诺。',
-                  '如果客户资料涉及隐私，需要定义脱敏与审计规则。'
-                ]).map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
+	            <div className="answer-card">
+	              <h3>待确认项</h3>
+	              <ul className="confirmation-list">
+	                {(reply?.pendingConfirmations ?? []).length > 0
+	                  ? reply?.pendingConfirmations.map((item) => (
+	                      <li key={item.id} className={`confirmation-item status-${item.status}`}>
+	                        <div className="confirmation-header">
+	                          <strong>{item.label}</strong>
+	                          <span className={`tag ${item.status}`}>
+	                            {getConfirmationStatusLabel(item.status)}
+	                          </span>
+	                        </div>
+	                        <div className="confirmation-body">
+	                          <span>
+	                            责任人：{getRoleLabel(item.owner)} · 当前状态：
+	                            {getConfirmationStatusLabel(item.status)}
+	                          </span>
+	                          <span className="reason">{item.reason}</span>
+	                        </div>
+	                        {canEditConfirmations && (
+	                          <div className="confirmation-actions">
+	                            <button
+	                              type="button"
+	                              className="secondary-button confirmation-button"
+	                              onClick={() => updateConfirmationStatus(item.id, 'confirmed')}
+	                              disabled={isPending || item.status === 'confirmed'}
+	                            >
+	                              标记已确认
+	                            </button>
+	                            <button
+	                              type="button"
+	                              className="secondary-button confirmation-button"
+	                              onClick={() => updateConfirmationStatus(item.id, 'returned')}
+	                              disabled={isPending || item.status === 'returned'}
+	                            >
+	                              标记退回
+	                            </button>
+	                          </div>
+	                        )}
+                      </li>
+                    ))
+                  : [
+                      <li key="placeholder" className="placeholder-item">
+                        价格、交期、认证、付款、物流等高风险内容会显示在这里。
+                      </li>
+                    ]}
               </ul>
             </div>
 
             <div className="answer-card">
-              <h3>回复草稿方向</h3>
+              <h3>输出方向</h3>
               <p>
                 {reply?.draftDirection ??
-                  '后续这里会输出双语回复框架，例如英文首封回复、报价补充问题清单和内部交接建议。'}
+                  '后续这里会根据任务类型输出 BOM 草稿、翻译归并结果或英文回复草稿方向。'}
               </p>
+            </div>
+
+            <div className="answer-card">
+              <h3>中间产物</h3>
+              <div className="artifact-stack">
+                {(reply?.artifacts ?? []).length > 0
+                  ? reply?.artifacts.map((section) => (
+                      <div className="artifact-section" key={section.title}>
+                        <strong>{section.title}</strong>
+                        <p>{section.summary}</p>
+                        <ul>
+	                          {section.fields.map((field) => (
+	                            <li key={`${section.title}-${field.label}`}>
+	                              <span className="artifact-field-label">{field.label}：</span>
+	                              {field.richTextHtml ? (
+	                                <div
+	                                  className="rich-text-output"
+	                                  dangerouslySetInnerHTML={{ __html: field.richTextHtml }}
+	                                />
+	                              ) : (
+	                                <span>
+	                                  {field.value}
+	                                  {field.confirmationStatus
+	                                    ? `（${field.confirmationStatus === 'required' ? '待确认' : '建议确认'}）`
+	                                    : ''}
+	                                </span>
+	                              )}
+	                            </li>
+	                          ))}
+	                        </ul>
+                      </div>
+                    ))
+                  : [
+                      <p key="empty-artifacts">
+                        执行后这里会分模块展示结构化产物，而不是只给一段长文本。
+                      </p>
+                    ]}
+                    </div>
+                    </div>
+
+                    {reply?.status === 'exported' && reply.finalArtifact && (
+                    <div className="answer-card" style={{ borderColor: 'var(--color-success)', backgroundColor: '#f0fdf4' }}>
+                    <h3 style={{ color: 'var(--color-success)' }}>🎉 最终产物已生成</h3>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: '14px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', marginTop: '12px', overflowX: 'auto' }}>
+                    {reply.finalArtifact}
+                    </pre>
+                    <button
+                    className="primary-button"
+                    style={{ marginTop: '12px', backgroundColor: 'var(--color-success)' }}
+                    onClick={() => navigator.clipboard.writeText(reply.finalArtifact!)}
+                    >
+                    复制到剪贴板
+                    </button>
+                    </div>
+                    )}
+
+                    <div className="answer-card">	              <h3>审核历史</h3>
+	              <ul className="review-history-list">
+	                {reviewHistory.length > 0
+	                  ? reviewHistory.map((item, index) => (
+	                      <li className="review-item" key={`${item.createdAt}-${index}`}>
+	                        <div className="review-item-header">
+	                          <strong>{getReviewDecisionLabel(item.decision)}</strong>
+	                          <span>{dateTimeFormatter.format(new Date(item.createdAt))}</span>
+	                        </div>
+	                        <p>
+	                          审核人：{getRoleLabel(item.reviewer)}
+	                          {item.comment ? ` · ${item.comment}` : ''}
+	                        </p>
+	                      </li>
+	                    ))
+	                  : [
+	                      <li className="placeholder-item" key="review-placeholder">
+	                        当前任务还没有审核记录。
+	                      </li>
+	                    ]}
+	              </ul>
+	            </div>
+
+	            <div className="answer-card">
+	              <h3>审计摘要</h3>
+	              <ul className="audit-list">
+	                {(reply?.auditTrail ?? []).length > 0
+	                  ? reply?.auditTrail.map((item) => (
+	                      <li className="audit-item" key={`${item.label}-${item.detail}`}>
+	                        <strong>{item.label}</strong>
+	                        <span>{item.detail}</span>
+	                      </li>
+	                    ))
+	                  : [
+                      '执行后这里会记录关键操作和状态变化。'
+                    ].map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+
+            <div className="answer-card">
+              <h3>任务动作</h3>
+              <div className="action-row">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={
+                    isPending ||
+                    !currentTask ||
+                    role !== 'sales' ||
+                    !['pending_user_confirmation', 'returned'].includes(reply?.status ?? '')
+                  }
+                  onClick={submitForReview}
+                >
+                  提交主管审核
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={
+                    isPending ||
+                    !currentTask ||
+                    role !== 'supervisor' ||
+                    reply?.status !== 'pending_supervisor_review'
+                  }
+                  onClick={() => reviewCurrentTask('approved')}
+                >
+                  主管通过
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={
+                    isPending ||
+                    !currentTask ||
+                    role !== 'supervisor' ||
+                    reply?.status !== 'pending_supervisor_review'
+                  }
+                  onClick={() => reviewCurrentTask('returned')}
+                >
+                  主管退回
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={isPending || !currentTask || reply?.status !== 'approved'}
+                  onClick={exportCurrentTask}
+                >
+                  导出任务
+                </button>
+              </div>
+            </div>
+
+            <div className="answer-card">
+              <h3>审核队列摘要</h3>
+              <ul>
+                {pendingReviewTasks.length > 0
+                  ? pendingReviewTasks.slice(0, 5).map((task) => (
+                      <li className="task-item" key={`review-${task.id}`}>
+                        <span>
+                          {task.title} · {task.taskTypeLabel} · 待确认
+                          {task.pendingConfirmationCount} 项
+                        </span>
+                        <button
+                          className="tertiary-button"
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => openTask(task.id)}
+                        >
+                          审核
+                        </button>
+                      </li>
+                    ))
+                  : [
+                      role === 'supervisor'
+                        ? '当前没有待审核任务。'
+                        : '切换到主管角色后可查看待审核任务。'
+                    ].map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+
+            <div className="answer-card">
+              <h3>最近任务</h3>
+              <ul>
+                {visibleRecentTasks.length > 0
+                  ? visibleRecentTasks.map((task) => (
+                      <li className="task-item" key={task.id}>
+                        <span>
+                          {task.title} · {task.taskTypeLabel} · {task.status} · 待确认
+                          {task.pendingConfirmationCount} 项
+                        </span>
+                        <button
+                          className="tertiary-button"
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => openTask(task.id)}
+                        >
+                          打开
+                        </button>
+                      </li>
+                    ))
+                  : [
+                      '执行一次任务后，这里会保留最近任务。'
+                    ].map((item) => <li key={item}>{item}</li>)}
+              </ul>
             </div>
           </div>
         </div>
