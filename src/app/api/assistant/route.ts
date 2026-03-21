@@ -1,40 +1,53 @@
 import { NextResponse } from 'next/server';
-import {
-  MAX_FILES,
-  formQuestionSchema,
-  uploadedFileSchema
-} from '@/lib/assistant/mock-agent';
 import { runAssistant } from '@/lib/assistant/service';
+import { readAssistantRequest } from '@/lib/assistant/task-input';
+import { createTaskFromExecution } from '@/lib/assistant/task-store';
+
+function isDebugEnabled() {
+  return process.env.ASSISTANT_DEBUG_DB === '1';
+}
+
+function logDebug(stage: string, meta?: Record<string, unknown>) {
+  if (!isDebugEnabled()) {
+    return;
+  }
+
+  if (meta) {
+    console.log(`[api/assistant] ${stage}`, meta);
+    return;
+  }
+
+  console.log(`[api/assistant] ${stage}`);
+}
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const question = formQuestionSchema.parse(formData.get('question'));
+  const startedAt = Date.now();
+  const traceId = `assist_${startedAt}_${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    logDebug('request.start', { traceId });
+    const input = await readAssistantRequest(request);
+    logDebug('request.input_ready', { traceId, elapsedMs: Date.now() - startedAt });
+    const payload = await runAssistant(input);
+    logDebug('request.assistant_done', { traceId, elapsedMs: Date.now() - startedAt });
+    const snapshot = await createTaskFromExecution(input, payload);
+    logDebug('request.task_saved', { traceId, elapsedMs: Date.now() - startedAt });
 
-  const files = formData
-    .getAll('files')
-    .filter((value): value is File => value instanceof File && value.size > 0)
-    .map((file) =>
-      uploadedFileSchema.parse({
-        name: file.name,
-        size: file.size,
-        type: file.type || 'application/octet-stream'
-      })
-    );
-
-  if (files.length > MAX_FILES) {
+    return NextResponse.json({
+      ...payload,
+      task: snapshot.task,
+      recentTasks: snapshot.recentTasks
+    });
+  } catch (error) {
+    logDebug('request.failed', {
+      traceId,
+      elapsedMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : 'unknown error'
+    });
     return NextResponse.json(
       {
-        error: `一次最多上传 ${MAX_FILES} 个文件。`
+        error: error instanceof Error ? error.message : '请求失败，请稍后再试。'
       },
       { status: 400 }
     );
   }
-
-  const payload = await runAssistant({
-    channel: 'web',
-    question,
-    files
-  });
-
-  return NextResponse.json(payload);
 }
