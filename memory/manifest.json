@@ -1,55 +1,53 @@
 {
-  "schema_version": "1.0",
-  "project_id": "export-agent",
-  "memory_version": "2026-03-19",
-  "paths": {
-    "root_alias": "@/",
-    "memory_root": "@/memory",
-    "skills_root": "@/skills",
-    "docs_root": "@/docs",
-    "acceptance_criteria": "@/memory/acceptance-criteria.md"
+  "schema_version": "1.1",
+  "project_id": "export-agent-v1",
+  "project_type": "private_ai_workspace",
+  "description": "An internal, private-deployed AI workspace for foreign trade. Not a general chatbot.",
+  "core_principles": {
+    "skill_execution": "skill_catalog_plus_manual_composition",
+    "automation_level": "human_in_the_loop_mandatory",
+    "business_commitment": "explicit_confirmation_required"
   },
-  "roles": {
-    "role-presales-pm": {
-      "file": "@/memory/role-presales-pm.md",
-      "depends_on": ["role-technology", "role-qa-security", "role-data-knowledge"],
-      "shared_sections": ["验收结论/指标", "风险与约束", "关键能力清单"]
+  "scope_v1": {
+    "supported_roles": [
+      "sales_rep",
+      "sales_manager"
+    ],
+    "primary_interface": "web_workspace",
+    "active_skills": [
+      "bom_organization",
+      "feedback_translation_and_consolidation",
+      "customer_reply_drafting"
+    ]
+  },
+  "strict_prohibitions": [
+    "NO_automatic_continuous_execution_without_confirmation",
+    "NO_auto_quoting",
+    "NO_auto_sending_external_messages",
+    "NO_auto_writing_to_erp_or_crm"
+  ],
+  "human_confirmation_rules": {
+    "must_flag_as_pending_confirmation": [
+      "price",
+      "delivery_date",
+      "certification",
+      "payment_terms",
+      "logistics"
+    ],
+    "review_process": "crucial_steps_require_manual_review_before_proceeding"
+  },
+  "memory_files_priority": [
+    {
+      "file": "./manifest.json",
+      "description": "Global context, boundaries, and strict prohibitions."
     },
-    "role-data-knowledge": {
-      "file": "@/memory/role-data-knowledge.md",
-      "depends_on": ["role-technology"],
-      "shared_sections": ["验收结论/指标", "风险与约束"]
+    {
+      "file": "./execution-boundaries.md",
+      "description": "Detailed rules on what the system can/cannot do automatically and role permissions."
     },
-    "role-qa-security": {
-      "file": "@/memory/role-qa-security.md",
-      "depends_on": ["role-technology", "role-data-knowledge"],
-      "shared_sections": ["验收结论/指标", "风险与约束", "已交付产物"]
-    },
-    "role-project-ops": {
-      "file": "@/memory/role-project-ops.md",
-      "depends_on": [],
-      "shared_sections": ["验收结论/指标", "风险与约束"]
-    },
-    "role-technology": {
-      "file": "@/memory/role-technology.md",
-      "depends_on": ["role-data-knowledge"],
-      "shared_sections": ["关键能力清单", "验收结论/指标", "风险与约束"]
-    },
-    "role-assistant": {
-      "file": "@/memory/role-assistant.md",
-      "depends_on": [],
-      "shared_sections": ["已交付产物", "关键决策记录"]
-    },
-    "role-execution-boundaries": {
-      "file": "@/memory/role-execution-boundaries.md",
-      "depends_on": [],
-      "shared_sections": ["风险与约束"]
+    {
+      "file": "./acceptance-criteria.md",
+      "description": "Engineering and product acceptance baselines for UI and workflows."
     }
-  },
-  "conflict_resolution": [
-    "memory 风险与约束 > 外部技能默认建议",
-    "memory 验收结论/指标 > 实现便利性",
-    "缺失客户、合规、渠道关键口径 => BLOCKED_HUMAN"
   ]
 }
-

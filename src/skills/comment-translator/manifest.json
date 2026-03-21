@@ -1,0 +1,11 @@
+{
+  "id": "comment-translator",
+  "name": "意见翻译",
+  "purpose": "对批注、意见文本和聊天记录做双语翻译。",
+  "inputRequirements": ["原始意见文本或批注文件", "任务目标"],
+  "outputSchema": ["原文/译文对照", "术语清单", "歧义提示"],
+  "reviewCheckpoints": ["专业术语", "否定表达", "责任归属"],
+  "composableWith": ["comment-merger", "customer-reply-drafter"],
+  "riskLevel": "medium",
+  "taskTypes": ["feedback", "reply"]
+}

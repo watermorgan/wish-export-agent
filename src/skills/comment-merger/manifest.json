@@ -1,0 +1,11 @@
+{
+  "id": "comment-merger",
+  "name": "意见归并",
+  "purpose": "对翻译结果或原始意见做去重、冲突整理和主题分组。",
+  "inputRequirements": ["翻译结果或原始意见", "任务目标"],
+  "outputSchema": ["主题分组", "归并列表", "冲突项"],
+  "reviewCheckpoints": ["冲突是否合并", "优先级排序"],
+  "composableWith": ["customer-reply-drafter"],
+  "riskLevel": "low",
+  "taskTypes": ["feedback"]
+}

@@ -8,7 +8,7 @@
 ## Working Rules
 - Treat this directory as the only Git scope for code and config changes.
 - Prefer local `memory/` constraints over generic external skill defaults.
-- If a requested action conflicts with `memory/role-execution-boundaries.md`, stop and ask.
+- If a requested action conflicts with `memory/execution-boundaries.md`, stop and ask.
 
 ## Project Intent
 - This repository is for an export-sales assistant agent.

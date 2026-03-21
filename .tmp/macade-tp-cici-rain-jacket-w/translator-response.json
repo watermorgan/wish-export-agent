@@ -1,0 +1,606 @@
+{
+  "summary": "已完成 1 个章节的原文保留式双语翻译。",
+  "artifacts": [
+    {
+      "title": "原文保留式双语翻译",
+      "kind": "text",
+      "summary": "保留英文原文，在其下方追加中文翻译，供样衣与业务沟通使用。",
+      "fields": [
+        {
+          "label": "双语对照输出",
+          "value": "已生成 1 个章节、129 条英中对照内容。",
+          "citation": "Macade TP Cici Rain Jacket W.pdf",
+          "richTextHtml": "<section class=\"fixture-section\">\n  <header class=\"fixture-section-header\">\n    <h3>Overview</h3>\n    <p>技术规格书第一部分概览，包含面料、位置及物料编码等列标题。 订单概览第二部分，包含数量、尺码、供应商、款号及面料等基础信息字段。 本章节为技术包概述第 3 部分，涵盖款号、计量单位、样品性质及供应商名称。 面料成分、结构规格及款号信息概览，含主辅料定义及用途确认需求。 面料成分、单位及供应商信息段落 文件：Macade TP Cici Rain Jacket W.pdf | 章节：Overview · Part 6。内容涉及面料编号、成分咨询、计量单位及工艺细节描述。 本章节为工艺单第 7 部分概述，主要涉及前中拉链袋、拉链组件构成、具体拉链型号规格（含防水及反向卷装）及品牌标识的技术参数。 Part 8 A Overview: Includes quantity specifications, color codes, and numeric values. Part 8 B 概览：包含弹力织带定义及下摆袖口位置说明。 本章节包含物料来源及辅料规格的基础信息。 Macade TP Cici Rain Jacket W.pdf - Overview Part 10 工艺单片段翻译 第 11 部分概览：辅料类型、应用位置及尺寸规格。 本节为工艺单概览第 12 部分，内容涵盖辅料颜色匹配、数量统计、供应商名单及拉链位置说明。 本章节为工艺单第 13 部分概览，主要涉及辅料规格（Trim）、数量、颜色以及具体的缝制工艺要求（缝纫线、胶带、魔术贴、按扣、拉链头配件等）。 概述部分第 14 页，包含尺寸数值、Logo 位置指示、辅料供应商信息及包装数量规范。 概述部分第 15 段，涉及颜色、款号、尺寸、标签工艺及供应商信息。 辅料、标签及包装工艺要求 第 17 部分概述包含供应商信息、包装规格、数量、颜色及款号与首样阶段标识。 本章节概述了面料审批状态、制作工艺细节（如挂衣钩环）、辅料变更（纽扣及拉链品牌）以及后续样衣阶段安排。 本章节包含 Cici 夹克的尺码表概览及关键测量数据。 第 20A 部分概述：包含 XS 尺码测量数值及服装部位规格定义。 本节主要提供袖部及相关部位的尺寸测量数据与定位说明。 本部分为工艺单第 21 节概览，主要包含关键部位测量定义及对应尺寸数值。 本章节为服装工艺单中的尺码测量数据概览，包含中码（M）的具体数值及更新状态标记。</p>\n  </header>\n  <div class=\"fixture-segment-list\">\n    <div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabrics</p>\n  <p class=\"translation-line\">面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Placement</p>\n  <p class=\"translation-line\">位置</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Comment</p>\n  <p class=\"translation-line\">意见</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Supplier Material Code</p>\n  <p class=\"translation-line\">供应商物料编码</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Description</p>\n  <p class=\"translation-line\">描述</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Composition Type</p>\n  <p class=\"translation-line\">成分类型</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Quantity UOM Common Color</p>\n  <p class=\"translation-line\">数量 单位 通用色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Common Designated Size</p>\n  <p class=\"translation-line\">通用指定尺码</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Supplier</p>\n  <p class=\"translation-line\">供应商</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Style</p>\n  <p class=\"translation-line\">款号</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Only for Forecast Product Colors</p>\n  <p class=\"translation-line\">仅限预测产品颜色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabric A</p>\n  <p class=\"translation-line\">面料 A</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Please advise usage</p>\n  <p class=\"translation-line\">请告知用途</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">WZ-KTL917-RDWL</p>\n  <p class=\"translation-line\">款号 WZ-KTL917-RDWL</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">yd</p>\n  <p class=\"translation-line\">码 (yd)</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">As proto sample</p>\n  <p class=\"translation-line\">作为初样</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Luyimei Trading Co., Ltd</p>\n  <p class=\"translation-line\">露伊美贸易有限公司</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">75% Nylon, Fabric 25% Spandex</p>\n  <p class=\"translation-line\">面料成分：75% 尼龙，25% 氨纶</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">3 Layer Light Weight, 20K/20K</p>\n  <p class=\"translation-line\">3 层轻量结构，防水透气指数 20K/20K</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Main fabric</p>\n  <p class=\"translation-line\">主面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabric B</p>\n  <p class=\"translation-line\">面料 B</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Please advise usage</p>\n  <p class=\"translation-line\">请告知用途 [待确认]</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">HLKK538-3DRMW</p>\n  <p class=\"translation-line\">款号：HLKK538-3DRMW</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabric</p>\n  <p class=\"translation-line\">面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">yd</p>\n  <p class=\"translation-line\">码</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">As proto sample</p>\n  <p class=\"translation-line\">作为初样</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">100% Polyester</p>\n  <p class=\"translation-line\">100% 聚酯纤维</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Luyimei Trading Co., Ltd Local Supplier</p>\n  <p class=\"translation-line\">露易美贸易有限公司 本地供应商</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabric C</p>\n  <p class=\"translation-line\">面料 C</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Please advise usage and composition</p>\n  <p class=\"translation-line\">请告知用途及成分</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabric</p>\n  <p class=\"translation-line\">面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">yd</p>\n  <p class=\"translation-line\">码（长度单位）</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Stretch Panels Mesh in pockets Zippers</p>\n  <p class=\"translation-line\">口袋弹力网布拼接及拉链</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">CF zip Pockets</p>\n  <p class=\"translation-line\">前中拉链袋</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Zipper + slider + puller Zipper + slider + puller</p>\n  <p class=\"translation-line\">拉链 + 拉头 + 拉片（组件重复确认）</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Aquaguard zip #5, 2-way Reversed coil zip size #3</p>\n  <p class=\"translation-line\">Aquaguard 防水拉链#5，双向反向卷装拉链#3</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">#5 #3</p>\n  <p class=\"translation-line\">#5 号 #3 号</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">YKK YKK</p>\n  <p class=\"translation-line\">YKK 品牌</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Zipper Zipper</p>\n  <p class=\"translation-line\">拉链</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">1 pcs 2 pcs</p>\n  <p class=\"translation-line\">1 件 2 件</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Black Black</p>\n  <p class=\"translation-line\">黑色 黑色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0 0</p>\n  <p class=\"translation-line\">0 0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Webbing Elastic</p>\n  <p class=\"translation-line\">弹力织带</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Bottom hem and sleeve ends</p>\n  <p class=\"translation-line\">下摆及袖口</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Please advise usage.</p>\n  <p class=\"translation-line\">请告知具体用途</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Local Supplier</p>\n  <p class=\"translation-line\">本地供应商</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trim</p>\n  <p class=\"translation-line\">辅料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">yd</p>\n  <p class=\"translation-line\">码（单位）</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Black</p>\n  <p class=\"translation-line\">黑色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Local Elastic 20mm band</p>\n  <p class=\"translation-line\">本地 20mm 松紧带</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trims Thread</p>\n  <p class=\"translation-line\">辅料及缝线</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Where needed</p>\n  <p class=\"translation-line\">按需配置</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Local Supplier</p>\n  <p class=\"translation-line\">本地供应商 [待确认]</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trim</p>\n  <p class=\"translation-line\">辅料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">m</p>\n  <p class=\"translation-line\">单位：米</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Matching</p>\n  <p class=\"translation-line\">配套/匹配</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">译文：0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">yd yd yd yd</p>\n  <p class=\"translation-line\">译文：码 码 码 码</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Tape Tape Velcro Velcro Button</p>\n  <p class=\"translation-line\">译文：压胶条 压胶条 魔术贴 魔术贴 纽扣</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">All inner seams At seams At back. See sketch At sleeve ends. See sketch. At CF bottom hem. See sketch.</p>\n  <p class=\"translation-line\">译文：所有内缝 | 接缝处 | 后片（见图）| 袖口（见图）| 前中下摆（见图）</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">15mm 10mm 20mm 10mm 14mm</p>\n  <p class=\"translation-line\">译文：15mm 10mm 20mm 10mm 14mm</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trim Trim Trim Trim Trim</p>\n  <p class=\"translation-line\">译文：辅料 辅料 辅料 辅料 辅料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Matching Black Black Black Antique Silver</p>\n  <p class=\"translation-line\">配套色：黑色、黑色、黑色、古银色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0 0 0 0</p>\n  <p class=\"translation-line\">0 0 0 0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">1 pcs</p>\n  <p class=\"translation-line\">1 件</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Bemis? Local Supplier Local Supplier Local Supplier Pinli Limited/Local Supplier Local Supplier</p>\n  <p class=\"translation-line\">Bemis？本地供应商 本地供应商 本地供应商 Pinli Limited/本地供应商 本地供应商</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Zip puller</p>\n  <p class=\"translation-line\">拉链头</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">At CF zip + pockets zippers</p>\n  <p class=\"translation-line\">前中拉链 + 口袋拉链</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">60mm</p>\n  <p class=\"translation-line\">60 毫米</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trim</p>\n  <p class=\"translation-line\">辅料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">3 pcs</p>\n  <p class=\"translation-line\">3 件</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Orange</p>\n  <p class=\"translation-line\">橙色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Please advise which thread you use, and usage. Bemis or local tape for all inner seams. &quot;Gorilla tape&quot; to cover seams. See sketch Velcro set with hook + loop Velcro set with hook + loop Macade thin logo press button, male + female parts. Zip puller with thin cord + rubber. See sketch. 6 cm when attached to zipper.</p>\n  <p class=\"translation-line\">请告知所使用的纱线种类及用量。所有内缝请使用 Bemis 或本地胶带。&quot;Gorilla tape&quot;用于覆盖接缝。见草图：魔术贴套装（钩面 + 环面）。Macade 薄款 Logo 按扣，含公母扣。拉链头配细绳 + 橡胶。见草图。连接至拉链时长度为 6 厘米。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">60mm</p>\n  <p class=\"translation-line\">60mm</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">At left hand sleeve + neck. See sketch. Macade logo print At CF cip puller</p>\n  <p class=\"translation-line\">位于左手袖及领部。见草图。Macade 标志印花在前中拉链头处</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Local Supplier Pinli Limited</p>\n  <p class=\"translation-line\">本地供应商 Pinli Limited [待确认]</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trim Packaging</p>\n  <p class=\"translation-line\">辅料包装</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">2 pcs 1 Pcs</p>\n  <p class=\"translation-line\">2 件 1 件 [待确认]</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Black Green</p>\n  <p class=\"translation-line\">黑绿色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Macade HT</p>\n  <p class=\"translation-line\">Macade HT</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">80mm</p>\n  <p class=\"translation-line\">80mm</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">At neck, printed on main fabric. Inside left side seam.</p>\n  <p class=\"translation-line\">领部，主面料印刷。左内缝处。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Macade neck logo print Macade care label</p>\n  <p class=\"translation-line\">Macade 领标印花，Macade 洗水标</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Local Supplier Local Supplier</p>\n  <p class=\"translation-line\">本地供应商</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trim Trim</p>\n  <p class=\"translation-line\">辅料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">1 pcs 1 pcs</p>\n  <p class=\"translation-line\">1 件</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Black White</p>\n  <p class=\"translation-line\">黑色 / 白色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0 0</p>\n  <p class=\"translation-line\">0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">External Artwork &amp; Labels Logo Hang tag Internal Artwork &amp; Labels Logo Care label Packaging Polybag</p>\n  <p class=\"translation-line\">外部图文及标签：Logo 吊牌；内部图文及标签：Logo 洗水标；包装：胶袋</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Macade polybag</p>\n  <p class=\"translation-line\">Macade 品牌胶袋</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Local Supplier</p>\n  <p class=\"translation-line\">本地供应商</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Packaging</p>\n  <p class=\"translation-line\">包装</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">1 pcs</p>\n  <p class=\"translation-line\">1 件</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">White</p>\n  <p class=\"translation-line\">白色</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">0 0</p>\n  <p class=\"translation-line\">0 0</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Style Cici Rain Jacket W Stage 1st proto Date</p>\n  <p class=\"translation-line\">款号：Cici Rain Jacket W | 阶段：首样 | 日期</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">2026-03-10</p>\n  <p class=\"translation-line\">2026 年 3 月 10 日 [待确认]</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Fabric</p>\n  <p class=\"translation-line\">面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Main fabric + stretch panel fabric approved</p>\n  <p class=\"translation-line\">主面料 + 弹力拼接面料已获批</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Making General making is good Please note: we added hanger loop in main fabric at CB neck. See sketch.</p>\n  <p class=\"translation-line\">制作工艺：整体制作良好。请注意：我们在后领中缝（CB neck）的主面料上增加了挂衣钩环。见草图。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Trims Added a button at CF bottom hem. See BOM and sketch. Uptaded zips to YKK for bulk</p>\n  <p class=\"translation-line\">辅料：前中下摆处增加了一颗纽扣。见 BOM 和草图。大货拉链更新为 YKK [待确认]</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Next step 2nd proto/SMS</p>\n  <p class=\"translation-line\">下一步：第 2 版原型样/销售样 (SMS)</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Size chart Cici Jacket</p>\n  <p class=\"translation-line\">Cici 夹克尺码表</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">S</p>\n  <p class=\"translation-line\">S 码</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Neck (straight) Collar height CB</p>\n  <p class=\"translation-line\">领围（直）后中领高</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Chest Waist</p>\n  <p class=\"translation-line\">胸围 腰围</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">2026-03-10 L XL 20.5 6,5 125 121 109</p>\n  <p class=\"translation-line\">2026-03-10 [待确认] L XL 20.5 6,5 125 121 109</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">6,5 110 106 94 7</p>\n  <p class=\"translation-line\">6,5 110 106 94 7</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">8</p>\n  <p class=\"translation-line\">8</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">XS 18.5 19 6,5 105 101 89 6,5 39.5 41 60</p>\n  <p class=\"translation-line\">XS 18.5 19 6,5 105 101 89 6,5 39.5 41 60</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Hem / Bottom rib Neck drop front Shoulder to shoulder Sleeve length</p>\n  <p class=\"translation-line\">下摆/底罗纹 前领深 肩宽 袖长</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">45.5 64 17</p>\n  <p class=\"translation-line\">45.5 64 17（尺寸数值）</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">1/2 Elbow, 30 cm from bottom sleeve 15</p>\n  <p class=\"translation-line\">1/2 袖肘围，距袖口 30 厘米处，15</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">61 15.5 16 11,5 12 21.5 22</p>\n  <p class=\"translation-line\">61 15.5 16 11.5 12 21.5 22（尺寸数值）</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">23</p>\n  <p class=\"translation-line\">23 (页码)</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">1/2 Sleeve opening Armhole (straight) Body length fr HPS</p>\n  <p class=\"translation-line\">半袖口宽 / 袖窿（直）/ 衣长自肩颈点 (HPS)</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Waist strap placement fr armhole</p>\n  <p class=\"translation-line\">腰袢位置自袖窿起量</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Side pockets</p>\n  <p class=\"translation-line\">侧袋</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">11 21 62,5 64 7.5 15</p>\n  <p class=\"translation-line\">尺寸数值：11, 21, 62.5, 64, 7.5, 15</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">8 15</p>\n  <p class=\"translation-line\">尺寸数值：8, 15</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">M 19.5 20 6,5 6,5 115 120 111 116 99 104 7,5 7,5 42.5 44 62 63 16.5 12,5 12,5 22.5 65,5 66,5 66,5 8.5 15 16</p>\n  <p class=\"translation-line\">中码：19.5 20 6.5 6.5 115 120 111 116 99 104 7.5 7.5 42.5 44 62 63 16.5 12.5 12.5 22.5 65.5 66.5 66.5 8.5 15 16 (测量数据)</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">9 9.5 16</p>\n  <p class=\"translation-line\">9 9.5 16 (续上表尺寸数据)</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">UPDATED</p>\n  <p class=\"translation-line\">已更新</p>\n</div>\n  </div>\n</section>",
+          "structuredData": {
+            "caseId": "runtime-generated",
+            "sourceFile": "Macade TP Cici Rain Jacket W.pdf",
+            "title": "原文保留式双语翻译",
+            "outputMode": "bilingual_sections",
+            "sections": [
+              {
+                "id": "overview",
+                "title": "Overview",
+                "summary": "技术规格书第一部分概览，包含面料、位置及物料编码等列标题。 订单概览第二部分，包含数量、尺码、供应商、款号及面料等基础信息字段。 本章节为技术包概述第 3 部分，涵盖款号、计量单位、样品性质及供应商名称。 面料成分、结构规格及款号信息概览，含主辅料定义及用途确认需求。 面料成分、单位及供应商信息段落 文件：Macade TP Cici Rain Jacket W.pdf | 章节：Overview · Part 6。内容涉及面料编号、成分咨询、计量单位及工艺细节描述。 本章节为工艺单第 7 部分概述，主要涉及前中拉链袋、拉链组件构成、具体拉链型号规格（含防水及反向卷装）及品牌标识的技术参数。 Part 8 A Overview: Includes quantity specifications, color codes, and numeric values. Part 8 B 概览：包含弹力织带定义及下摆袖口位置说明。 本章节包含物料来源及辅料规格的基础信息。 Macade TP Cici Rain Jacket W.pdf - Overview Part 10 工艺单片段翻译 第 11 部分概览：辅料类型、应用位置及尺寸规格。 本节为工艺单概览第 12 部分，内容涵盖辅料颜色匹配、数量统计、供应商名单及拉链位置说明。 本章节为工艺单第 13 部分概览，主要涉及辅料规格（Trim）、数量、颜色以及具体的缝制工艺要求（缝纫线、胶带、魔术贴、按扣、拉链头配件等）。 概述部分第 14 页，包含尺寸数值、Logo 位置指示、辅料供应商信息及包装数量规范。 概述部分第 15 段，涉及颜色、款号、尺寸、标签工艺及供应商信息。 辅料、标签及包装工艺要求 第 17 部分概述包含供应商信息、包装规格、数量、颜色及款号与首样阶段标识。 本章节概述了面料审批状态、制作工艺细节（如挂衣钩环）、辅料变更（纽扣及拉链品牌）以及后续样衣阶段安排。 本章节包含 Cici 夹克的尺码表概览及关键测量数据。 第 20A 部分概述：包含 XS 尺码测量数值及服装部位规格定义。 本节主要提供袖部及相关部位的尺寸测量数据与定位说明。 本部分为工艺单第 21 节概览，主要包含关键部位测量定义及对应尺寸数值。 本章节为服装工艺单中的尺码测量数据概览，包含中码（M）的具体数值及更新状态标记。",
+                "segments": [
+                  {
+                    "source": "Fabrics",
+                    "translation": "面料"
+                  },
+                  {
+                    "source": "Placement",
+                    "translation": "位置"
+                  },
+                  {
+                    "source": "Comment",
+                    "translation": "意见"
+                  },
+                  {
+                    "source": "Supplier Material Code",
+                    "translation": "供应商物料编码"
+                  },
+                  {
+                    "source": "Description",
+                    "translation": "描述"
+                  },
+                  {
+                    "source": "Composition Type",
+                    "translation": "成分类型"
+                  },
+                  {
+                    "source": "Quantity UOM Common Color",
+                    "translation": "数量 单位 通用色"
+                  },
+                  {
+                    "source": "Common Designated Size",
+                    "translation": "通用指定尺码"
+                  },
+                  {
+                    "source": "Supplier",
+                    "translation": "供应商"
+                  },
+                  {
+                    "source": "Style",
+                    "translation": "款号"
+                  },
+                  {
+                    "source": "Only for Forecast Product Colors",
+                    "translation": "仅限预测产品颜色"
+                  },
+                  {
+                    "source": "Fabric A",
+                    "translation": "面料 A"
+                  },
+                  {
+                    "source": "Please advise usage",
+                    "translation": "请告知用途"
+                  },
+                  {
+                    "source": "WZ-KTL917-RDWL",
+                    "translation": "款号 WZ-KTL917-RDWL"
+                  },
+                  {
+                    "source": "yd",
+                    "translation": "码 (yd)"
+                  },
+                  {
+                    "source": "As proto sample",
+                    "translation": "作为初样"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "Luyimei Trading Co., Ltd",
+                    "translation": "露伊美贸易有限公司"
+                  },
+                  {
+                    "source": "75% Nylon, Fabric 25% Spandex",
+                    "translation": "面料成分：75% 尼龙，25% 氨纶"
+                  },
+                  {
+                    "source": "3 Layer Light Weight, 20K/20K",
+                    "translation": "3 层轻量结构，防水透气指数 20K/20K"
+                  },
+                  {
+                    "source": "Main fabric",
+                    "translation": "主面料"
+                  },
+                  {
+                    "source": "Fabric B",
+                    "translation": "面料 B"
+                  },
+                  {
+                    "source": "Please advise usage",
+                    "translation": "请告知用途 [待确认]"
+                  },
+                  {
+                    "source": "HLKK538-3DRMW",
+                    "translation": "款号：HLKK538-3DRMW"
+                  },
+                  {
+                    "source": "Fabric",
+                    "translation": "面料"
+                  },
+                  {
+                    "source": "yd",
+                    "translation": "码"
+                  },
+                  {
+                    "source": "As proto sample",
+                    "translation": "作为初样"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "100% Polyester",
+                    "translation": "100% 聚酯纤维"
+                  },
+                  {
+                    "source": "Luyimei Trading Co., Ltd Local Supplier",
+                    "translation": "露易美贸易有限公司 本地供应商"
+                  },
+                  {
+                    "source": "Fabric C",
+                    "translation": "面料 C"
+                  },
+                  {
+                    "source": "Please advise usage and composition",
+                    "translation": "请告知用途及成分"
+                  },
+                  {
+                    "source": "Fabric",
+                    "translation": "面料"
+                  },
+                  {
+                    "source": "yd",
+                    "translation": "码（长度单位）"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "Stretch Panels Mesh in pockets Zippers",
+                    "translation": "口袋弹力网布拼接及拉链"
+                  },
+                  {
+                    "source": "CF zip Pockets",
+                    "translation": "前中拉链袋"
+                  },
+                  {
+                    "source": "Zipper + slider + puller Zipper + slider + puller",
+                    "translation": "拉链 + 拉头 + 拉片（组件重复确认）"
+                  },
+                  {
+                    "source": "Aquaguard zip #5, 2-way Reversed coil zip size #3",
+                    "translation": "Aquaguard 防水拉链#5，双向反向卷装拉链#3"
+                  },
+                  {
+                    "source": "#5 #3",
+                    "translation": "#5 号 #3 号"
+                  },
+                  {
+                    "source": "YKK YKK",
+                    "translation": "YKK 品牌"
+                  },
+                  {
+                    "source": "Zipper Zipper",
+                    "translation": "拉链"
+                  },
+                  {
+                    "source": "1 pcs 2 pcs",
+                    "translation": "1 件 2 件"
+                  },
+                  {
+                    "source": "Black Black",
+                    "translation": "黑色 黑色"
+                  },
+                  {
+                    "source": "0 0",
+                    "translation": "0 0"
+                  },
+                  {
+                    "source": "Webbing Elastic",
+                    "translation": "弹力织带"
+                  },
+                  {
+                    "source": "Bottom hem and sleeve ends",
+                    "translation": "下摆及袖口"
+                  },
+                  {
+                    "source": "Please advise usage.",
+                    "translation": "请告知具体用途"
+                  },
+                  {
+                    "source": "Local Supplier",
+                    "translation": "本地供应商"
+                  },
+                  {
+                    "source": "Trim",
+                    "translation": "辅料"
+                  },
+                  {
+                    "source": "yd",
+                    "translation": "码（单位）"
+                  },
+                  {
+                    "source": "Black",
+                    "translation": "黑色"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "Local Elastic 20mm band",
+                    "translation": "本地 20mm 松紧带"
+                  },
+                  {
+                    "source": "Trims Thread",
+                    "translation": "辅料及缝线"
+                  },
+                  {
+                    "source": "Where needed",
+                    "translation": "按需配置"
+                  },
+                  {
+                    "source": "Local Supplier",
+                    "translation": "本地供应商 [待确认]"
+                  },
+                  {
+                    "source": "Trim",
+                    "translation": "辅料"
+                  },
+                  {
+                    "source": "m",
+                    "translation": "单位：米"
+                  },
+                  {
+                    "source": "Matching",
+                    "translation": "配套/匹配"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "译文：0"
+                  },
+                  {
+                    "source": "yd yd yd yd",
+                    "translation": "译文：码 码 码 码"
+                  },
+                  {
+                    "source": "Tape Tape Velcro Velcro Button",
+                    "translation": "译文：压胶条 压胶条 魔术贴 魔术贴 纽扣"
+                  },
+                  {
+                    "source": "All inner seams At seams At back. See sketch At sleeve ends. See sketch. At CF bottom hem. See sketch.",
+                    "translation": "译文：所有内缝 | 接缝处 | 后片（见图）| 袖口（见图）| 前中下摆（见图）"
+                  },
+                  {
+                    "source": "15mm 10mm 20mm 10mm 14mm",
+                    "translation": "译文：15mm 10mm 20mm 10mm 14mm"
+                  },
+                  {
+                    "source": "Trim Trim Trim Trim Trim",
+                    "translation": "译文：辅料 辅料 辅料 辅料 辅料"
+                  },
+                  {
+                    "source": "Matching Black Black Black Antique Silver",
+                    "translation": "配套色：黑色、黑色、黑色、古银色"
+                  },
+                  {
+                    "source": "0 0 0 0",
+                    "translation": "0 0 0 0"
+                  },
+                  {
+                    "source": "1 pcs",
+                    "translation": "1 件"
+                  },
+                  {
+                    "source": "Bemis? Local Supplier Local Supplier Local Supplier Pinli Limited/Local Supplier Local Supplier",
+                    "translation": "Bemis？本地供应商 本地供应商 本地供应商 Pinli Limited/本地供应商 本地供应商"
+                  },
+                  {
+                    "source": "Zip puller",
+                    "translation": "拉链头"
+                  },
+                  {
+                    "source": "At CF zip + pockets zippers",
+                    "translation": "前中拉链 + 口袋拉链"
+                  },
+                  {
+                    "source": "60mm",
+                    "translation": "60 毫米"
+                  },
+                  {
+                    "source": "Trim",
+                    "translation": "辅料"
+                  },
+                  {
+                    "source": "3 pcs",
+                    "translation": "3 件"
+                  },
+                  {
+                    "source": "Orange",
+                    "translation": "橙色"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "Please advise which thread you use, and usage. Bemis or local tape for all inner seams. \"Gorilla tape\" to cover seams. See sketch Velcro set with hook + loop Velcro set with hook + loop Macade thin logo press button, male + female parts. Zip puller with thin cord + rubber. See sketch. 6 cm when attached to zipper.",
+                    "translation": "请告知所使用的纱线种类及用量。所有内缝请使用 Bemis 或本地胶带。\"Gorilla tape\"用于覆盖接缝。见草图：魔术贴套装（钩面 + 环面）。Macade 薄款 Logo 按扣，含公母扣。拉链头配细绳 + 橡胶。见草图。连接至拉链时长度为 6 厘米。"
+                  },
+                  {
+                    "source": "60mm",
+                    "translation": "60mm"
+                  },
+                  {
+                    "source": "0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "At left hand sleeve + neck. See sketch. Macade logo print At CF cip puller",
+                    "translation": "位于左手袖及领部。见草图。Macade 标志印花在前中拉链头处"
+                  },
+                  {
+                    "source": "Local Supplier Pinli Limited",
+                    "translation": "本地供应商 Pinli Limited [待确认]"
+                  },
+                  {
+                    "source": "Trim Packaging",
+                    "translation": "辅料包装"
+                  },
+                  {
+                    "source": "2 pcs 1 Pcs",
+                    "translation": "2 件 1 件 [待确认]"
+                  },
+                  {
+                    "source": "Black Green",
+                    "translation": "黑绿色"
+                  },
+                  {
+                    "source": "Macade HT",
+                    "translation": "Macade HT"
+                  },
+                  {
+                    "source": "80mm",
+                    "translation": "80mm"
+                  },
+                  {
+                    "source": "At neck, printed on main fabric. Inside left side seam.",
+                    "translation": "领部，主面料印刷。左内缝处。"
+                  },
+                  {
+                    "source": "Macade neck logo print Macade care label",
+                    "translation": "Macade 领标印花，Macade 洗水标"
+                  },
+                  {
+                    "source": "Local Supplier Local Supplier",
+                    "translation": "本地供应商"
+                  },
+                  {
+                    "source": "Trim Trim",
+                    "translation": "辅料"
+                  },
+                  {
+                    "source": "1 pcs 1 pcs",
+                    "translation": "1 件"
+                  },
+                  {
+                    "source": "Black White",
+                    "translation": "黑色 / 白色"
+                  },
+                  {
+                    "source": "0 0",
+                    "translation": "0"
+                  },
+                  {
+                    "source": "External Artwork & Labels Logo Hang tag Internal Artwork & Labels Logo Care label Packaging Polybag",
+                    "translation": "外部图文及标签：Logo 吊牌；内部图文及标签：Logo 洗水标；包装：胶袋"
+                  },
+                  {
+                    "source": "Macade polybag",
+                    "translation": "Macade 品牌胶袋"
+                  },
+                  {
+                    "source": "Local Supplier",
+                    "translation": "本地供应商"
+                  },
+                  {
+                    "source": "Packaging",
+                    "translation": "包装"
+                  },
+                  {
+                    "source": "1 pcs",
+                    "translation": "1 件"
+                  },
+                  {
+                    "source": "White",
+                    "translation": "白色"
+                  },
+                  {
+                    "source": "0 0",
+                    "translation": "0 0"
+                  },
+                  {
+                    "source": "Style Cici Rain Jacket W Stage 1st proto Date",
+                    "translation": "款号：Cici Rain Jacket W | 阶段：首样 | 日期"
+                  },
+                  {
+                    "source": "2026-03-10",
+                    "translation": "2026 年 3 月 10 日 [待确认]"
+                  },
+                  {
+                    "source": "Fabric",
+                    "translation": "面料"
+                  },
+                  {
+                    "source": "Main fabric + stretch panel fabric approved",
+                    "translation": "主面料 + 弹力拼接面料已获批"
+                  },
+                  {
+                    "source": "Making General making is good Please note: we added hanger loop in main fabric at CB neck. See sketch.",
+                    "translation": "制作工艺：整体制作良好。请注意：我们在后领中缝（CB neck）的主面料上增加了挂衣钩环。见草图。"
+                  },
+                  {
+                    "source": "Trims Added a button at CF bottom hem. See BOM and sketch. Uptaded zips to YKK for bulk",
+                    "translation": "辅料：前中下摆处增加了一颗纽扣。见 BOM 和草图。大货拉链更新为 YKK [待确认]"
+                  },
+                  {
+                    "source": "Next step 2nd proto/SMS",
+                    "translation": "下一步：第 2 版原型样/销售样 (SMS)"
+                  },
+                  {
+                    "source": "Size chart Cici Jacket",
+                    "translation": "Cici 夹克尺码表"
+                  },
+                  {
+                    "source": "S",
+                    "translation": "S 码"
+                  },
+                  {
+                    "source": "Neck (straight) Collar height CB",
+                    "translation": "领围（直）后中领高"
+                  },
+                  {
+                    "source": "Chest Waist",
+                    "translation": "胸围 腰围"
+                  },
+                  {
+                    "source": "2026-03-10 L XL 20.5 6,5 125 121 109",
+                    "translation": "2026-03-10 [待确认] L XL 20.5 6,5 125 121 109"
+                  },
+                  {
+                    "source": "6,5 110 106 94 7",
+                    "translation": "6,5 110 106 94 7"
+                  },
+                  {
+                    "source": "8",
+                    "translation": "8"
+                  },
+                  {
+                    "source": "XS 18.5 19 6,5 105 101 89 6,5 39.5 41 60",
+                    "translation": "XS 18.5 19 6,5 105 101 89 6,5 39.5 41 60"
+                  },
+                  {
+                    "source": "Hem / Bottom rib Neck drop front Shoulder to shoulder Sleeve length",
+                    "translation": "下摆/底罗纹 前领深 肩宽 袖长"
+                  },
+                  {
+                    "source": "45.5 64 17",
+                    "translation": "45.5 64 17（尺寸数值）"
+                  },
+                  {
+                    "source": "1/2 Elbow, 30 cm from bottom sleeve 15",
+                    "translation": "1/2 袖肘围，距袖口 30 厘米处，15"
+                  },
+                  {
+                    "source": "61 15.5 16 11,5 12 21.5 22",
+                    "translation": "61 15.5 16 11.5 12 21.5 22（尺寸数值）"
+                  },
+                  {
+                    "source": "23",
+                    "translation": "23 (页码)"
+                  },
+                  {
+                    "source": "1/2 Sleeve opening Armhole (straight) Body length fr HPS",
+                    "translation": "半袖口宽 / 袖窿（直）/ 衣长自肩颈点 (HPS)"
+                  },
+                  {
+                    "source": "Waist strap placement fr armhole",
+                    "translation": "腰袢位置自袖窿起量"
+                  },
+                  {
+                    "source": "Side pockets",
+                    "translation": "侧袋"
+                  },
+                  {
+                    "source": "11 21 62,5 64 7.5 15",
+                    "translation": "尺寸数值：11, 21, 62.5, 64, 7.5, 15"
+                  },
+                  {
+                    "source": "8 15",
+                    "translation": "尺寸数值：8, 15"
+                  },
+                  {
+                    "source": "M 19.5 20 6,5 6,5 115 120 111 116 99 104 7,5 7,5 42.5 44 62 63 16.5 12,5 12,5 22.5 65,5 66,5 66,5 8.5 15 16",
+                    "translation": "中码：19.5 20 6.5 6.5 115 120 111 116 99 104 7.5 7.5 42.5 44 62 63 16.5 12.5 12.5 22.5 65.5 66.5 66.5 8.5 15 16 (测量数据)"
+                  },
+                  {
+                    "source": "9 9.5 16",
+                    "translation": "9 9.5 16 (续上表尺寸数据)"
+                  },
+                  {
+                    "source": "UPDATED",
+                    "translation": "已更新"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "label": "术语提示",
+          "value": "Fabrics / Placement / Comment / Supplier Material Code / Description / Composition Type / Quantity / UOM / Common Color / Designated Size / Supplier / Style / Forecast Product / Fabric A / WZ-KTL917-RDWL / yd / proto sample / Luyimei Trading Co., Ltd / Nylon / Spandex / 3 Layer / 20K/20K / Main fabric / Fabric B / HLKK538-3DRMW / Fabric / Polyester / Local Supplier / Fabric C / Usage / Composition / Stretch Panels / Mesh / Pockets / Zippers / CF zip Pockets / Zipper / Slider / Puller / Aquaguard / 2-way Reversed coil zip / YKK / #5 / #3 / pcs / Black / Webbing Elastic / Bottom hem / Sleeve ends / Trim / Elastic / 20mm band / Trims / Thread / Matching / Tape / Velcro / Button / Inner seams / CF / Hem / Antique Silver / Zip puller / CF (Center Front) / Pinli Limited / Bemis / Gorilla tape / Hook + loop / Press button / Cord / Rubber / 60mm / Left hand sleeve / Neck / Sketch / Macade logo print / Zipper puller / Trim Packaging / Black Green / Macade HT / Main Fabric / Neck Logo Print / Care Label / Hang tag / Care label / Polybag / Artwork / Labels / Packaging / Rain Jacket / Proto (Prototype) / 1st proto / Stretch panel fabric / CB neck / Hanger loop / CF bottom hem / BOM / Zips / Proto / SMS / Size chart / Cici Jacket / Collar height / CB / Chest / Waist / XS / Bottom rib / Neck drop front / Shoulder to shoulder / Sleeve length / Elbow / Sleeve / Bottom Sleeve / Measurement / Sleeve opening / Armhole / Body length / HPS (High Point Shoulder) / Waist strap / Side pockets / Size M / Measurements / Updated",
+          "citation": "Macade TP Cici Rain Jacket W.pdf"
+        }
+      ]
+    }
+  ],
+  "pendingConfirmations": [
+    {
+      "id": "feedback-pending-1",
+      "label": "overview-23",
+      "reason": "需客户确认面料具体用途，影响后续生产安排",
+      "owner": "sales",
+      "status": "required"
+    },
+    {
+      "id": "feedback-pending-2",
+      "label": "Local Supplier",
+      "reason": "涉及供应链地点变更，需确认本地采购可行性及物流成本影响",
+      "owner": "sales",
+      "status": "required"
+    },
+    {
+      "id": "feedback-pending-3",
+      "label": "Local Supplier Pinli Limited",
+      "reason": "指定本地供应商可能影响供应链稳定性及交期，需确认",
+      "owner": "sales",
+      "status": "required"
+    },
+    {
+      "id": "feedback-pending-4",
+      "label": "Trim Packaging Quantity (2 pcs 1 Pcs)",
+      "reason": "包装数量描述存在冲突（2 件 vs 1 件），涉及物流装箱标准",
+      "owner": "sales",
+      "status": "required"
+    },
+    {
+      "id": "feedback-pending-5",
+      "label": "2026-03-10",
+      "reason": "涉及交期/时间节点确认，需明确是否为最终大货交期或样衣截止日。",
+      "owner": "sales",
+      "status": "required"
+    },
+    {
+      "id": "feedback-pending-6",
+      "label": "Updated zips to YKK for bulk",
+      "reason": "涉及大货辅料规格变更（拉链品牌），需确认对成本和交期的潜在影响。",
+      "owner": "sales",
+      "status": "required"
+    },
+    {
+      "id": "feedback-pending-7",
+      "label": "2026-03-10",
+      "reason": "疑似交期或截单日期，需确认具体业务含义",
+      "owner": "sales",
+      "status": "required"
+    }
+  ],
+  "task": null
+}

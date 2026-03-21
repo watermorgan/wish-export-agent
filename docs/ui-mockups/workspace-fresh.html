@@ -1,0 +1,650 @@
+<!doctype html>
+
+<html class="light" lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>外贸助手 V1 - Fresh &amp; Lively</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#818cf8", // Periwinkle Blue (Indigo-400)
+              secondary: "#fda4af", // Peach Pink (Rose-300)
+              "success-mint": "#34d399", // Mint Green
+              "risk-coral": "#fb923c", // Coral Orange
+              ivory: "#f9fafb", // Ivory White (bg-stone-50 approach)
+              surface: "#ffffff",
+              "on-surface": "#1e293b",
+              outline: "#94a3b8",
+            },
+            fontFamily: {
+              headline: ["Manrope", "sans-serif"],
+              body: ["Manrope", "sans-serif"],
+              label: ["Plus Jakarta Sans", "sans-serif"],
+            },
+            borderRadius: {
+              DEFAULT: "1rem",
+              lg: "1.5rem",
+              xl: "2rem",
+              "2xl": "2.5rem",
+              full: "9999px",
+            },
+            boxShadow: {
+              soft: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+              float: "0 10px 30px -5px rgba(129, 140, 248, 0.15)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+        vertical-align: middle;
+      }
+      .bg-gradient-soft {
+        background: linear-gradient(135deg, #fdf2f8 0%, #eef2ff 100%);
+      }
+      .hover-float {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .hover-float:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+  <body class="bg-ivory font-body text-on-surface selection:bg-primary/20">
+    <!-- Sidebar Navigation -->
+    <aside
+      class="hidden md:flex flex-col h-screen p-8 overflow-y-auto bg-white w-80 fixed left-0 top-0 border-r border-slate-100 font-['Plus_Jakarta_Sans']"
+    >
+      <div class="flex items-center gap-3 mb-12">
+        <div
+          class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-primary/20"
+        >
+          A
+        </div>
+        <div class="text-2xl font-black text-slate-800 tracking-tight">
+          The Atelier
+        </div>
+      </div>
+      <div
+        class="flex items-center gap-4 mb-10 p-4 bg-indigo-50/50 rounded-2xl"
+      >
+        <div
+          class="w-12 h-12 rounded-full border-2 border-white overflow-hidden shadow-sm"
+        >
+          <img
+            alt="User Avatar"
+            class="w-full h-full object-cover"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9JTW85lhwU_fDKOMcZTcO62UFZlPW_8f86Bj392a5Dobvcl-BsHmI5Tv0_gGEkX-n1Oq46wofP2Enfckfjc0TqFldd1IEvU2iW66usxzDyG_sL8HyxHc4VTk-HoSegQUHENxrIdv9-jJVN2Gi2I8CgyO3aTuiAahkp1-ZIDlviqIRXS0-k3lKwBacWoeIdnMhHH_MwGkAR9PoIiC-N-brR7HaTaVdE1yLHUrLSH2zZsXsGsMVpxrs-TgkJvKybCRb0vAEa1uuwD8"
+          />
+        </div>
+        <div>
+          <p class="text-slate-900 font-bold leading-none">The Atelier</p>
+          <p
+            class="text-[10px] text-primary font-bold uppercase tracking-widest mt-1"
+          >
+            Professional ✨
+          </p>
+        </div>
+      </div>
+      <nav class="flex-1 space-y-2">
+        <a
+          class="bg-primary/10 text-primary rounded-2xl px-5 py-4 flex items-center gap-4 font-bold transition-all"
+          href="#"
+        >
+          <span class="material-symbols-outlined text-xl" data-icon="grid_view"
+            >grid_view</span
+          >
+          <span>Workspace ✨</span>
+        </a>
+        <a
+          class="text-slate-500 px-5 py-4 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-all"
+          href="#"
+        >
+          <span class="material-symbols-outlined text-xl" data-icon="assignment"
+            >assignment</span
+          >
+          <span>Task Details</span>
+        </a>
+        <a
+          class="text-slate-500 px-5 py-4 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-all"
+          href="#"
+        >
+          <span
+            class="material-symbols-outlined text-xl"
+            data-icon="verified_user"
+            >verified_user</span
+          >
+          <span>Audit Queue 📝</span>
+        </a>
+        <a
+          class="text-slate-500 px-5 py-4 hover:bg-slate-50 rounded-2xl flex items-center gap-4 transition-all"
+          href="#"
+        >
+          <span
+            class="material-symbols-outlined text-xl"
+            data-icon="dashboard_customize"
+            >dashboard_customize</span
+          >
+          <span>Templates</span>
+        </a>
+      </nav>
+      <div class="mt-auto pt-6">
+        <div class="bg-ivory p-5 rounded-2xl border border-slate-100">
+          <div class="flex justify-between items-center mb-3">
+            <p
+              class="text-xs font-bold text-slate-400 uppercase tracking-tight"
+            >
+              Capacity
+            </p>
+            <span class="text-xs font-bold text-primary">65%</span>
+          </div>
+          <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+            <div class="bg-primary h-full w-[65%] rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <!-- Main Content -->
+    <main class="md:ml-80 min-h-screen pb-20">
+      <!-- Header -->
+      <header
+        class="sticky top-0 z-40 bg-ivory/80 backdrop-blur-xl px-8 py-5 flex justify-between items-center"
+      >
+        <div
+          class="text-lg font-extrabold text-slate-800 flex items-center gap-2"
+        >
+          <span class="bg-secondary/20 p-1.5 rounded-lg text-secondary">
+            <span
+              class="material-symbols-outlined !text-sm"
+              data-icon="auto_awesome"
+              >auto_awesome</span
+            >
+          </span>
+          外贸助手 V1
+        </div>
+        <div class="flex items-center gap-6">
+          <div
+            class="hidden lg:flex bg-white shadow-soft rounded-full p-1 border border-slate-100"
+          >
+            <button
+              class="bg-primary text-white rounded-full px-6 py-2 text-sm font-bold shadow-lg shadow-primary/20"
+            >
+              Salesperson
+            </button>
+            <button
+              class="text-slate-400 px-6 py-2 text-sm font-bold hover:text-primary transition-colors"
+            >
+              Supervisor
+            </button>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              class="w-11 h-11 flex items-center justify-center bg-white shadow-soft border border-slate-100 rounded-full hover:bg-slate-50 transition-all text-slate-400"
+            >
+              <span class="material-symbols-outlined" data-icon="notifications"
+                >notifications</span
+              >
+            </button>
+            <div
+              class="h-11 w-11 rounded-full border-2 border-primary/20 p-0.5 shadow-soft"
+            >
+              <img
+                alt="User profile"
+                class="w-full h-full rounded-full object-cover"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrHzg0Scm2Fo9LRXxAgwUdyNyYXdazEvtmGrsT0GDJkF0T0MznmKjcF6nJdXQS7RrCPjUcbbnbeKqbQVqdml-RG7lW3K2D64a0bc-UzwB85H7Y8kvG9PIUOidmKQRGduWGkl4Os6uj3cTegx77E3RRt-4bVOijO4vw40qYtLTOV3WKq4ILX61RmUWWWCI0Q6ny0VfK0AInegKFvcr42rP9ng5H9nCoukOBZPcPuT0Akf4Unn53aqJtfyQoT62DBYNuecqWOp5pVrA"
+              />
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="px-8 py-10 max-w-7xl mx-auto">
+        <!-- Greeting Section -->
+        <div class="mb-12">
+          <h1
+            class="font-headline text-5xl font-black text-slate-900 tracking-tight mb-3"
+          >
+            Good morning, ✨
+          </h1>
+          <p class="text-slate-400 text-lg font-medium">
+            愿你今天的工作也充满灵感与效率。
+          </p>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <!-- Left: Task Initiation (7/12) -->
+          <section class="lg:col-span-7 space-y-10">
+            <!-- Task Selection -->
+            <div>
+              <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-800">选择任务类型</h2>
+                <a
+                  class="text-primary text-sm font-bold flex items-center gap-1.5 hover:underline decoration-2"
+                  href="#"
+                >
+                  Browse Template Library ✨
+                </a>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <!-- BOM Card (Active) -->
+                <div
+                  class="cursor-pointer border-2 border-primary bg-white p-7 rounded-2xl flex flex-col items-center text-center gap-4 shadow-float"
+                >
+                  <div
+                    class="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-primary"
+                  >
+                    <span
+                      class="material-symbols-outlined text-3xl"
+                      data-icon="inventory_2"
+                      >inventory_2</span
+                    >
+                  </div>
+                  <div>
+                    <p class="font-black text-slate-800">📦 BOM 整理</p>
+                    <p
+                      class="text-[10px] text-primary/60 font-bold uppercase mt-1"
+                    >
+                      Smart Sorting
+                    </p>
+                  </div>
+                </div>
+                <!-- Translation Card -->
+                <div
+                  class="cursor-pointer border-2 border-transparent bg-white p-7 rounded-2xl flex flex-col items-center text-center gap-4 hover-float"
+                >
+                  <div
+                    class="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400"
+                  >
+                    <span
+                      class="material-symbols-outlined text-3xl"
+                      data-icon="translate"
+                      >translate</span
+                    >
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-500">🌐 意见翻译与归并</p>
+                  </div>
+                </div>
+                <!-- Draft Card -->
+                <div
+                  class="cursor-pointer border-2 border-transparent bg-white p-7 rounded-2xl flex flex-col items-center text-center gap-4 hover-float"
+                >
+                  <div
+                    class="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400"
+                  >
+                    <span
+                      class="material-symbols-outlined text-3xl"
+                      data-icon="mail"
+                      >mail</span
+                    >
+                  </div>
+                  <div>
+                    <p class="font-bold text-slate-500">💌 客户回复草拟</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Chain Flow -->
+              <div class="mt-6 flex items-center gap-3">
+                <div
+                  class="bg-primary/10 text-primary px-5 py-2 rounded-full text-xs font-extrabold flex items-center gap-2"
+                >
+                  <span>✨ 智能解析</span>
+                </div>
+                <span
+                  class="material-symbols-outlined text-slate-300 text-sm"
+                  data-icon="arrow_forward"
+                  >arrow_forward</span
+                >
+                <div
+                  class="bg-secondary/10 text-secondary px-5 py-2 rounded-full text-xs font-extrabold flex items-center gap-2"
+                >
+                  <span>📋 BOM 结构化</span>
+                </div>
+              </div>
+            </div>
+            <!-- Upload Section -->
+            <div class="space-y-5">
+              <div class="relative group">
+                <div
+                  class="w-full h-72 border-3 border-dashed border-indigo-100 bg-white rounded-2xl flex flex-col items-center justify-center text-center p-10 transition-all group-hover:bg-indigo-50/30 group-hover:border-primary/30"
+                >
+                  <div
+                    class="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6 text-primary shadow-sm"
+                  >
+                    <span
+                      class="material-symbols-outlined text-4xl"
+                      data-icon="cloud_upload"
+                      >cloud_upload</span
+                    >
+                  </div>
+                  <p class="text-slate-800 text-lg font-bold">
+                    把需要处理的 PDF、Excel 拖到这里吧 ~
+                  </p>
+                  <p class="text-slate-400 text-sm mt-2 font-medium">
+                    (最多 5 个，单文件 20MB 以内)
+                  </p>
+                </div>
+              </div>
+              <!-- File List -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  class="flex items-center justify-between bg-white p-5 rounded-2xl shadow-soft border border-slate-50"
+                >
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-10 h-10 bg-success-mint/10 rounded-xl flex items-center justify-center text-success-mint"
+                    >
+                      <span
+                        class="material-symbols-outlined text-xl"
+                        data-icon="description"
+                        >description</span
+                      >
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold text-slate-700 leading-none">
+                        Spring_Catalog_V2.xlsx
+                      </p>
+                      <p
+                        class="text-[10px] text-slate-400 mt-1 font-bold uppercase"
+                      >
+                        1.2 MB
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-success-mint font-black text-[10px] uppercase tracking-wider"
+                  >
+                    <span
+                      class="material-symbols-outlined !text-sm"
+                      data-icon="check_circle"
+                      >check_circle</span
+                    >
+                    解析成功
+                  </div>
+                </div>
+                <div
+                  class="flex items-center justify-between bg-white p-5 rounded-2xl shadow-soft border border-slate-50"
+                >
+                  <div class="flex items-center gap-4">
+                    <div
+                      class="w-10 h-10 bg-success-mint/10 rounded-xl flex items-center justify-center text-success-mint"
+                    >
+                      <span
+                        class="material-symbols-outlined text-xl"
+                        data-icon="picture_as_pdf"
+                        >picture_as_pdf</span
+                      >
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold text-slate-700 leading-none">
+                        Packing_List_Final.pdf
+                      </p>
+                      <p
+                        class="text-[10px] text-slate-400 mt-1 font-bold uppercase"
+                      >
+                        4.8 MB
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5 text-success-mint font-black text-[10px] uppercase tracking-wider"
+                  >
+                    <span
+                      class="material-symbols-outlined !text-sm"
+                      data-icon="check_circle"
+                      >check_circle</span
+                    >
+                    解析成功
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Textarea -->
+            <div class="space-y-3">
+              <label
+                class="text-sm font-bold text-slate-600 px-1 ml-1 flex items-center gap-2"
+              >
+                特别说明
+                <span
+                  class="text-[10px] text-slate-300 font-bold uppercase tracking-widest"
+                  >(Optional)</span
+                >
+              </label>
+              <textarea
+                class="w-full rounded-2xl bg-white border-2 border-slate-50 p-6 text-slate-800 placeholder:text-slate-300 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all min-h-[140px] shadow-soft"
+                placeholder="这单客人有什么特殊要求吗？或者需要我特别注意什么..."
+              ></textarea>
+            </div>
+            <!-- Action -->
+            <button
+              class="w-full py-6 bg-gradient-to-r from-primary to-indigo-500 text-white rounded-3xl font-black text-xl shadow-xl shadow-primary/30 hover:shadow-2xl hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-4"
+            >
+              <span>✨ 开始魔法处理 (Start Task)</span>
+              <span
+                class="material-symbols-outlined text-2xl"
+                data-icon="auto_awesome"
+                >auto_awesome</span
+              >
+            </button>
+          </section>
+          <!-- Right: Risks & Recent (5/12) -->
+          <aside class="lg:col-span-5 space-y-10">
+            <!-- Pending Confirmations -->
+            <div
+              class="bg-white rounded-2xl overflow-hidden shadow-float border border-slate-50"
+            >
+              <div
+                class="bg-indigo-50/50 px-8 py-5 flex items-center justify-between"
+              >
+                <div class="flex items-center gap-3">
+                  <span class="text-xl">💡</span>
+                  <h3 class="font-bold text-slate-800">待您确认 (Pending)</h3>
+                </div>
+                <span
+                  class="bg-secondary text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest"
+                  >Action Needed</span
+                >
+              </div>
+              <div class="p-8 space-y-6">
+                <!-- Risk 1 -->
+                <div
+                  class="bg-white p-5 rounded-2xl border border-indigo-50 shadow-soft space-y-4"
+                >
+                  <div class="flex items-start gap-4">
+                    <div
+                      class="w-8 h-8 rounded-lg bg-risk-coral/10 flex items-center justify-center text-risk-coral shrink-0"
+                    >
+                      <span
+                        class="material-symbols-outlined text-lg"
+                        data-icon="warning"
+                        >warning</span
+                      >
+                    </div>
+                    <p
+                      class="text-sm text-slate-700 font-medium leading-relaxed"
+                    >
+                      <span class="font-black text-risk-coral">[价格异常]</span>
+                      款式 A 报价好像低于历史底价哦 (必须确认)
+                    </p>
+                  </div>
+                  <div class="flex justify-end">
+                    <button
+                      class="bg-primary/5 text-primary px-5 py-2 rounded-xl text-xs font-black hover:bg-primary hover:text-white transition-all"
+                    >
+                      去看看 (Go check)
+                    </button>
+                  </div>
+                </div>
+                <!-- Risk 2 -->
+                <div
+                  class="bg-white p-5 rounded-2xl border border-indigo-50 shadow-soft space-y-4"
+                >
+                  <div class="flex items-start gap-4">
+                    <div
+                      class="w-8 h-8 rounded-lg bg-risk-coral/10 flex items-center justify-center text-risk-coral shrink-0"
+                    >
+                      <span
+                        class="material-symbols-outlined text-lg"
+                        data-icon="event_busy"
+                        >event_busy</span
+                      >
+                    </div>
+                    <p
+                      class="text-sm text-slate-700 font-medium leading-relaxed"
+                    >
+                      <span class="font-black text-risk-coral">[交期冲突]</span>
+                      附件 1 里的交期跟客人邮件对不上 (必须确认)
+                    </p>
+                  </div>
+                  <div class="flex justify-end">
+                    <button
+                      class="bg-primary/5 text-primary px-5 py-2 rounded-xl text-xs font-black hover:bg-primary hover:text-white transition-all"
+                    >
+                      去看看 (Go check)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Recent Tasks -->
+            <div>
+              <div class="flex items-center gap-3 px-2 mb-6">
+                <span class="text-xl">📝</span>
+                <h3 class="font-bold text-slate-800">
+                  最近任务 (Recent Tasks)
+                </h3>
+              </div>
+              <div
+                class="bg-white rounded-2xl shadow-soft border border-slate-50 divide-y divide-slate-50"
+              >
+                <!-- Task 1 -->
+                <div
+                  class="p-6 hover:bg-indigo-50/20 transition-all group first:rounded-t-2xl"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="space-y-1">
+                      <p
+                        class="text-sm font-black text-slate-800 group-hover:text-primary transition-colors"
+                      >
+                        Summer Polo BOM Update
+                      </p>
+                      <p
+                        class="text-[10px] text-slate-400 font-bold uppercase tracking-wider"
+                      >
+                        2 hours ago
+                      </p>
+                    </div>
+                    <span
+                      class="bg-slate-100 text-slate-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                      >Draft</span
+                    >
+                  </div>
+                </div>
+                <!-- Task 2 -->
+                <div class="p-6 hover:bg-indigo-50/20 transition-all group">
+                  <div class="flex items-center justify-between">
+                    <div class="space-y-1">
+                      <p
+                        class="text-sm font-black text-slate-800 group-hover:text-primary transition-colors"
+                      >
+                        Client Feedback Analysis
+                      </p>
+                      <p
+                        class="text-[10px] text-slate-400 font-bold uppercase tracking-wider"
+                      >
+                        Yesterday
+                      </p>
+                    </div>
+                    <span
+                      class="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                      >Pending</span
+                    >
+                  </div>
+                </div>
+                <!-- Task 3 -->
+                <div
+                  class="p-6 hover:bg-indigo-50/20 transition-all group last:rounded-b-2xl"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="space-y-1">
+                      <p
+                        class="text-sm font-black text-slate-800 group-hover:text-primary transition-colors"
+                      >
+                        March Quotation Sheet
+                      </p>
+                      <p
+                        class="text-[10px] text-slate-400 font-bold uppercase tracking-wider"
+                      >
+                        Mar 12, 2024
+                      </p>
+                    </div>
+                    <span
+                      class="bg-success-mint/10 text-success-mint px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"
+                      >Approved</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <button
+                class="w-full mt-6 py-4 border-2 border-dashed border-slate-100 rounded-2xl text-slate-400 text-sm font-black hover:bg-white hover:border-primary/20 hover:text-primary transition-all"
+              >
+                View All History 📖
+              </button>
+            </div>
+            <!-- Banner -->
+            <div
+              class="relative overflow-hidden h-44 rounded-3xl bg-gradient-to-br from-primary to-indigo-600 p-8 flex items-end shadow-xl shadow-primary/20"
+            >
+              <div class="relative z-10">
+                <p class="text-white font-black text-2xl leading-tight">
+                  Create with <br />
+                  Confidence.
+                </p>
+                <p
+                  class="text-white/60 text-xs font-bold mt-2 uppercase tracking-widest"
+                >
+                  Design System v1.4.2 ✨
+                </p>
+              </div>
+              <span
+                class="absolute -right-6 -top-6 text-9xl opacity-10 rotate-12"
+                >🚀</span
+              >
+              <div class="absolute top-0 right-0 p-6">
+                <div
+                  class="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center text-white"
+                >
+                  <span
+                    class="material-symbols-outlined"
+                    data-icon="auto_fix_high"
+                    >auto_fix_high</span
+                  >
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <!-- Mobile Bottom Spacer -->
+      <div class="h-10 md:hidden"></div>
+    </main>
+  </body>
+</html>

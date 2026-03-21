@@ -10,7 +10,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/Users/weitao/workspace/apps/export-agent"
+        "/Users/weitao/Documents/buildworld/aigc/export-agent"
       ],
       "description": "Filesystem access limited to this repository"
     },
@@ -23,7 +23,7 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "REPLACE_ME"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
       },
       "description": "Optional GitHub PR and issue operations"
     }

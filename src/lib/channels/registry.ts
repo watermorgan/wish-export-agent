@@ -17,8 +17,10 @@ export function toAssistantRequest(
 ): AssistantRequest {
   return {
     channel: inbound.channel,
+    role: 'sales',
     question: inbound.messageText,
     files: inbound.files,
+    selectedSkillIds: [],
     conversationId: inbound.conversation?.threadId ?? inbound.conversation?.id,
     userId: inbound.user?.id,
     rawPayload: inbound.rawPayload

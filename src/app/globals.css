@@ -2,27 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
 :root {
-  --font-body: 'Manrope', 'Avenir Next', 'PingFang SC', sans-serif;
-  --font-display: 'Manrope', 'Space Grotesk', sans-serif;
-  --bg: #f9fafb;
-  --panel: rgba(255, 255, 255, 0.9);
-  --panel-strong: #ffffff;
-  --ink: #1e293b;
-  --muted: #94a3b8;
-  --accent: #818cf8;
-  --accent-soft: #eef2ff;
-  --signal: #fb923c;
-  --success: #34d399;
-  --line: rgba(129, 140, 248, 0.12);
-  --shadow: 0 10px 30px -5px rgba(129, 140, 248, 0.15);
+  /* Default: Professional Theme */
+  --color-primary: #123524;
+  --color-secondary: #c95f2d;
+  --color-success-mint: #16a34a;
+  --color-risk-coral: #c95f2d;
+  --color-ivory: #f3ede2;
+  --color-on-surface: #132117;
+  --color-surface: #fffaf2;
+  --color-outline: rgba(18, 53, 36, 0.12);
+
+  --font-headline: 'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-body: 'Avenir Next', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-label: 'Avenir Next', 'PingFang SC', sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', 'Times New Roman', serif;
+
+  --radius-default: 28px;
+  --radius-lg: 32px;
+  --radius-xl: 40px;
+  --radius-2xl: 48px;
+
+  --shadow-soft: 0 24px 80px rgba(19, 33, 23, 0.12);
+  --shadow-float: 0 32px 96px rgba(19, 33, 23, 0.16);
+
+  /* Legacy variables from original CSS for compatibility */
+  --bg: var(--color-ivory);
+  --panel: rgba(255, 250, 242, 0.9);
+  --panel-strong: var(--color-surface);
+  --ink: var(--color-on-surface);
+  --muted: #5e6c61;
+  --accent: var(--color-primary);
+  --accent-soft: #d8edd2;
+  --signal: var(--color-risk-coral);
+  --line: var(--color-outline);
+  --shadow: var(--shadow-soft);
 }
 
-@layer base {
-  .material-symbols-outlined {
-    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-    vertical-align: middle;
-  }
+[data-theme='fresh'] {
+  --color-primary: #818cf8;
+  --color-secondary: #fda4af;
+  --color-success-mint: #34d399;
+  --color-risk-coral: #fb923c;
+  --color-ivory: #f9fafb;
+  --color-on-surface: #1e293b;
+  --color-surface: #ffffff;
+  --color-outline: #94a3b8;
+
+  --font-headline: var(--font-manrope);
+  --font-body: var(--font-manrope);
+  --font-label: var(--font-plus-jakarta-sans);
+
+  --radius-default: 1rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
+  --radius-2xl: 2.5rem;
+
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  --shadow-float: 0 10px 30px -5px rgba(129, 140, 248, 0.15);
+
+  --muted: #94a3b8;
+  --accent-soft: rgba(129, 140, 248, 0.1);
+  --panel: var(--color-surface);
+  --panel-strong: var(--color-surface);
+  --shadow: var(--shadow-soft);
+  --line: #f1f5f9;
 }
 
 * {
@@ -31,10 +77,18 @@
 
 html {
   min-height: 100%;
+}
+
+[data-theme='professional'] html,
+html:not([data-theme]) {
   background:
     radial-gradient(circle at top left, rgba(201, 95, 45, 0.18), transparent 28%),
     radial-gradient(circle at top right, rgba(45, 113, 201, 0.12), transparent 24%),
     linear-gradient(180deg, #f8f3ea 0%, #f3ede2 100%);
+}
+
+[data-theme='fresh'] html {
+  background: linear-gradient(135deg, #fdf2f8 0%, #eef2ff 100%);
 }
 
 body {
@@ -42,6 +96,16 @@ body {
   min-height: 100vh;
   color: var(--ink);
   font-family: var(--font-body), 'Noto Sans SC', sans-serif;
+  background: var(--bg);
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  vertical-align: middle;
 }
 
 a {
@@ -62,10 +126,11 @@ textarea {
 
 .panel {
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: var(--radius-default);
   background: var(--panel);
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
+  padding: 24px;
 }
 
 .workspace-topbar {
@@ -106,10 +171,6 @@ textarea {
   margin-top: 20px;
 }
 
-.panel {
-  padding: 24px;
-}
-
 .panel-header {
   display: flex;
   justify-content: space-between;
@@ -139,10 +200,10 @@ textarea {
 .dropzone {
   position: relative;
   padding: 24px;
-  border: 1.5px dashed rgba(18, 53, 36, 0.25);
+  border: 1.5px dashed var(--line);
   border-radius: 24px;
   background:
-    linear-gradient(135deg, rgba(216, 237, 210, 0.8), rgba(255, 250, 242, 0.88));
+    linear-gradient(135deg, var(--accent-soft), var(--panel));
 }
 
 .dropzone strong {
@@ -204,7 +265,7 @@ textarea {
 
 .choice-card {
   padding: 16px;
-  border: 1px solid rgba(18, 53, 36, 0.12);
+  border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--panel-strong);
   text-align: left;
@@ -218,7 +279,7 @@ textarea {
 
 .choice-card:hover {
   transform: translateY(-1px);
-  border-color: rgba(18, 53, 36, 0.28);
+  border-color: var(--color-primary);
 }
 
 .choice-card strong {
@@ -234,9 +295,9 @@ textarea {
 }
 
 .choice-card-active {
-  border-color: rgba(18, 53, 36, 0.48);
+  border-color: var(--color-primary);
   background:
-    linear-gradient(135deg, rgba(216, 237, 210, 0.8), rgba(255, 250, 242, 0.98));
+    linear-gradient(135deg, var(--accent-soft), var(--panel-strong));
   box-shadow: 0 8px 22px rgba(18, 53, 36, 0.08);
 }
 
@@ -247,7 +308,7 @@ textarea {
   padding: 14px 16px;
   border-radius: 18px;
   background: var(--panel-strong);
-  border: 1px solid rgba(18, 53, 36, 0.08);
+  border: 1px solid var(--line);
 }
 
 .file-name {
@@ -275,7 +336,7 @@ textarea {
   width: 100%;
   min-height: 140px;
   padding: 16px 18px;
-  border: 1px solid rgba(18, 53, 36, 0.14);
+  border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--panel-strong);
   resize: vertical;
@@ -284,8 +345,8 @@ textarea {
 }
 
 .composer textarea:focus {
-  border-color: rgba(18, 53, 36, 0.45);
-  box-shadow: 0 0 0 5px rgba(18, 53, 36, 0.08);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 5px var(--accent-soft);
 }
 
 .chip-row {
@@ -301,7 +362,7 @@ textarea {
   border-radius: 999px;
   background: #fff;
   color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(18, 53, 36, 0.14);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .chip:hover {
@@ -333,7 +394,7 @@ textarea {
   padding: 0 22px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #123524 0%, #1e6b4e 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 100%);
   color: #fff;
   font-weight: 700;
   cursor: pointer;
@@ -347,7 +408,7 @@ textarea {
 .secondary-button {
   min-height: 44px;
   padding: 0 18px;
-  border: 1px solid rgba(18, 53, 36, 0.18);
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel-strong);
   color: var(--accent);
@@ -383,7 +444,7 @@ textarea {
   padding: 18px;
   border-radius: 22px;
   background: var(--panel-strong);
-  border: 1px solid rgba(18, 53, 36, 0.08);
+  border: 1px solid var(--line);
 }
 
 .answer-card h3 {
@@ -411,7 +472,7 @@ textarea {
 
 .confirmation-item {
   background: var(--bg);
-  border: 1px solid rgba(18, 53, 36, 0.1);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
   display: flex;
@@ -526,7 +587,7 @@ textarea {
   padding: 12px 14px;
   border-radius: 14px;
   background: rgba(18, 53, 36, 0.03);
-  border: 1px solid rgba(18, 53, 36, 0.08);
+  border: 1px solid var(--line);
 }
 
 .bilingual-block + .bilingual-block {
@@ -603,7 +664,7 @@ textarea {
   bottom: 8px;
   left: -6px;
   width: 2px;
-  background: rgba(18, 53, 36, 0.1);
+  background: var(--line);
   border-radius: 2px;
 }
 
@@ -611,7 +672,7 @@ textarea {
 .audit-item {
   padding: 12px 16px;
   border-radius: 12px;
-  border: 1px solid rgba(18, 53, 36, 0.08);
+  border: 1px solid var(--line);
   background: var(--bg);
   position: relative;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);

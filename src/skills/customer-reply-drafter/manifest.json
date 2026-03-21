@@ -1,0 +1,11 @@
+{
+  "id": "customer-reply-drafter",
+  "name": "客户回复草拟",
+  "purpose": "基于客户上下文生成可审校的英文回复草稿。",
+  "inputRequirements": ["客户上下文或邮件", "相关附件", "任务目标"],
+  "outputSchema": ["英文回复草稿", "中文备注", "缺失信息清单", "待确认承诺项"],
+  "reviewCheckpoints": ["价格", "交期", "认证", "付款", "物流"],
+  "composableWith": [],
+  "riskLevel": "high",
+  "taskTypes": ["reply"]
+}

@@ -1,9 +1,10 @@
 import type {
   ChannelAdapter,
   ChannelWebhookResponse,
-  NormalizedInboundMessage,
-  ParsedChannelWebhook
+  ParsedChannelWebhook,
+  ChannelConversation
 } from '@/lib/channels/types';
+import type { AssistantReply, ChannelMessage } from '@/lib/assistant/types';
 import { formatReplyAsPlainText } from '@/lib/channels/formatters';
 
 type FeishuEventHeader = {
@@ -12,6 +13,7 @@ type FeishuEventHeader = {
 
 type FeishuEventMessage = {
   chat_id?: string;
+  message_id?: string;
   message_type?: string;
   content?: string;
 };
@@ -52,7 +54,7 @@ function buildUnsupported(reason: string): ParsedChannelWebhook {
   };
 }
 
-function parseFeishuWebhook(payload: unknown): ParsedChannelWebhook {
+async function parseFeishuWebhook(payload: unknown): Promise<ParsedChannelWebhook> {
   const body = (payload ?? {}) as FeishuEventPayload;
 
   if (body.type === 'url_verification' && typeof body.challenge === 'string') {
@@ -92,37 +94,52 @@ function parseFeishuWebhook(payload: unknown): ParsedChannelWebhook {
       },
       conversation: {
         id: chatId,
-        threadId: chatId
+        threadId: chatId,
+        type: chatId?.startsWith('oc_') ? 'group' : 'p2p'
       },
       rawPayload: payload
     }
   };
 }
 
-function buildFeishuResponse(
-  reply: Parameters<ChannelAdapter['formatWebhookResponse']>[0],
-  inbound: NormalizedInboundMessage
+function buildFeishuSyncResponse(
+  parsed: ParsedChannelWebhook
 ): ChannelWebhookResponse {
+  if (parsed.kind === 'challenge') {
+    return {
+      status: 200,
+      body: parsed.body
+    };
+  }
+
   return {
     status: 200,
     body: {
       ok: true,
       channel: 'feishu',
-      delivery: 'out_of_band',
-      conversationId: inbound.conversation?.id ?? null,
-      preview: {
-        msg_type: 'text',
-        content: {
-          text: formatReplyAsPlainText(reply)
-        }
-      },
-      note: 'Feishu event callbacks should ack quickly. Send the preview via Feishu send-message API or bot webhook in an async worker later.'
+      note: 'Feishu events should be acknowledged quickly. Use the async send() method for the actual reply.'
     }
   };
 }
 
 export const feishuAdapter: ChannelAdapter = {
-  channel: 'feishu',
-  parseWebhook: (payload) => parseFeishuWebhook(payload),
-  formatWebhookResponse: (reply, inbound) => buildFeishuResponse(reply, inbound)
+  channel: 'feishu' as const,
+
+  parseWebhook: async (payload) => parseFeishuWebhook(payload),
+
+  formatSyncResponse: (parsed) => buildFeishuSyncResponse(parsed),
+
+  formatReply: async (reply: AssistantReply): Promise<ChannelMessage> => {
+    // V1 Default: Format as plain text for maximum compatibility
+    return {
+      kind: 'text',
+      content: formatReplyAsPlainText(reply)
+    };
+  },
+
+  send: async (conversation: ChannelConversation, message: ChannelMessage): Promise<void> => {
+    console.log(`[FeishuAdapter] Sending async message to ${conversation.id}:`, message.content.slice(0, 50));
+    // Implementation: Call Feishu OpenAPI with BOT_TOKEN
+    return Promise.resolve();
+  }
 };

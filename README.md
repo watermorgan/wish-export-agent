@@ -1,12 +1,13 @@
 # Wish Export Agent
 
-面向非技术外贸团队的上传问答与日常办公助手。
+面向非技术外贸团队的技能卡片式外贸工作台。
 
 ## 已完成骨架
 - 独立 Git 仓库
 - Codex bridge / memory / skills 基线
-- `Next.js + PWA + 上传问答` 前后端骨架
-- 一个可替换的服务端 mock agent 接口
+- `Next.js + PWA + Web 工作台` 前后端骨架
+- 静态 `Skill Catalog + Workflow Template + Execution Plan` 底层结构
+- 一个可替换的服务端 mock 编排接口，已支持待确认项和执行摘要
 
 ## 运行
 ```bash
@@ -16,7 +17,20 @@ npm run dev
 
 打开 [http://localhost:3000](http://localhost:3000)。
 
+## PostgreSQL 持久化
+应用现在支持两种 PostgreSQL 配置方式：
+- `DATABASE_URL=postgresql://user:password@host:port/dbname`
+- `DATABASE_JDBC_URL + DATABASE_USERNAME + DATABASE_PASSWORD + DATABASE_NAME`
+
+初始化库表：
+```bash
+npm run db:init
+```
+
+如果只提供了 JDBC 地址而没有库名，默认会创建并使用 `export_agent`。
+
 ## 当前目录结构
+- `docs/product/`: 产品需求、架构、流程与技能编排基础文档
 - `src/app/`: Next.js App Router 页面、PWA manifest、API routes
 - `src/components/`: 前端工作台组件
 - `src/lib/assistant/`: 智能体 mock 逻辑与输入校验
@@ -28,15 +42,22 @@ npm run dev
 
 ## 当前能力
 - 上传多文件
-- 输入外贸工作问题
-- 服务端返回摘要、建议动作、风险提示和回复方向
+- 选择任务类型、技能卡片和模板链
+- 服务端返回执行计划、中间产物、待确认项和审计摘要
+- 已支持任务持久化接口、最近任务列表、提交审核、主管通过/退回、导出动作
 - PWA manifest 已就位，后续可继续完善离线与安装体验
 - 已预留 bot 扩展层，网页端和 Feishu 可复用同一套 agent 服务
 
 ## 下一步建议
-1. 明确首批 3 条业务工作流：
-   询盘总结、英文回复草拟、报价前检查
-2. 接入真实文件解析与知识检索
-3. 将 `src/app/api/assistant/route.ts` 替换成真实模型编排
-4. 加入登录、团队工作台和历史记录
-5. 把 `src/app/api/channels/[channel]/webhook/route.ts` 接到 Feishu 真实回调和发送器
+1. 把 `src/lib/assistant/execution.ts` 的 mock 编排替换成真实技能执行
+2. 把当前 PostgreSQL 持久化从单表快照升级成领域表结构和审计子表
+3. 接入真实文件解析、知识检索和引用片段
+4. 增加模板发布、版本记录和审核队列页面
+5. 加入登录、团队工作台和历史记录
+6. 把 `src/app/api/channels/[channel]/webhook/route.ts` 接到 Feishu 真实回调和发送器
+
+## 产品文档
+- [产品文档索引](./docs/product/README.md)
+
+## 提示词
+- [提示词包索引](./docs/prompts/README.md)

@@ -1,0 +1,177 @@
+{
+  "summary": "已完成 4 个章节的原文保留式双语翻译。",
+  "artifacts": [
+    {
+      "title": "原文保留式双语翻译",
+      "kind": "text",
+      "summary": "保留英文原文，在其下方追加中文翻译，供样衣与业务沟通使用。",
+      "fields": [
+        {
+          "label": "双语对照输出",
+          "value": "已生成 4 个章节、29 条英中对照内容。",
+          "citation": "Cici Rain Jacket - sketch.pdf",
+          "richTextHtml": "<section class=\"fixture-section\">\n  <header class=\"fixture-section-header\">\n    <h3>Overview</h3>\n    <p>概述部分第 1 页，主要涉及款式展示方式及工艺图标准说明</p>\n  </header>\n  <div class=\"fixture-segment-list\">\n    <div class=\"bilingual-block\">\n  <p class=\"source-line\">On body</p>\n  <p class=\"translation-line\">上身效果</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Clean sketch</p>\n  <p class=\"translation-line\">清晰工艺图</p>\n</div>\n  </div>\n</section>\n<section class=\"fixture-section\">\n  <header class=\"fixture-section-header\">\n    <h3>Quality</h3>\n    <p>本章节主要涉及服装质量部分的面料类型定义。</p>\n  </header>\n  <div class=\"fixture-segment-list\">\n    <div class=\"bilingual-block\">\n  <p class=\"source-line\">Main fabric</p>\n  <p class=\"translation-line\">主面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Stretch fabric</p>\n  <p class=\"translation-line\">弹力面料</p>\n</div>\n  </div>\n</section>\n<section class=\"fixture-section\">\n  <header class=\"fixture-section-header\">\n    <h3>Details OP1</h3>\n    <p>雨夹克细节工艺单第一部分 A 段，涵盖肩部材质、拉链规格及缝制工艺要求。 本节为雨衣工艺单细节部分 B，主要描述外观装饰（织带）、面料功能属性（防水防风）及辅料工艺（硅胶标）。 Details OP1 Part 2 包含雨衣的工艺细节说明，涉及面料、袖子结构、接缝处理、拉链规格及闭合方式等。 Details OP1 Part 3 翻译：包含魔术贴闭合、Logo 位置与尺寸、背部调节及样衣修改要求的工艺单细节。 雨衣细节工艺单第 4 部分，涵盖面料织带、口袋配件、拉链头规格及衣身颜色要求。</p>\n  </header>\n  <div class=\"fixture-segment-list\">\n    <div class=\"bilingual-block\">\n  <p class=\"source-line\">Stretch quailty over shoulders</p>\n  <p class=\"translation-line\">肩部采用弹力面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Aquaguard zip in contrast colour</p>\n  <p class=\"translation-line\">撞色 Aquaguard 防水拉链</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Taped seams with visible contrast tape</p>\n  <p class=\"translation-line\">压胶缝位配可见撞色压胶条</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">VALUE DRIVER: Contrast coloured tape details</p>\n  <p class=\"translation-line\">价值驱动点：撞色织带细节</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Lightweight water and windproof</p>\n  <p class=\"translation-line\">轻量级防水防风面料</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Silicone logo glued to fabric, 61x15 mm wide, upraised print material Centered at neck</p>\n  <p class=\"translation-line\">硅胶标胶合于面料，宽 61x15 毫米，凸起印刷材质，领口居中</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Shell fabric hanger loop Artwork sent seperately at neck</p>\n  <p class=\"translation-line\">面料挂衣钩。图案设计稿单独发送，位于领口处。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Set-in sleeve - remove raglan cut Stretch fabric at back for Aqua guard zip size #5, better movement 2 way zip</p>\n  <p class=\"translation-line\">装袖 - 取消插肩剪裁。后背使用弹力面料，适配 5 号防水拉链，双向拉链，便于活动。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Taped seams in contrast colour. Must be flexible and soft No side seam</p>\n  <p class=\"translation-line\">撞色压胶条缝。要求柔软且灵活。无侧缝。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Reversed coil zip size #3 at hidden pockets, micro fibre towel attached in string inside of pocket, see sep images for details</p>\n  <p class=\"translation-line\">隐藏口袋处使用 3 号反向线圈拉链，口袋内用绳子系有超细纤维毛巾，详情见单独图片。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Gathered elastic at bottom hem, see sep image for ref 3 cm</p>\n  <p class=\"translation-line\">下摆处松紧抽褶，参考单独图片，3 厘米。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Velcro closing, see sep image for making and shape. Shellfabric strap with velcro at back Gathering 3 cm in height</p>\n  <p class=\"translation-line\">魔术贴闭合，制作及形状详见单独图片。背部面料带配有魔术贴，抽褶高度 3 厘米。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Velcro closing, see sep image for making and shape. Shellfabric strap with velcro at back</p>\n  <p class=\"translation-line\">魔术贴闭合，制作和形状详见单独图片。面料带子背面配有魔术贴。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Silicone logo glued to fabric, upraised print, 61x15 mm wide Centered at sleeve, 11 cm from bottom edge</p>\n  <p class=\"translation-line\">硅胶 Logo 胶印于面料，凸起印刷，宽 61x15 毫米。位于袖子正中，距下摆边缘 11 厘米。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Velcro runs from front seam</p>\n  <p class=\"translation-line\">魔术贴从前缝线处起始。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Velcro at back for fit adjustment as image</p>\n  <p class=\"translation-line\">背部魔术贴用于调节合身度，如图所示。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Please make velcro 3 cm longer for next sample</p>\n  <p class=\"translation-line\">请为下一件样衣将魔术贴加长 3 厘米。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Add logo metal press button at bottom hem, as image 10 MM 14 MM Colour, Antique Silver Sleeve velcro as image</p>\n  <p class=\"translation-line\">下摆处增加 Logo 金属按扣，如图，尺寸 10MM x 14MM，颜色：古银色。袖子魔术贴参照图片。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Shellfabric strap with velcro at back, glued edges Sleeve straps 2,5 cm Side straps 3,5 cm</p>\n  <p class=\"translation-line\">面料织带背面配魔术贴，边缘胶合。袖带 2.5 厘米，侧带 3.5 厘米。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Inside microfibre towel attached with string inside right hand side pocket</p>\n  <p class=\"translation-line\">右侧口袋内附挂绳超细纤维毛巾。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Ref image zip puller + contrast string dipped in rubber</p>\n  <p class=\"translation-line\">参考图片拉链头 + 对比色橡胶浸塑拉绳。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Used at top puller at CF + side pockets C/W 1</p>\n  <p class=\"translation-line\">用于前中（CF）顶部拉链头及侧袋，与 1 号色一致（C/W 1）。</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Body: Col as first prototype</p>\n  <p class=\"translation-line\">衣身：颜色同首样。</p>\n</div>\n  </div>\n</section>\n<section class=\"fixture-section\">\n  <header class=\"fixture-section-header\">\n    <h3>References</h3>\n    <p>雨衣工艺参考部分 1，主要涉及防水拉链及下摆袖口松紧细节的技术要求。</p>\n  </header>\n  <div class=\"fixture-segment-list\">\n    <div class=\"bilingual-block\">\n  <p class=\"source-line\">Aquaguard zip as image</p>\n  <p class=\"translation-line\">防水拉链（Aquaguard），款式参照图片</p>\n</div>\n<div class=\"bilingual-block\">\n  <p class=\"source-line\">Bottom hem and sleeve gathering with visible elastic as image</p>\n  <p class=\"translation-line\">下摆及袖口抽褶，配外露松紧带，款式参照图片</p>\n</div>\n  </div>\n</section>",
+          "structuredData": {
+            "caseId": "runtime-generated",
+            "sourceFile": "Cici Rain Jacket - sketch.pdf",
+            "title": "原文保留式双语翻译",
+            "outputMode": "bilingual_sections",
+            "sections": [
+              {
+                "id": "overview",
+                "title": "Overview",
+                "summary": "概述部分第 1 页，主要涉及款式展示方式及工艺图标准说明",
+                "segments": [
+                  {
+                    "source": "On body",
+                    "translation": "上身效果"
+                  },
+                  {
+                    "source": "Clean sketch",
+                    "translation": "清晰工艺图"
+                  }
+                ]
+              },
+              {
+                "id": "quality",
+                "title": "Quality",
+                "summary": "本章节主要涉及服装质量部分的面料类型定义。",
+                "segments": [
+                  {
+                    "source": "Main fabric",
+                    "translation": "主面料"
+                  },
+                  {
+                    "source": "Stretch fabric",
+                    "translation": "弹力面料"
+                  }
+                ]
+              },
+              {
+                "id": "details-op1",
+                "title": "Details OP1",
+                "summary": "雨夹克细节工艺单第一部分 A 段，涵盖肩部材质、拉链规格及缝制工艺要求。 本节为雨衣工艺单细节部分 B，主要描述外观装饰（织带）、面料功能属性（防水防风）及辅料工艺（硅胶标）。 Details OP1 Part 2 包含雨衣的工艺细节说明，涉及面料、袖子结构、接缝处理、拉链规格及闭合方式等。 Details OP1 Part 3 翻译：包含魔术贴闭合、Logo 位置与尺寸、背部调节及样衣修改要求的工艺单细节。 雨衣细节工艺单第 4 部分，涵盖面料织带、口袋配件、拉链头规格及衣身颜色要求。",
+                "segments": [
+                  {
+                    "source": "Stretch quailty over shoulders",
+                    "translation": "肩部采用弹力面料"
+                  },
+                  {
+                    "source": "Aquaguard zip in contrast colour",
+                    "translation": "撞色 Aquaguard 防水拉链"
+                  },
+                  {
+                    "source": "Taped seams with visible contrast tape",
+                    "translation": "压胶缝位配可见撞色压胶条"
+                  },
+                  {
+                    "source": "VALUE DRIVER: Contrast coloured tape details",
+                    "translation": "价值驱动点：撞色织带细节"
+                  },
+                  {
+                    "source": "Lightweight water and windproof",
+                    "translation": "轻量级防水防风面料"
+                  },
+                  {
+                    "source": "Silicone logo glued to fabric, 61x15 mm wide, upraised print material Centered at neck",
+                    "translation": "硅胶标胶合于面料，宽 61x15 毫米，凸起印刷材质，领口居中"
+                  },
+                  {
+                    "source": "Shell fabric hanger loop Artwork sent seperately at neck",
+                    "translation": "面料挂衣钩。图案设计稿单独发送，位于领口处。"
+                  },
+                  {
+                    "source": "Set-in sleeve - remove raglan cut Stretch fabric at back for Aqua guard zip size #5, better movement 2 way zip",
+                    "translation": "装袖 - 取消插肩剪裁。后背使用弹力面料，适配 5 号防水拉链，双向拉链，便于活动。"
+                  },
+                  {
+                    "source": "Taped seams in contrast colour. Must be flexible and soft No side seam",
+                    "translation": "撞色压胶条缝。要求柔软且灵活。无侧缝。"
+                  },
+                  {
+                    "source": "Reversed coil zip size #3 at hidden pockets, micro fibre towel attached in string inside of pocket, see sep images for details",
+                    "translation": "隐藏口袋处使用 3 号反向线圈拉链，口袋内用绳子系有超细纤维毛巾，详情见单独图片。"
+                  },
+                  {
+                    "source": "Gathered elastic at bottom hem, see sep image for ref 3 cm",
+                    "translation": "下摆处松紧抽褶，参考单独图片，3 厘米。"
+                  },
+                  {
+                    "source": "Velcro closing, see sep image for making and shape. Shellfabric strap with velcro at back Gathering 3 cm in height",
+                    "translation": "魔术贴闭合，制作及形状详见单独图片。背部面料带配有魔术贴，抽褶高度 3 厘米。"
+                  },
+                  {
+                    "source": "Velcro closing, see sep image for making and shape. Shellfabric strap with velcro at back",
+                    "translation": "魔术贴闭合，制作和形状详见单独图片。面料带子背面配有魔术贴。"
+                  },
+                  {
+                    "source": "Silicone logo glued to fabric, upraised print, 61x15 mm wide Centered at sleeve, 11 cm from bottom edge",
+                    "translation": "硅胶 Logo 胶印于面料，凸起印刷，宽 61x15 毫米。位于袖子正中，距下摆边缘 11 厘米。"
+                  },
+                  {
+                    "source": "Velcro runs from front seam",
+                    "translation": "魔术贴从前缝线处起始。"
+                  },
+                  {
+                    "source": "Velcro at back for fit adjustment as image",
+                    "translation": "背部魔术贴用于调节合身度，如图所示。"
+                  },
+                  {
+                    "source": "Please make velcro 3 cm longer for next sample",
+                    "translation": "请为下一件样衣将魔术贴加长 3 厘米。"
+                  },
+                  {
+                    "source": "Add logo metal press button at bottom hem, as image 10 MM 14 MM Colour, Antique Silver Sleeve velcro as image",
+                    "translation": "下摆处增加 Logo 金属按扣，如图，尺寸 10MM x 14MM，颜色：古银色。袖子魔术贴参照图片。"
+                  },
+                  {
+                    "source": "Shellfabric strap with velcro at back, glued edges Sleeve straps 2,5 cm Side straps 3,5 cm",
+                    "translation": "面料织带背面配魔术贴，边缘胶合。袖带 2.5 厘米，侧带 3.5 厘米。"
+                  },
+                  {
+                    "source": "Inside microfibre towel attached with string inside right hand side pocket",
+                    "translation": "右侧口袋内附挂绳超细纤维毛巾。"
+                  },
+                  {
+                    "source": "Ref image zip puller + contrast string dipped in rubber",
+                    "translation": "参考图片拉链头 + 对比色橡胶浸塑拉绳。"
+                  },
+                  {
+                    "source": "Used at top puller at CF + side pockets C/W 1",
+                    "translation": "用于前中（CF）顶部拉链头及侧袋，与 1 号色一致（C/W 1）。"
+                  },
+                  {
+                    "source": "Body: Col as first prototype",
+                    "translation": "衣身：颜色同首样。"
+                  }
+                ]
+              },
+              {
+                "id": "references",
+                "title": "References",
+                "summary": "雨衣工艺参考部分 1，主要涉及防水拉链及下摆袖口松紧细节的技术要求。",
+                "segments": [
+                  {
+                    "source": "Aquaguard zip as image",
+                    "translation": "防水拉链（Aquaguard），款式参照图片"
+                  },
+                  {
+                    "source": "Bottom hem and sleeve gathering with visible elastic as image",
+                    "translation": "下摆及袖口抽褶，配外露松紧带，款式参照图片"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "label": "术语提示",
+          "value": "On body / Clean sketch / Main fabric / Stretch fabric / Aquaguard zip / Contrast colour / Taped seams / Contrast tape / VALUE DRIVER / Contrast coloured tape / Lightweight / waterproof / windproof / Silicone logo / upraised print material / Shell fabric / Hanger loop / Set-in sleeve / Raglan cut / Aqua guard zip / 2 way zip / Coil zip / Micro fibre towel / Velcro / Hem / Shellfabric / upraised print / press button / Antique Silver / velcro / glued edges / microfibre towel / zip puller / contrast string / dipped in rubber / CF / C/W / prototype / Bottom hem / Sleeve gathering / Visible elastic",
+          "citation": "Cici Rain Jacket - sketch.pdf"
+        }
+      ]
+    }
+  ],
+  "pendingConfirmations": [],
+  "task": null
+}

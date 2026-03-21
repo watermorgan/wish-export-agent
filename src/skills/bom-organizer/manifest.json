@@ -1,0 +1,11 @@
+{
+  "id": "bom-organizer",
+  "name": "BOM 整理",
+  "purpose": "把工艺单和相关资料整理成结构化 BOM。",
+  "inputRequirements": ["工艺单文件", "面辅料说明或批注", "任务目标"],
+  "outputSchema": ["BOM 初稿", "缺失字段清单", "冲突字段清单", "待确认项"],
+  "reviewCheckpoints": ["规格/单位/颜色/损耗", "图文不一致项", "低置信抽取字段"],
+  "composableWith": [],
+  "riskLevel": "medium",
+  "taskTypes": ["bom"]
+}

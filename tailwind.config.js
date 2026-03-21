@@ -1,39 +1,42 @@
-import forms from '@tailwindcss/forms';
-import containerQueries from '@tailwindcss/container-queries';
-
+/* eslint-disable @typescript-eslint/no-require-imports */
 /** @type {import('tailwindcss').Config} */
-export default {
+module.exports = {
   content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
-        "primary": "#818cf8", // Periwinkle Blue (Indigo-400)
-        "secondary": "#fda4af", // Peach Pink (Rose-300)
-        "success-mint": "#34d399", // Mint Green
-        "risk-coral": "#fb923c", // Coral Orange
-        "ivory": "#f9fafb", // Ivory White (bg-stone-50 approach)
-        "surface": "#ffffff",
-        "on-surface": "#1e293b",
-        "outline": "#94a3b8"
+        primary: "var(--color-primary)",
+        secondary: "var(--color-secondary)",
+        "success-mint": "var(--color-success-mint)",
+        "risk-coral": "var(--color-risk-coral)",
+        ivory: "var(--color-ivory)",
+        "on-surface": "var(--color-on-surface)",
+        surface: "var(--color-surface)",
+        outline: "var(--color-outline)",
       },
       fontFamily: {
-        "headline": ["Manrope", "sans-serif"],
-        "body": ["Manrope", "sans-serif"],
-        "label": ["Plus Jakarta Sans", "sans-serif"]
+        headline: ["var(--font-headline)", "sans-serif"],
+        body: ["var(--font-body)", "sans-serif"],
+        label: ["var(--font-label)", "sans-serif"],
+      },
+      borderRadius: {
+        DEFAULT: "var(--radius-default)",
+        lg: "var(--radius-lg)",
+        xl: "var(--radius-xl)",
+        "2xl": "var(--radius-2xl)",
+        full: "9999px",
       },
       boxShadow: {
-        "soft": "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
-        "float": "0 10px 30px -5px rgba(129, 140, 248, 0.15)"
-      }
+        soft: "var(--shadow-soft)",
+        float: "var(--shadow-float)",
+      },
     },
   },
   plugins: [
-    forms,
-    containerQueries,
+    require("@tailwindcss/forms"),
+    require("@tailwindcss/container-queries"),
   ],
-}
-
+};

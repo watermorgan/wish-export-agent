@@ -10,13 +10,7 @@
     "manifest": "./memory/manifest.json",
     "acceptance_criteria": "./memory/acceptance-criteria.md",
     "role_mapping": {
-      "refactor": "role-technology.md",
-      "test": "role-qa-security.md",
-      "product": "role-presales-pm.md",
-      "ops": "role-project-ops.md",
-      "data": "role-data-knowledge.md",
-      "assistant": "role-assistant.md",
-      "boundaries": "role-execution-boundaries.md"
+      "boundaries": "execution-boundaries.md"
     }
   },
   "execution_logic": "Before using external skills or tools, filter decisions through local memory constraints and acceptance criteria. If critical product, compliance, or customer data is missing, stop and request a human decision.",
@@ -39,4 +33,3 @@
     ]
   }
 }
-
