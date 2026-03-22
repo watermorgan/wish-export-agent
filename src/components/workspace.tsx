@@ -57,10 +57,10 @@ export function Workspace() {
     >
       {/* Greeting Section */}
       <div className="mb-12">
-        <h1 className="font-headline text-5xl font-black text-slate-900 tracking-tight mb-3">
+        <h1 className="font-headline text-5xl font-black text-on-surface tracking-tight mb-3">
           Good morning, ✨
         </h1>
-        <p className="text-slate-400 text-lg font-medium">
+        <p className="text-muted text-lg font-medium">
           愿你今天的工作也充满灵感与效率。
         </p>
       </div>

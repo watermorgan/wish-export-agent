@@ -20,12 +20,12 @@ export function Header({
 }: HeaderProps) {
   return (
     <header
-      className="sticky top-0 z-40 bg-ivory/80 backdrop-blur-xl px-8 py-5 flex justify-between items-center border-b border-line/10"
+      className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl px-8 py-5 flex justify-between items-center border-b border-outline/10"
     >
       <div
         className="text-lg font-extrabold text-on-surface flex items-center gap-2"
       >
-        <span className="bg-secondary/20 p-1.5 rounded-lg text-secondary">
+        <span className="bg-secondary-soft p-1.5 rounded-lg text-secondary">
           <span
             className="material-symbols-outlined !text-sm"
           >auto_awesome</span>
@@ -35,15 +35,15 @@ export function Header({
       <div className="flex items-center gap-6">
         {/* Role Switcher */}
         <div
-          className="hidden lg:flex bg-surface shadow-soft rounded-full p-1 border border-line"
+          className="hidden lg:flex bg-ivory shadow-inner rounded-full p-1 border border-outline"
         >
           <button
             onClick={() => onRoleChange("sales")}
             className={`${
               role === "sales"
-                ? "bg-primary text-white shadow-lg shadow-primary/20"
-                : "text-muted hover:text-primary"
-            } rounded-full px-6 py-2 text-sm font-bold transition-all`}
+                ? "bg-primary text-white shadow-lg shadow-soft"
+                : "text-muted hover:text-primary hover:bg-white/50"
+            } rounded-full px-6 py-2 text-sm font-bold transition-all duration-200`}
           >
             Salesperson
           </button>
@@ -51,9 +51,9 @@ export function Header({
             onClick={() => onRoleChange("supervisor")}
             className={`${
               role === "supervisor"
-                ? "bg-primary text-white shadow-lg shadow-primary/20"
-                : "text-muted hover:text-primary"
-            } rounded-full px-6 py-2 text-sm font-bold transition-all`}
+                ? "bg-primary text-white shadow-lg shadow-soft"
+                : "text-muted hover:text-primary hover:bg-white/50"
+            } rounded-full px-6 py-2 text-sm font-bold transition-all duration-200`}
           >
             Supervisor
           </button>
@@ -63,7 +63,7 @@ export function Header({
           {/* Theme Toggle */}
           <button
             onClick={onThemeToggle}
-            className="w-11 h-11 flex items-center justify-center bg-surface shadow-soft border border-line rounded-full hover:bg-ivory transition-all text-muted"
+            className="w-11 h-11 flex items-center justify-center bg-surface shadow-soft border border-outline rounded-full hover:bg-ivory transition-all text-muted"
             title={`Switch to ${theme === 'professional' ? 'Fresh' : 'Professional'} theme`}
           >
             <span className="material-symbols-outlined">
@@ -73,7 +73,7 @@ export function Header({
 
           {/* Notifications */}
           <button
-            className="w-11 h-11 flex items-center justify-center bg-surface shadow-soft border border-line rounded-full hover:bg-ivory transition-all text-muted relative"
+            className="w-11 h-11 flex items-center justify-center bg-surface shadow-soft border border-outline rounded-full hover:bg-ivory transition-all text-muted relative"
           >
             <span className="material-symbols-outlined">notifications</span>
             {pendingReviewCount > 0 && (

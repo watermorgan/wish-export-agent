@@ -123,7 +123,7 @@ export type ReviewEntry = {
 export type AssistantReplyMetadata = {
   needsHumanReview: boolean;
   providerHits?: string[];
-  translationMode?: 'fixture' | 'whole-document' | 'section-chunked';
+  translationMode?: 'real' | 'fixture' | 'whole-document' | 'section-chunked';
 };
 
 export type AssistantRequest = {

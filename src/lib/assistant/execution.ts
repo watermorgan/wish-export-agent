@@ -7,6 +7,9 @@ import {
   workflowTemplates
 } from '@/lib/assistant/catalog';
 import { loadSkillPrompt } from '@/lib/assistant/prompt-loader';
+import { generateWithAvailableProvider } from '@/lib/assistant/llm/router';
+import { parseFullResult, type ParsedStepResult } from '@/lib/assistant/parser';
+import { buildFeedbackSourceReference, type FeedbackSourceReference } from '@/lib/assistant/feedback-source';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -20,6 +23,20 @@ import type {
   ValidationIssue,
   WorkflowTemplate
 } from '@/lib/assistant/types';
+
+export interface StepResult {
+  skillId: string;
+  skillName: string;
+  rawText: string;
+  artifacts?: ParsedStepResult;
+}
+
+export interface CumulativeContext {
+  files: UploadedFile[];
+  question: string;
+  previousResults: StepResult[];
+  structuredSource?: FeedbackSourceReference | null;
+}
 
 const taskTypeKeywordMap: Record<TaskType, string[]> = {
   bom: ['bom', '工艺单', '面辅料', '辅料', '料号', '规格'],
@@ -139,7 +156,7 @@ function buildExecutionPlan(
     status: blocked && index === 0 ? 'blocked' : 'completed',
     summary: blocked
       ? '执行前校验未通过，当前步骤等待补齐输入后重试。'
-      : `已完成 ${skill.name} 的模拟执行，并生成结构化中间产物。`
+      : `已完成 ${skill.name} 的编排执行，并提取结构化产物。`
   }));
 }
 
@@ -427,7 +444,7 @@ function buildAuditTrail(
   ];
 }
 
-export function buildAssistantReply(request: AssistantRequest): AssistantReply {
+export async function runAssistant(request: AssistantRequest): Promise<AssistantReply> {
   const taskType = request.taskType ?? inferTaskType(request.question);
   const taskTypeLabel =
     taskTypeOptions.find((option) => option.id === taskType)?.label ?? '客户回复草拟';
@@ -437,27 +454,113 @@ export function buildAssistantReply(request: AssistantRequest): AssistantReply {
   const executionPlan = buildExecutionPlan(selectedSkills, validationIssues);
   const pendingConfirmations = buildPendingConfirmations(taskType);
 
-  // Draft integration for Prompt Loader:
-  // In P2 (Real LLM Orchestration), this is where the engine will inject the
-  // loaded prompt.md into the context window for actual API calls.
-  // For now, we load it just to prove the wiring works without leaking into the frontend schema.
+  if (blocked) {
+    return {
+      intent: taskType,
+      intentLabel: taskTypeLabel,
+      role: request.role,
+      status: 'blocked',
+      statusLabel: '已阻断',
+      reviewStatus: 'not_submitted',
+      reviewStatusLabel: '未提交审核',
+      summary: `已按“${taskTypeLabel}”生成执行计划，但当前输入仍存在阻断项，系统不会继续生成可用完成稿。`,
+      nextActions: buildNextActions(taskType, validationIssues),
+      riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
+      draftDirection: buildDraftDirection(taskType),
+      taskType,
+      taskTypeLabel,
+      skillCatalog,
+      templates: workflowTemplates,
+      selectedSkills,
+      selectedTemplate,
+      executionPlan,
+      pendingConfirmations,
+      blockingIssues: validationIssues.filter((issue) => issue.severity === 'blocking'),
+      validationIssues,
+      artifacts: buildArtifacts(taskType, request.question, request.files),
+      auditTrail: buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
+      metadata: {
+        needsHumanReview: true,
+        translationMode: 'fixture'
+      }
+    };
+  }
+
+  // Real LLM Orchestration Loop
+  const previousResults: StepResult[] = [];
+  const providerHits: string[] = [];
+  let accumulatedArtifacts: ArtifactSection[] = [];
+  let accumulatedConfirmations: PendingConfirmation[] = [...pendingConfirmations];
+
   for (const skill of selectedSkills) {
-    loadSkillPrompt(skill.id); // Validates fs read is working on server
+    const systemPrompt = loadSkillPrompt(skill.id);
+    
+    // Enrich context for specific skills
+    let structuredSource = undefined;
+    if (skill.id === 'comment-translator' && request.files.length > 0) {
+      // Pick the most relevant source file
+      const sourceFile = [...request.files]
+        .filter((file) => file.contentText && file.contentText.trim().length > 0)
+        .sort((left, right) => (right.contentText?.length ?? 0) - (left.contentText?.length ?? 0))[0];
+      
+      if (sourceFile) {
+        structuredSource = buildFeedbackSourceReference(sourceFile);
+      }
+    }
+
+    const context: CumulativeContext = {
+      files: request.files,
+      question: request.question,
+      previousResults,
+      structuredSource
+    };
+
+    const userPrompt = [
+      `User Question: ${request.question}`,
+      '',
+      '--- Cumulative Context ---',
+      JSON.stringify(context, null, 2),
+      '',
+      '--- End Context ---'
+    ].join('\n');
+
+    const result = await generateWithAvailableProvider({
+      system: systemPrompt || 'You are a helpful assistant specializing in trade export processes.',
+      user: userPrompt
+    });
+
+    providerHits.push(result.provider);
+
+    const parsed = parseFullResult(result.text, skill.id);
+
+    const stepResult: StepResult = {
+      skillId: skill.id,
+      skillName: skill.name,
+      // Keep full text for internal tracking, but truncate if it's exceptionally large
+      // to avoid overwhelming context in subsequent steps if necessary.
+      // However, parseFullResult results are already in accumulatedArtifacts.
+      rawText: result.text.length > 3000 ? result.text.slice(0, 3000) + '... (truncated)' : result.text,
+      artifacts: parsed
+    };
+    previousResults.push(stepResult);
+
+    accumulatedArtifacts = [...accumulatedArtifacts, ...parsed.sections];
+    if (parsed.pendingConfirmations.length > 0) {
+      accumulatedConfirmations = [...accumulatedConfirmations, ...parsed.pendingConfirmations];
+    }
   }
 
   return {
     intent: taskType,
     intentLabel: taskTypeLabel,
     role: request.role,
-    status: blocked ? 'blocked' : 'pending_user_confirmation',
-    statusLabel: blocked ? '已阻断' : '待人工确认',
+    status: 'pending_user_confirmation',
+    statusLabel: '待人工确认',
     reviewStatus: 'not_submitted',
     reviewStatusLabel: '未提交审核',
-    summary: blocked
-      ? `已按“${taskTypeLabel}”生成执行计划，但当前输入仍存在阻断项，系统不会继续生成可用完成稿。`
-      : `已按“${taskTypeLabel}”输出结构化草稿、中间结果和待确认项，下一步应先由${request.role === 'supervisor' ? '主管' : '业务员'}处理确认。`,
+    summary: `已按“${taskTypeLabel}”顺序执行了 ${selectedSkills.length} 个技能。`,
     nextActions: buildNextActions(taskType, validationIssues),
-    riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
+    riskAlerts: accumulatedConfirmations.map((item) => `${item.label}：${item.reason}`),
     draftDirection: buildDraftDirection(taskType),
     taskType,
     taskTypeLabel,
@@ -465,15 +568,22 @@ export function buildAssistantReply(request: AssistantRequest): AssistantReply {
     templates: workflowTemplates,
     selectedSkills,
     selectedTemplate,
-    executionPlan,
-    pendingConfirmations,
-    blockingIssues: validationIssues.filter((issue) => issue.severity === 'blocking'),
-    validationIssues,
-    artifacts: buildArtifacts(taskType, request.question, request.files),
-    auditTrail: buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
+    executionPlan: executionPlan.map(step => ({ ...step, status: 'completed' })),
+    pendingConfirmations: accumulatedConfirmations,
+    blockingIssues: [],
+    validationIssues: validationIssues.filter(i => i.severity !== 'blocking'),
+    artifacts: accumulatedArtifacts.length > 0 ? accumulatedArtifacts : buildArtifacts(taskType, request.question, request.files),
+    auditTrail: [
+      ...buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
+      {
+        label: 'LLM 编排执行完成',
+        detail: `顺序执行了 [${selectedSkills.map(s => s.id).join(', ')}]，命中 provider: ${providerHits.join(', ')}`
+      }
+    ],
     metadata: {
       needsHumanReview: true,
-      translationMode: 'fixture'
+      providerHits,
+      translationMode: 'real'
     }
   };
 }

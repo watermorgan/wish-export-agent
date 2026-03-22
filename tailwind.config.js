@@ -9,13 +9,23 @@ module.exports = {
     extend: {
       colors: {
         primary: "var(--color-primary)",
+        "primary-soft": "var(--color-primary-soft)",
         secondary: "var(--color-secondary)",
+        "secondary-soft": "var(--color-secondary-soft)",
         "success-mint": "var(--color-success-mint)",
+        "success-soft": "var(--color-success-soft)",
         "risk-coral": "var(--color-risk-coral)",
+        "risk-soft": "var(--color-risk-soft)",
         ivory: "var(--color-ivory)",
         "on-surface": "var(--color-on-surface)",
         surface: "var(--color-surface)",
         outline: "var(--color-outline)",
+        "outline-strong": "var(--color-outline-strong)",
+        muted: "var(--color-muted)",
+
+        accent: "var(--color-primary)",
+        "accent-soft": "var(--color-accent-soft)",
+        line: "var(--color-line)",
       },
       fontFamily: {
         headline: ["var(--font-headline)", "sans-serif"],

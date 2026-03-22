@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { runAssistant } from '@/lib/assistant/service';
+import { runAssistant } from '@/lib/assistant/execution';
 import { readAssistantRequest } from '@/lib/assistant/task-input';
 import { createTaskFromExecution } from '@/lib/assistant/task-store';
 

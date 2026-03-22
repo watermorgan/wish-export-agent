@@ -33,41 +33,41 @@ export function ConfirmationPanel({
   }
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-float border border-slate-50">
-      <div className="bg-indigo-50/50 px-8 py-5 flex items-center justify-between">
+    <div className="bg-surface rounded-2xl overflow-hidden shadow-float border border-outline">
+      <div className="bg-accent-soft px-8 py-5 flex items-center justify-between border-b border-outline/50">
         <div className="flex items-center gap-3">
           <span className="text-xl">💡</span>
-          <h3 className="font-bold text-slate-800">待您确认 (Pending)</h3>
+          <h3 className="font-bold text-on-surface">待您确认 (Pending)</h3>
         </div>
-        <span className="bg-secondary text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest">
+        <span className="bg-secondary text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest shadow-sm">
           Action Needed
         </span>
       </div>
-      <div className="p-8 space-y-6">
+      <div className="p-8 space-y-6 bg-surface/50">
         {pendingConfirmations.length > 0 ? (
           pendingConfirmations.map((item) => (
             <div
               key={item.id}
-              className={`bg-white p-5 rounded-2xl border shadow-soft space-y-4 transition-all ${
-                item.status === "confirmed" ? "border-success-mint/20 bg-success-mint/5" : "border-indigo-50"
+              className={`bg-surface p-5 rounded-2xl border shadow-soft space-y-4 transition-all hover-float ${
+                item.status === "confirmed" ? "border-success-mint/20 bg-success-soft opacity-80" : "border-outline/30"
               }`}
             >
               <div className="flex items-start gap-4">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                  item.status === "required" ? "bg-risk-coral/10 text-risk-coral" : "bg-primary/10 text-primary"
+                  item.status === "required" ? "bg-risk-soft text-risk-coral" : "bg-accent-soft text-primary"
                 }`}>
                   <span className="material-symbols-outlined text-lg">
                     {item.status === "required" ? "warning" : "info"}
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                  <p className="text-sm text-on-surface font-medium leading-relaxed">
                     <span className={`font-black ${item.status === "required" ? "text-risk-coral" : "text-primary"}`}>
                       [{item.label}]
                     </span>{" "}
                     {item.reason}
                   </p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">
+                  <p className="text-[10px] text-muted font-bold uppercase">
                     责任人：{getRoleLabel(item.owner)} · 状态：{getConfirmationStatusLabel(item.status)}
                   </p>
                 </div>
@@ -77,14 +77,14 @@ export function ConfirmationPanel({
                   <button
                     disabled={isPending || item.status === "returned"}
                     onClick={() => updateConfirmationStatus(item.id, "returned")}
-                    className="bg-slate-50 text-slate-400 px-4 py-2 rounded-xl text-xs font-black hover:bg-risk-coral/10 hover:text-risk-coral transition-all disabled:opacity-50"
+                    className="bg-ivory text-muted px-4 py-2 rounded-xl text-xs font-black hover:bg-risk-soft hover:text-risk-coral transition-all disabled:opacity-50"
                   >
                     退回
                   </button>
                   <button
                     disabled={isPending || item.status === "confirmed"}
                     onClick={() => updateConfirmationStatus(item.id, "confirmed")}
-                    className="bg-primary/5 text-primary px-4 py-2 rounded-xl text-xs font-black hover:bg-primary hover:text-white transition-all disabled:opacity-50"
+                    className="bg-accent-soft text-primary px-4 py-2 rounded-xl text-xs font-black hover:bg-primary hover:text-white transition-all disabled:opacity-50"
                   >
                     确认
                   </button>
@@ -94,7 +94,7 @@ export function ConfirmationPanel({
           ))
         ) : (
           <div className="text-center py-10">
-            <p className="text-slate-400 text-sm font-medium">暂时没有待确认项 ✨</p>
+            <p className="text-muted text-sm font-medium">暂时没有待确认项 ✨</p>
           </div>
         )}
       </div>

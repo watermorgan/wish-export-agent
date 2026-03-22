@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { buildAssistantReply } from '@/lib/assistant/execution';
+import { runAssistant } from '@/lib/assistant/execution';
 import type { AssistantRequest } from '@/lib/assistant/types';
 
 export const MAX_FILES = 5;
@@ -26,6 +26,6 @@ export const selectedTemplateSchema = z.string().trim().min(1).optional();
 
 export const selectedSkillIdsSchema = z.array(z.string().trim().min(1)).default([]);
 
-export function createAssistantReply(input: AssistantRequest) {
-  return buildAssistantReply(input);
+export async function createAssistantReply(input: AssistantRequest) {
+  return runAssistant(input);
 }

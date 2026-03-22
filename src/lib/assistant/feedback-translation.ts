@@ -1,3 +1,8 @@
+/**
+ * DEPRECATED: This file is no longer used and is replaced by the generalized 
+ * sequential orchestration loop in execution.ts.
+ * Mark for deletion in next cleanup cycle.
+ */
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import {
