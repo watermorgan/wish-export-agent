@@ -19,6 +19,7 @@ coverage/
 .env.production.local
 .DS_Store
 *.log
+.tmp/
 
 # IDE
 .idea/
