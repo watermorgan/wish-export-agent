@@ -20,6 +20,7 @@ export type UploadedFile = {
   size: number;
   type: string;
   contentText?: string;
+  storagePath?: string;
 };
 
 export type SkillRiskLevel = 'low' | 'medium' | 'high';
@@ -123,7 +124,22 @@ export type ReviewEntry = {
 export type AssistantReplyMetadata = {
   needsHumanReview: boolean;
   providerHits?: string[];
+  modelHits?: string[];
+  activeProvider?: string;
+  activeModel?: string;
   translationMode?: 'real' | 'fixture' | 'whole-document' | 'section-chunked';
+  translationTiming?: {
+    totalMs: number;
+    sourceBuildMs?: number;
+    renderPrepMs?: number;
+    stages: Array<{
+      id: string;
+      label: string;
+      durationMs: number;
+      chunkCount?: number;
+      provider?: string;
+    }>;
+  };
 };
 
 export type AssistantRequest = {
@@ -134,6 +150,7 @@ export type AssistantRequest = {
   selectedSkillIds: string[];
   selectedTemplateId?: string | null;
   taskType?: TaskType;
+  modelOverride?: string;
   conversationId?: string;
   userId?: string;
   rawPayload?: unknown;
@@ -149,6 +166,7 @@ export type TaskRecord = {
   files: UploadedFile[];
   selectedSkillIds: string[];
   selectedTemplateId?: string | null;
+  modelOverride?: string;
   status: TaskStatus;
   reviewStatus: ReviewStatus;
   summary: string;

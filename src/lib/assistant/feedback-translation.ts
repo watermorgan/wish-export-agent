@@ -58,6 +58,15 @@ type SectionTranslationModelResponse = {
   }>;
 };
 
+type TranslationTimingStage = NonNullable<AssistantReplyMetadata['translationTiming']>['stages'][number];
+
+type TranslationRunTiming = {
+  totalMs: number;
+  sourceBuildMs?: number;
+  renderPrepMs?: number;
+  stages: TranslationTimingStage[];
+};
+
 type GoldenSection = {
   id: string;
   title: string;
@@ -406,15 +415,20 @@ async function translateSectionsWithProvider(
   sourceReference: FeedbackSourceReference,
   systemPrompt: string
 ) {
+  const translationStartedAt = Date.now();
   const translatedSections: TranslationSection[] = [];
   const terms = new Set<string>();
   const pendingItems: Array<{ label: string; reason: string }> = [];
   const providerHits: string[] = [];
+  const modelHits: string[] = [];
+  const stages: TranslationTimingStage[] = [];
 
   for (const section of sourceReference.sections) {
+    const sectionStartedAt = Date.now();
     const chunkResults: SectionTranslationModelResponse[] = [];
     const translationMap = new Map<string, string>();
     const chunkSections = chunkFeedbackSection(section);
+    const sectionProviders = new Set<string>();
 
     for (let index = 0; index < chunkSections.length; index += SECTION_CHUNK_CONCURRENCY) {
       const batch = chunkSections.slice(index, index + SECTION_CHUNK_CONCURRENCY);
@@ -423,12 +437,14 @@ async function translateSectionsWithProvider(
           const providerResult = await generateWithAvailableProvider({
             system: systemPrompt,
             user: buildSectionUserPrompt(sourceFile, request, chunk),
-            timeoutMs: 90000
+            timeoutMs: 90000,
+            modelOverride: request.modelOverride
           });
 
           return {
             chunk,
             provider: providerResult.provider,
+            model: providerResult.model,
             parsed: safeParseSectionModelResponse(providerResult.text, chunk)
           };
         })
@@ -453,6 +469,12 @@ async function translateSectionsWithProvider(
             ? `${section.id}:${result.chunk.id}:${result.provider}`
             : `${section.id}:${result.provider}`
         );
+        modelHits.push(
+          chunkSections.length > 1
+            ? `${section.id}:${result.chunk.id}:${result.model ?? request.modelOverride ?? 'default'}`
+            : `${section.id}:${result.model ?? request.modelOverride ?? 'default'}`
+        );
+        sectionProviders.add(result.provider);
       }
     }
 
@@ -470,6 +492,14 @@ async function translateSectionsWithProvider(
         translation: translationMap.get(segment.id) ?? ''
       }))
     });
+
+    stages.push({
+      id: section.id,
+      label: `${section.title} 翻译`,
+      durationMs: Date.now() - sectionStartedAt,
+      chunkCount: chunkSections.length,
+      provider: Array.from(sectionProviders).join(', ')
+    });
   }
 
   return {
@@ -477,7 +507,12 @@ async function translateSectionsWithProvider(
     sections: translatedSections,
     terms: [...terms],
     pendingItems,
-    providerHits
+    providerHits,
+    modelHits,
+    timing: {
+      totalMs: Date.now() - translationStartedAt,
+      stages
+    }
   };
 }
 
@@ -597,11 +632,15 @@ function buildPendingItems(result: TranslationModelResponse): PendingConfirmatio
 function buildReplyMetadata(
   pendingConfirmations: PendingConfirmation[],
   providerHits: string[],
+  modelHits: string[],
   translationMode: AssistantReplyMetadata['translationMode']
 ): AssistantReplyMetadata {
   return {
     needsHumanReview: pendingConfirmations.some((item) => item.status !== 'confirmed'),
     providerHits,
+    modelHits,
+    activeProvider: providerHits.at(-1),
+    activeModel: modelHits.at(-1),
     translationMode
   };
 }
@@ -705,6 +744,7 @@ async function buildFixtureReply(
         ...(reply.metadata ?? {}),
         needsHumanReview: false,
         providerHits: [],
+        modelHits: [],
         translationMode: 'fixture' as const
       }
     };
@@ -746,6 +786,7 @@ async function buildFixtureReply(
       ...(reply.metadata ?? {}),
       needsHumanReview: false,
       providerHits: [],
+      modelHits: [],
       translationMode: 'fixture' as const
     }
   };
@@ -755,10 +796,13 @@ export async function maybeRunRealFeedbackTranslation(
   request: AssistantRequest,
   reply: AssistantReply
 ): Promise<AssistantReply> {
+  const startedAt = Date.now();
   const isFeedbackTask = reply.taskType === 'feedback';
   const hasTranslatorSkill = reply.selectedSkills.some((skill) => skill.id === 'comment-translator');
   const sourceFile = pickSourceFile(request.files);
+  const sourceBuildStartedAt = Date.now();
   const sourceReference = sourceFile ? buildFeedbackSourceReference(sourceFile) : null;
+  const sourceBuildMs = Date.now() - sourceBuildStartedAt;
 
   if (
     !isFeedbackTask ||
@@ -780,16 +824,33 @@ export async function maybeRunRealFeedbackTranslation(
 
   let result: TranslationModelResponse;
   let providerHits: string[] = [];
+  let modelHits: string[] = [];
+  let timing: TranslationRunTiming | undefined;
   try {
     if (process.env.FEEDBACK_TRANSLATION_MODE === 'whole-document') {
+      const wholeDocumentStartedAt = Date.now();
       const providerResult = await generateWithAvailableProvider({
         system: systemPrompt,
         user: buildUserPrompt(sourceFile, request, sourceReference),
-        timeoutMs: 90000
+        timeoutMs: 90000,
+        modelOverride: request.modelOverride
       });
       const raw = providerResult.text;
       result = safeParseModelResponse(raw);
       providerHits = [providerResult.provider];
+      modelHits = [providerResult.model ?? request.modelOverride ?? 'default'];
+      timing = {
+        totalMs: Date.now() - wholeDocumentStartedAt,
+        sourceBuildMs,
+        stages: [
+          {
+            id: 'whole-document',
+            label: '整单翻译',
+            durationMs: Date.now() - wholeDocumentStartedAt,
+            provider: providerResult.provider
+          }
+        ]
+      };
     } else {
       const translated = await translateSectionsWithProvider(
         sourceFile,
@@ -804,6 +865,12 @@ export async function maybeRunRealFeedbackTranslation(
         pendingItems: translated.pendingItems
       };
       providerHits = translated.providerHits;
+      modelHits = translated.modelHits;
+      timing = {
+        totalMs: translated.timing.totalMs,
+        sourceBuildMs,
+        stages: translated.timing.stages
+      };
     }
     reply = {
       ...reply,
@@ -811,8 +878,20 @@ export async function maybeRunRealFeedbackTranslation(
         ...reply.auditTrail,
         {
           label: '模型 provider 已命中',
-          detail: `当前任务已使用 ${providerHits.join(', ')} 执行真实翻译，并基于结构化源数据分段输出。`
-        }
+          detail: `当前任务已使用 ${providerHits.join(', ')} 执行真实翻译，并基于结构化源数据分段输出。模型：${modelHits.join(', ')}`
+        },
+        ...(timing
+          ? [
+              {
+                label: '翻译耗时已记录',
+                detail: `源数据整理 ${timing.sourceBuildMs ?? 0} ms；模型翻译 ${timing.totalMs} ms；总耗时 ${Date.now() - startedAt} ms。`
+              },
+              ...timing.stages.map((stage) => ({
+                label: `${stage.label} 已完成`,
+                detail: `${stage.durationMs} ms${stage.chunkCount ? ` · ${stage.chunkCount} 个分块` : ''}${stage.provider ? ` · ${stage.provider}` : ''}`
+              }))
+            ]
+          : [])
       ]
     };
   } catch (error) {
@@ -825,6 +904,16 @@ export async function maybeRunRealFeedbackTranslation(
     process.env.FEEDBACK_TRANSLATION_MODE === 'whole-document'
       ? ('whole-document' as const)
       : ('section-chunked' as const);
+  const renderPrepStartedAt = Date.now();
+  const artifacts = buildArtifacts(sourceFile, result);
+  const renderPrepMs = Date.now() - renderPrepStartedAt;
+  const totalMs = Date.now() - startedAt;
+  const nextTiming: TranslationRunTiming = {
+    totalMs,
+    sourceBuildMs,
+    renderPrepMs,
+    stages: timing?.stages ?? []
+  };
 
   return {
     ...reply,
@@ -851,14 +940,21 @@ export async function maybeRunRealFeedbackTranslation(
     pendingConfirmations,
     blockingIssues: [],
     validationIssues: reply.validationIssues.filter((item) => item.severity !== 'blocking'),
-    artifacts: buildArtifacts(sourceFile, result),
+    artifacts,
     auditTrail: [
       ...reply.auditTrail,
       {
         label: '真实翻译已执行',
         detail: `已基于文件“${sourceFile.name}”生成 ${result.sections.length} 个章节的英中双语对照。`
+      },
+      {
+        label: '结果渲染已完成',
+        detail: `结构化结果整理 ${renderPrepMs} ms；整链路总耗时 ${totalMs} ms。`
       }
     ],
-    metadata: buildReplyMetadata(pendingConfirmations, providerHits, translationMode)
+    metadata: {
+      ...buildReplyMetadata(pendingConfirmations, providerHits, modelHits, translationMode),
+      translationTiming: nextTiming
+    }
   };
 }

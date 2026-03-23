@@ -1,4 +1,8 @@
-import { generateModelScopeText, hasModelScopeConfig } from '@/lib/assistant/modelscope-client';
+import {
+  generateModelScopeText,
+  getModelScopeModel,
+  hasModelScopeConfig
+} from '@/lib/assistant/modelscope-client';
 import type { LlmProvider } from '@/lib/assistant/llm/types';
 
 export const modelScopeProvider: LlmProvider = {
@@ -7,7 +11,13 @@ export const modelScopeProvider: LlmProvider = {
   async generate(request) {
     return {
       provider: 'modelscope',
-      text: await generateModelScopeText(request.system, request.user, request.timeoutMs)
+      model: getModelScopeModel(request.modelOverride),
+      text: await generateModelScopeText(
+        request.system,
+        request.user,
+        request.timeoutMs,
+        request.modelOverride
+      )
     };
   }
 };

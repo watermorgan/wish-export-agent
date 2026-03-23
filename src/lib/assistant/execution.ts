@@ -10,6 +10,7 @@ import { loadSkillPrompt } from '@/lib/assistant/prompt-loader';
 import { generateWithAvailableProvider } from '@/lib/assistant/llm/router';
 import { parseFullResult, type ParsedStepResult } from '@/lib/assistant/parser';
 import { buildFeedbackSourceReference, type FeedbackSourceReference } from '@/lib/assistant/feedback-source';
+import { maybeRunRealFeedbackTranslation } from '@/lib/assistant/feedback-translation';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -481,6 +482,8 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
       auditTrail: buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
       metadata: {
         needsHumanReview: true,
+        providerHits: [],
+        modelHits: [],
         translationMode: 'fixture'
       }
     };
@@ -489,6 +492,7 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
   // Real LLM Orchestration Loop
   const previousResults: StepResult[] = [];
   const providerHits: string[] = [];
+  const modelHits: string[] = [];
   let accumulatedArtifacts: ArtifactSection[] = [];
   let accumulatedConfirmations: PendingConfirmation[] = [...pendingConfirmations];
 
@@ -526,10 +530,12 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
 
     const result = await generateWithAvailableProvider({
       system: systemPrompt || 'You are a helpful assistant specializing in trade export processes.',
-      user: userPrompt
+      user: userPrompt,
+      modelOverride: request.modelOverride
     });
 
     providerHits.push(result.provider);
+    modelHits.push(result.model ?? request.modelOverride ?? 'default');
 
     const parsed = parseFullResult(result.text, skill.id);
 
@@ -550,7 +556,7 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
     }
   }
 
-  return {
+  const baseReply: AssistantReply = {
     intent: taskType,
     intentLabel: taskTypeLabel,
     role: request.role,
@@ -577,13 +583,18 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
       ...buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
       {
         label: 'LLM 编排执行完成',
-        detail: `顺序执行了 [${selectedSkills.map(s => s.id).join(', ')}]，命中 provider: ${providerHits.join(', ')}`
+        detail: `顺序执行了 [${selectedSkills.map(s => s.id).join(', ')}]，命中 provider: ${providerHits.join(', ')}；模型: ${modelHits.join(', ')}`
       }
     ],
     metadata: {
       needsHumanReview: true,
       providerHits,
+      modelHits,
+      activeProvider: providerHits.at(-1),
+      activeModel: modelHits.at(-1),
       translationMode: 'real'
     }
   };
+
+  return maybeRunRealFeedbackTranslation(request, baseReply);
 }

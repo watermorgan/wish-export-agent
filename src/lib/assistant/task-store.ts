@@ -227,6 +227,7 @@ function toTaskRecordFromRow(row: TaskRow): TaskRecord {
     files: row.files,
     selectedSkillIds: row.selected_skill_ids,
     selectedTemplateId: row.selected_template_id,
+    modelOverride: row.request_payload.modelOverride,
     status: row.status,
     reviewStatus: row.review_status,
     summary: row.summary,
@@ -261,6 +262,7 @@ function buildTaskRecord(
     })),
     selectedSkillIds: request.selectedSkillIds,
     selectedTemplateId: request.selectedTemplateId,
+    modelOverride: request.modelOverride,
     status: reply.status,
     reviewStatus: reply.reviewStatus,
     summary: reply.summary,
@@ -958,6 +960,65 @@ export async function getTask(taskId: string): Promise<StoredTask | null> {
   }
 
   return getStoredTaskFromDb(taskId);
+}
+
+export async function deleteTask(taskId: string): Promise<boolean> {
+  if (!hasDatabaseConfig()) {
+    return taskStore.delete(taskId);
+  }
+
+  const existing = await getStoredTaskFromDb(taskId);
+
+  if (!existing) {
+    return false;
+  }
+
+  await withDbTransaction(async (client) => {
+    await acquireTaskWriteLock(client, taskId);
+    await client.query(`DELETE FROM tasks WHERE id = $1`, [taskId]);
+  });
+
+  taskStore.delete(taskId);
+  return true;
+}
+
+export async function deleteTasks(taskIds: string[]): Promise<{
+  deletedIds: string[];
+  recentTasks: TaskRecord[];
+}> {
+  const uniqueTaskIds = [...new Set(taskIds.filter(Boolean))];
+
+  if (uniqueTaskIds.length === 0) {
+    return {
+      deletedIds: [],
+      recentTasks: await listTasks()
+    };
+  }
+
+  if (!hasDatabaseConfig()) {
+    const deletedIds = uniqueTaskIds.filter((taskId) => taskStore.delete(taskId));
+    return {
+      deletedIds,
+      recentTasks: listMemoryTasks()
+    };
+  }
+
+  await withDbTransaction(async (client) => {
+    for (const taskId of uniqueTaskIds) {
+      await acquireTaskWriteLock(client, taskId);
+    }
+
+    await client.query(`DELETE FROM tasks WHERE id = ANY($1::text[])`, [uniqueTaskIds]);
+  });
+
+  uniqueTaskIds.forEach((taskId) => {
+    taskStore.delete(taskId);
+  });
+
+  return {
+    deletedIds: uniqueTaskIds,
+    recentTasks: await listTasksFromDb()
+  };
 }
 
 export async function submitTaskForReview(

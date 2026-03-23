@@ -15,7 +15,8 @@ export const formQuestionSchema = z
 export const uploadedFileSchema = z.object({
   name: z.string().min(1).max(180),
   size: z.number().nonnegative().max(20 * 1024 * 1024),
-  type: z.string().min(1).max(120)
+  type: z.string().min(1).max(120),
+  storagePath: z.string().min(1).optional()
 });
 
 export const assistantRoleSchema = z.enum(['sales', 'supervisor']).default('sales');

@@ -3,6 +3,7 @@ import { runAssistant } from '@/lib/assistant/service';
 import { applyTaskPatch, readTaskPatch } from '@/lib/assistant/task-input';
 import {
   canEditTaskStatus,
+  deleteTask,
   getTask,
   updateTaskFromExecution
 } from '@/lib/assistant/task-store';
@@ -82,4 +83,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       { status: 400 }
     );
   }
+}
+
+export async function DELETE(_: Request, context: RouteContext) {
+  const { taskId } = await context.params;
+  const deleted = await deleteTask(taskId);
+
+  if (!deleted) {
+    return NextResponse.json(
+      {
+        error: '任务不存在。'
+      },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true
+  });
 }

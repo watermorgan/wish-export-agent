@@ -2,6 +2,7 @@ export type LlmRequest = {
   system: string;
   user: string;
   timeoutMs?: number;
+  modelOverride?: string;
 };
 
 export type LlmProviderName =
@@ -14,6 +15,7 @@ export type LlmProviderName =
 export type LlmProviderResult = {
   provider: LlmProviderName;
   text: string;
+  model?: string;
 };
 
 export type LlmProvider = {

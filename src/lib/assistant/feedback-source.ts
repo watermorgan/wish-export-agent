@@ -3,6 +3,9 @@ import type { UploadedFile } from '@/lib/assistant/types';
 export type FeedbackSourceSegment = {
   id: string;
   text: string;
+  bucket?: number;
+  lineStart?: number;
+  lineEnd?: number;
 };
 
 export type FeedbackSourceSection = {
@@ -50,6 +53,12 @@ function normalizeLine(value: string) {
 type RawLineFragment = {
   start: number;
   text: string;
+};
+
+type ColumnBuffer = {
+  parts: string[];
+  lineStart: number;
+  lineEnd: number;
 };
 
 function splitRawLineFragments(rawLine: string) {
@@ -199,13 +208,14 @@ function splitReferenceInstructionClauses(text: string) {
 }
 
 function finalizeBuffer(
-  buffer: string[],
+  buffer: ColumnBuffer,
   segments: FeedbackSourceSegment[],
   counters: Map<string, number>,
-  sectionId: string
+  sectionId: string,
+  bucket?: number
 ) {
-  const text = buffer.join(' ').trim();
-  buffer.length = 0;
+  const text = buffer.parts.join(' ').trim();
+  buffer.parts.length = 0;
 
   if (!text) {
     return;
@@ -215,7 +225,10 @@ function finalizeBuffer(
   counters.set(sectionId, nextIndex);
   segments.push({
     id: `${sectionId}-${String(nextIndex).padStart(2, '0')}`,
-    text
+    text,
+    bucket,
+    lineStart: buffer.lineStart,
+    lineEnd: buffer.lineEnd
   });
 }
 
@@ -223,13 +236,18 @@ function pushStandaloneSegment(
   text: string,
   segments: FeedbackSourceSegment[],
   counters: Map<string, number>,
-  sectionId: string
+  sectionId: string,
+  lineNumber: number,
+  bucket?: number
 ) {
   const nextIndex = (counters.get(sectionId) ?? 0) + 1;
   counters.set(sectionId, nextIndex);
   segments.push({
     id: `${sectionId}-${String(nextIndex).padStart(2, '0')}`,
-    text
+    text,
+    bucket,
+    lineStart: lineNumber,
+    lineEnd: lineNumber
   });
 }
 
@@ -351,7 +369,10 @@ function expandSectionSegments(section: FeedbackSourceSection) {
 
     return pieces.map((piece, index) => ({
       id: pieces.length === 1 ? segment.id : `${segment.id}-${index + 1}`,
-      text: piece
+      text: piece,
+      bucket: segment.bucket,
+      lineStart: segment.lineStart,
+      lineEnd: segment.lineEnd
     }));
   });
 }
@@ -382,21 +403,159 @@ function shouldMergeContinuation(previousText: string, currentText: string) {
   return currentLooksLikeContinuation;
 }
 
+function isShortNoteLikeText(value: string) {
+  const text = value.trim();
+  if (!text) {
+    return false;
+  }
+
+  if (/:/.test(text) || /as image$/i.test(text) || /^[A-Z][a-z]+:/.test(text)) {
+    return false;
+  }
+
+  const wordCount = text.split(/\s+/).length;
+  return wordCount <= 8 || text.length <= 56;
+}
+
+function looksStandaloneLabel(value: string) {
+  const text = value.trim();
+  if (!text || /[,:;.!?]/.test(text)) {
+    return false;
+  }
+
+  const words = text.split(/\s+/);
+  if (words.length > 4) {
+    return false;
+  }
+
+  return words.every((word) => /^[A-Z][A-Za-z/-]*$|^[a-z][A-Za-z/-]*$/.test(word));
+}
+
+function shouldMergeGroupedParagraph(
+  previousText: string,
+  currentText: string,
+  sectionId: string,
+  previousBucket?: number,
+  currentBucket?: number,
+  previousLineEnd?: number,
+  currentLineStart?: number
+) {
+  if (
+    previousBucket === undefined ||
+    currentBucket === undefined ||
+    previousBucket !== currentBucket
+  ) {
+    return false;
+  }
+
+  if (
+    previousLineEnd === undefined ||
+    currentLineStart === undefined ||
+    currentLineStart - previousLineEnd > 2
+  ) {
+    return false;
+  }
+
+  if (sectionId === 'colours' || sectionId === 'references') {
+    return false;
+  }
+
+  const previous = previousText.trim();
+  const current = currentText.trim();
+  if (!previous || !current) {
+    return false;
+  }
+
+  if (/[.!?;:]$/.test(previous) || /^[A-Z][a-z]+:/.test(current)) {
+    return false;
+  }
+
+  if (looksStandaloneLabel(previous) && looksStandaloneLabel(current)) {
+    return false;
+  }
+
+  if (previous.length + current.length > 420) {
+    return false;
+  }
+
+  if (['details-op1', 'details-op2', 'inner-shorts'].includes(sectionId)) {
+    const hasImageReference =
+      /see sep image|see sep images|as image|ref image/i.test(previous) ||
+      /see sep image|see sep images|as image|ref image/i.test(current);
+    if (hasImageReference && currentLineStart - previousLineEnd <= 4) {
+      return true;
+    }
+
+    return true;
+  }
+
+  const looksGrouped =
+    (isShortNoteLikeText(previous) && isShortNoteLikeText(current)) ||
+    ((previous.split(/\s+/).length >= 5 || /,/.test(previous)) &&
+      (current.split(/\s+/).length >= 5 || /,/.test(current)));
+
+  if (!looksGrouped) {
+    return false;
+  }
+
+  return (
+    /^(?:with|for|at|to|in|on|and|or|as|visible|contrast|stretch|taped|aquaguard|reversed|set-in|gathered|inside|ref|used)\b/i.test(
+      current
+    ) ||
+    /(?:[,/-]$|\b(?:shoulders?|zip|seams?|tape|pockets?|hem|logo|print|movement|seam))$/i.test(
+      previous
+    )
+  );
+}
+
 function consolidateSectionSegments(section: FeedbackSourceSection) {
   if (!['details-op1', 'details-op2', 'inner-shorts'].includes(section.id)) {
     return section.segments.map((segment) => ({ ...segment }));
   }
 
   const consolidated: FeedbackSourceSegment[] = [];
+  const lastIndexByBucket = new Map<number, number>();
 
   for (const segment of section.segments) {
-    const previous = consolidated[consolidated.length - 1];
-    if (previous && shouldMergeContinuation(previous.text, segment.text)) {
-      previous.text = `${previous.text} ${segment.text}`.replace(/\s+/g, ' ').trim();
+    const sameBucketIndex =
+      segment.bucket !== undefined ? lastIndexByBucket.get(segment.bucket) : undefined;
+    const candidate =
+      sameBucketIndex !== undefined
+        ? consolidated[sameBucketIndex]
+        : consolidated[consolidated.length - 1];
+
+    if (candidate && shouldMergeContinuation(candidate.text, segment.text)) {
+      candidate.text = `${candidate.text} ${segment.text}`.replace(/\s+/g, ' ').trim();
+      if (segment.bucket !== undefined) {
+        lastIndexByBucket.set(segment.bucket, sameBucketIndex ?? consolidated.length - 1);
+      }
+      continue;
+    }
+
+    if (
+      candidate &&
+      shouldMergeGroupedParagraph(
+        candidate.text,
+        segment.text,
+        section.id,
+        candidate.bucket,
+        segment.bucket,
+        candidate.lineEnd,
+        segment.lineStart
+      )
+    ) {
+      candidate.text = `${candidate.text}; ${segment.text}`.replace(/\s+/g, ' ').trim();
+      candidate.lineEnd = segment.lineEnd;
+      if (segment.bucket !== undefined) {
+        lastIndexByBucket.set(segment.bucket, sameBucketIndex ?? consolidated.length - 1);
+      }
       continue;
     }
 
     consolidated.push({ ...segment });
+    if (segment.bucket !== undefined) {
+      lastIndexByBucket.set(segment.bucket, consolidated.length - 1);
+    }
   }
 
   return consolidated;
@@ -412,7 +571,8 @@ export function buildFeedbackSourceReference(file: UploadedFile): FeedbackSource
   const sections: FeedbackSourceSection[] = [];
   const counters = new Map<string, number>();
   let currentSection: FeedbackSourceSection | null = null;
-  const columnBuffers = new Map<number, string[]>();
+  const columnBuffers = new Map<number, ColumnBuffer>();
+  let lineCursor = 0;
 
   const ensureDefaultSection = () => {
     if (!currentSection) {
@@ -426,12 +586,12 @@ export function buildFeedbackSourceReference(file: UploadedFile): FeedbackSource
     }
 
     const buffer = columnBuffers.get(bucket);
-    if (!buffer || buffer.length === 0) {
+    if (!buffer || buffer.parts.length === 0) {
       columnBuffers.delete(bucket);
       return;
     }
 
-    finalizeBuffer(buffer, currentSection.segments, counters, currentSection.id);
+    finalizeBuffer(buffer, currentSection.segments, counters, currentSection.id, bucket);
     columnBuffers.delete(bucket);
   };
 
@@ -445,6 +605,7 @@ export function buildFeedbackSourceReference(file: UploadedFile): FeedbackSource
     flushAllBuffers();
 
     for (const line of page) {
+      lineCursor += 1;
       const normalizedLine = normalizeLine(line);
       if (!normalizedLine) {
         flushAllBuffers();
@@ -474,7 +635,13 @@ export function buildFeedbackSourceReference(file: UploadedFile): FeedbackSource
 
       if (isStandaloneMarker(normalizedLine)) {
         flushAllBuffers();
-        pushStandaloneSegment(normalizedLine, activeSection.segments, counters, activeSection.id);
+        pushStandaloneSegment(
+          normalizedLine,
+          activeSection.segments,
+          counters,
+          activeSection.id,
+          lineCursor
+        );
         continue;
       }
 
@@ -496,13 +663,22 @@ export function buildFeedbackSourceReference(file: UploadedFile): FeedbackSource
 
       for (const fragment of fragments) {
         const bucket = getColumnBucket(fragment.start);
-        const columnBuffer = columnBuffers.get(bucket) ?? [];
+        const columnBuffer =
+          columnBuffers.get(bucket) ?? {
+            parts: [],
+            lineStart: lineCursor,
+            lineEnd: lineCursor
+          };
 
-        if (/^[-•]/.test(fragment.text) && columnBuffer.length > 0) {
+        if (/^[-•]/.test(fragment.text) && columnBuffer.parts.length > 0) {
           flushColumnBuffer(bucket);
         }
 
-        columnBuffer.push(fragment.text.replace(/^[-•]\s*/, ''));
+        if (columnBuffer.parts.length === 0) {
+          columnBuffer.lineStart = lineCursor;
+        }
+        columnBuffer.parts.push(fragment.text.replace(/^[-•]\s*/, ''));
+        columnBuffer.lineEnd = lineCursor;
         columnBuffers.set(bucket, columnBuffer);
       }
     }
@@ -516,7 +692,7 @@ export function buildFeedbackSourceReference(file: UploadedFile): FeedbackSource
       segments: consolidateSectionSegments({
         ...section,
         segments: expandSectionSegments(section).filter((segment) => segment.text.length > 0)
-      })
+      }).map(({ id, text }) => ({ id, text }))
     }))
     .filter((section) => section.segments.length > 0);
 

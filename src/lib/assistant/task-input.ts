@@ -15,7 +15,8 @@ const taskPatchSchema = z.object({
   question: formQuestionSchema.optional(),
   taskType: taskTypeSchema.optional(),
   selectedTemplateId: selectedTemplateSchema.nullable().optional(),
-  selectedSkillIds: z.array(z.string().trim().min(1)).optional()
+  selectedSkillIds: z.array(z.string().trim().min(1)).optional(),
+  modelOverride: z.string().trim().min(1).nullable().optional()
 });
 
 function parseSelectedSkillIds(raw: FormDataEntryValue | null) {
@@ -53,6 +54,14 @@ function parseSelectedTemplateId(raw: FormDataEntryValue | null) {
   return selectedTemplateSchema.parse(raw);
 }
 
+function parseModelOverride(raw: FormDataEntryValue | null) {
+  if (raw === null || String(raw).trim() === '') {
+    return undefined;
+  }
+
+  return String(raw).trim();
+}
+
 export async function readAssistantRequest(request: Request): Promise<AssistantRequest> {
   const contentType = request.headers.get('content-type') ?? '';
 
@@ -74,7 +83,8 @@ export async function readAssistantRequest(request: Request): Promise<AssistantR
       files,
       taskType: taskTypeSchema.parse(formData.get('taskType')),
       selectedTemplateId: parseSelectedTemplateId(formData.get('selectedTemplateId')),
-      selectedSkillIds: parseSelectedSkillIds(formData.get('selectedSkillIds'))
+      selectedSkillIds: parseSelectedSkillIds(formData.get('selectedSkillIds')),
+      modelOverride: parseModelOverride(formData.get('modelOverride'))
     };
   }
 
@@ -87,6 +97,7 @@ export async function readAssistantRequest(request: Request): Promise<AssistantR
     taskType: taskTypeSchema,
     selectedTemplateId: selectedTemplateSchema.nullable().optional(),
     selectedSkillIds: z.array(z.string().trim().min(1)).default([]),
+    modelOverride: z.string().trim().min(1).optional(),
     conversationId: z.string().trim().min(1).optional(),
     userId: z.string().trim().min(1).optional(),
     rawPayload: z.unknown().optional()
@@ -117,6 +128,8 @@ export function applyTaskPatch(
       patch.selectedTemplateId === undefined
         ? current.selectedTemplateId
         : patch.selectedTemplateId,
-    selectedSkillIds: patch.selectedSkillIds ?? current.selectedSkillIds
+    selectedSkillIds: patch.selectedSkillIds ?? current.selectedSkillIds,
+    modelOverride:
+      patch.modelOverride === undefined ? current.modelOverride : patch.modelOverride ?? undefined
   };
 }

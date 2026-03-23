@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { execFile } from 'node:child_process';
@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import type { UploadedFile } from '@/lib/assistant/types';
 
 const execFileAsync = promisify(execFile);
+const UPLOADS_DIR = join(process.cwd(), '.tmp', 'task-uploads');
 
 function normalizeExtractedText(value: string) {
   return value.replace(/\r\n/g, '\n').replace(/\u0000/g, '').trim();
@@ -39,6 +40,21 @@ async function extractPdfText(file: File) {
   }
 }
 
+function sanitizeFileName(value: string) {
+  return value.replace(/[^\w.\-]+/g, '-');
+}
+
+async function persistUploadedFile(file: File) {
+  await mkdir(UPLOADS_DIR, { recursive: true });
+  const timestamp = Date.now();
+  const unique = Math.random().toString(36).slice(2, 8);
+  const fileName = `${timestamp}-${unique}-${sanitizeFileName(file.name)}`;
+  const outputPath = join(UPLOADS_DIR, fileName);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(outputPath, buffer);
+  return outputPath;
+}
+
 export async function extractPdfTextFromPath(inputPath: string) {
   const tempDir = await mkdtemp(join(tmpdir(), 'export-agent-pdf-path-'));
   const outputPath = join(tempDir, 'output.txt');
@@ -58,6 +74,8 @@ export async function enrichUploadedFile(file: File): Promise<UploadedFile> {
   };
 
   try {
+    uploaded.storagePath = await persistUploadedFile(file);
+
     if (file.type === 'application/pdf' || extname(file.name).toLowerCase() === '.pdf') {
       uploaded.contentText = await extractPdfText(file);
       return uploaded;

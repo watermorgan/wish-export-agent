@@ -67,7 +67,43 @@
   - 保留现有规则
   - 后续补“解析失败 -> 待人工确认”的细粒度降级路径
 
-### 4. dense 页同页展示能力已存在，但无法保证所有高价值项都留在原页
+### 4. 当前翻译工作台首屏暴露过多系统概念，业务路径不够直接
+
+- 验收条款要点：
+  - 业务员上传文件后应能快速理解“下一步做什么”
+  - 翻译主链路不应要求业务员先理解角色 / 模板 / 技能 / 链路编排
+- 当前实现状态：部分满足
+- 证据落点：
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/components/workspace.tsx`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/docs/project/plan.md`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/docs/project/translation-design.md`
+- 说明：
+  - 当前首页同时暴露角色、任务类型、模板、技能
+  - 这些概念适合系统配置和高级操作，不适合业务员首屏主流程
+  - 上传后的下一步动作和当前阶段也不够明确
+- 最小修订建议：
+  - 默认首页收口成单场景翻译入口
+  - 把角色 / 模板 / 技能移入“高级设置”
+  - 上传后显式提示下一步和当前阶段
+
+### 5. 翻译结果主入口不够突出，页面内仍缺少“打开/下载结果”一级动作
+
+- 验收条款要点：
+  - 业务员应能快速定位翻译结果
+  - 翻译 PDF 生成后，应能在页面中直接打开或下载
+- 当前实现状态：部分满足
+- 证据落点：
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/components/workspace.tsx`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/app/api/tasks/[taskId]/export/route.ts`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/task-store.ts`
+- 说明：
+  - 当前页面能展示翻译内容，但结果区不是“翻译优先”
+  - 当前导出动作只返回 JSON / `finalArtifact` 文本，并没有页面内的 PDF 打开或下载入口
+- 最小修订建议：
+  - 结果区顶部固定“翻译结果”模块
+  - 增加“页面查看 / 打开翻译结果 / 下载翻译 PDF”入口
+
+### 6. dense 页同页展示能力已存在，但无法保证所有高价值项都留在原页
 
 - 验收条款要点：
   - 翻译结果应尽量便于业务确认与推进
@@ -82,7 +118,7 @@
   - 为 dense row 增加更强的业务优先级排序
   - 例如优先 `fabric / zipper / logo / seam / trim`，再放数字和单位类行
 
-### 5. `needsHumanReview` 当前只提供 camelCase；若未来需要对外兼容 snake_case，仍需显式映射
+### 7. `needsHumanReview` 当前只提供 camelCase；若未来需要对外兼容 snake_case，仍需显式映射
 
 - 验收条款要点：
   - 输出 schema 应保持稳定
@@ -101,7 +137,7 @@
 
 ## Low
 
-### 6. 抽取层的“同段合并”是 section-scoped，不是全局通用
+### 8. 抽取层的“同段合并”是 section-scoped，不是全局通用
 
 - 验收条款要点：
   - 翻译应尽量按自然段或完整工艺语义输出
@@ -115,7 +151,7 @@
 - 最小修订建议：
   - 逐步把合并规则从 section 特例扩成更稳定的段落启发式
 
-### 7. PDF 渲染模式的真实依据是页面密度，不是显式文档类型
+### 9. PDF 渲染模式的真实依据是页面密度，不是显式文档类型
 
 - 验收条款要点：
   - 输出应针对不同文档形态可读
