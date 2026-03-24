@@ -431,6 +431,49 @@ function looksStandaloneLabel(value: string) {
   return words.every((word) => /^[A-Z][A-Za-z/-]*$|^[a-z][A-Za-z/-]*$/.test(word));
 }
 
+function looksStandaloneDetailAttribute(value: string) {
+  const text = value.trim();
+  if (!text) {
+    return false;
+  }
+
+  const wordCount = text.split(/\s+/).length;
+  const lower = text.toLowerCase();
+
+  if (wordCount <= 5 && /\bas image$/i.test(text)) {
+    return true;
+  }
+
+  if (/^(?:colour|color)\b/i.test(text) && wordCount <= 4) {
+    return true;
+  }
+
+  if (/^(?:no|with|without)\b/i.test(text) && wordCount <= 4) {
+    return true;
+  }
+
+  if (
+    /^(?:sleeve|side|front|back|body|main|stretch|shell|inner|outer)\b/i.test(text) &&
+    wordCount <= 3 &&
+    !/,/.test(text)
+  ) {
+    return true;
+  }
+
+  if (
+    /(?:seam|straps?|fabric|velcro|zip|logo|colour|color|pocket|hem|sleeve|side)$/i.test(text) &&
+    wordCount <= 3
+  ) {
+    return true;
+  }
+
+  if (/^\d+(?:[.,]\d+)?\s*(?:mm|cm)$/i.test(text)) {
+    return true;
+  }
+
+  return lower === 'details';
+}
+
 function shouldMergeGroupedParagraph(
   previousText: string,
   currentText: string,
@@ -479,6 +522,13 @@ function shouldMergeGroupedParagraph(
   }
 
   if (['details-op1', 'details-op2', 'inner-shorts'].includes(sectionId)) {
+    if (
+      looksStandaloneDetailAttribute(previous) ||
+      looksStandaloneDetailAttribute(current)
+    ) {
+      return false;
+    }
+
     const hasImageReference =
       /see sep image|see sep images|as image|ref image/i.test(previous) ||
       /see sep image|see sep images|as image|ref image/i.test(current);
@@ -519,33 +569,40 @@ function consolidateSectionSegments(section: FeedbackSourceSection) {
   for (const segment of section.segments) {
     const sameBucketIndex =
       segment.bucket !== undefined ? lastIndexByBucket.get(segment.bucket) : undefined;
-    const candidate =
+    const previousCandidate = consolidated[consolidated.length - 1];
+    const sameBucketCandidate =
       sameBucketIndex !== undefined
         ? consolidated[sameBucketIndex]
-        : consolidated[consolidated.length - 1];
+        : previousCandidate;
 
-    if (candidate && shouldMergeContinuation(candidate.text, segment.text)) {
-      candidate.text = `${candidate.text} ${segment.text}`.replace(/\s+/g, ' ').trim();
+    if (
+      previousCandidate &&
+      !looksStandaloneDetailAttribute(segment.text) &&
+      !looksStandaloneDetailAttribute(previousCandidate.text) &&
+      shouldMergeContinuation(previousCandidate.text, segment.text)
+    ) {
+      previousCandidate.text = `${previousCandidate.text} ${segment.text}`.replace(/\s+/g, ' ').trim();
+      previousCandidate.lineEnd = segment.lineEnd;
       if (segment.bucket !== undefined) {
-        lastIndexByBucket.set(segment.bucket, sameBucketIndex ?? consolidated.length - 1);
+        lastIndexByBucket.set(segment.bucket, consolidated.length - 1);
       }
       continue;
     }
 
     if (
-      candidate &&
+      sameBucketCandidate &&
       shouldMergeGroupedParagraph(
-        candidate.text,
+        sameBucketCandidate.text,
         segment.text,
         section.id,
-        candidate.bucket,
+        sameBucketCandidate.bucket,
         segment.bucket,
-        candidate.lineEnd,
+        sameBucketCandidate.lineEnd,
         segment.lineStart
       )
     ) {
-      candidate.text = `${candidate.text}; ${segment.text}`.replace(/\s+/g, ' ').trim();
-      candidate.lineEnd = segment.lineEnd;
+      sameBucketCandidate.text = `${sameBucketCandidate.text}; ${segment.text}`.replace(/\s+/g, ' ').trim();
+      sameBucketCandidate.lineEnd = segment.lineEnd;
       if (segment.bucket !== undefined) {
         lastIndexByBucket.set(segment.bucket, sameBucketIndex ?? consolidated.length - 1);
       }
