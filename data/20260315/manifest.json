@@ -1,0 +1,27 @@
+{
+  "dataset_date": "2026-03-15",
+  "description": "样衣意见翻译对照样本，适合 sketch/comment 类型回归。",
+  "samples": [
+    {
+      "sample_id": "hanna-lightweight-skirt",
+      "layout_type": "sketch_comment",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260315/Hanna Lightweight Skirt.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/20260315/Hanna Lightweight Skirt（工艺单翻译）.pdf",
+          "coverage": "partial_to_strong"
+        }
+      ],
+      "notes": [
+        "适合验证样衣意见页的长说明合并、短标签拆分、颜色/参考页处理。",
+        "可用于检查人工翻译 PDF 中中文是否可被结构化抽取。"
+      ]
+    }
+  ]
+}

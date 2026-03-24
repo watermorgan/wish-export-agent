@@ -1,0 +1,130 @@
+{
+  "dataset_date": "2026-03-24",
+  "description": "多版式工艺单/TP/参考翻译样本，适合做跨文档泛化回归。",
+  "samples": [
+    {
+      "sample_id": "ata001-smock-jacket",
+      "layout_type": "tp_mixed",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/ATA001 MEN'S SMOCK JACKET头样工艺单.pdf"
+        }
+      ],
+      "references": [],
+      "notes": [
+        "大体量工艺单，页数多，适合验证 table/mixed 页识别。",
+        "当前无人工翻译参考文档。"
+      ]
+    },
+    {
+      "sample_id": "ata019-shell-jacket",
+      "layout_type": "tp_table_heavy",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/ATA019 MEN'S WP 3.5L SHELL JACKET TECHPACK.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_xlsx",
+          "path": "data/20260324/ATACAMA ATA019 3.5L WP SHELL JACKET翻译.xlsx",
+          "coverage": "partial_structured_reference"
+        }
+      ],
+      "notes": [
+        "适合验证 TP/BOM/表格页的识别与区域切分。",
+        "人工参考为 Excel，不是同版式 PDF。"
+      ]
+    },
+    {
+      "sample_id": "m415013",
+      "layout_type": "mixed_reference",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/M415013.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/20260324/M415013翻译.pdf",
+          "coverage": "partial_to_strong"
+        }
+      ]
+    },
+    {
+      "sample_id": "m422123",
+      "layout_type": "mixed_reference",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/M422123.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/20260324/M422123翻译.pdf",
+          "coverage": "partial_to_strong"
+        }
+      ]
+    },
+    {
+      "sample_id": "m441083",
+      "layout_type": "mixed_reference",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/M441083.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/20260324/M441083翻译.pdf",
+          "coverage": "partial_to_strong"
+        }
+      ]
+    },
+    {
+      "sample_id": "m445033",
+      "layout_type": "mixed_reference",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/M445033.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/20260324/M445033翻译.pdf",
+          "coverage": "partial_to_strong"
+        }
+      ]
+    },
+    {
+      "sample_id": "m4e002-soft-puffy-down-jkt",
+      "layout_type": "sketch_reference_mixed",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/20260324/M4E002 soft puffy down jkt.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/20260324/M4E002 soft puffy down jkt(翻译).pdf",
+          "coverage": "partial_to_strong"
+        }
+      ],
+      "notes": [
+        "适合验证 sketch/reference/mixed 页混合出现时的抽取稳定性。"
+      ]
+    }
+  ]
+}

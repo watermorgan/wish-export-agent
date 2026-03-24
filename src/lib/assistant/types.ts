@@ -20,6 +20,19 @@ export type UploadedFile = {
   size: number;
   type: string;
   contentText?: string;
+  localPath?: string;
+};
+
+/** Source of extracted segment: text layer, vision/OCR, or merged. */
+export type SegmentSourceType = 'text_layer' | 'vision' | 'merged';
+
+/** Confidence and provenance for extraction (Phase 1 / V2). */
+export type SegmentExtractionMeta = {
+  sourceType: SegmentSourceType;
+  layoutConfidence: number;
+  mergeConfidence: number;
+  regionId?: string;
+  bbox?: { x: number; y: number; w: number; h: number };
 };
 
 export type SkillRiskLevel = 'low' | 'medium' | 'high';

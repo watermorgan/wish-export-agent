@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "extract:test": "npx tsx scripts/test-extraction.ts",
+    "extract:eval": "npx tsx scripts/eval-extraction-dataset.ts data/20260315 data/20260324",
+    "eval:fullchain": "npx tsx scripts/eval-fullchain.ts data/20260315/manifest.json data/20260324/manifest.json"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
