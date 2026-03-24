@@ -35,3 +35,12 @@ public/sw.js
 public/workbox-*.js
 public/worker-*.js
 public/swe-worker-*.js
+
+# Dataset binaries (keep structure/manifests only)
+data/**/*.pdf
+data/**/*.xlsx
+data/**/*.xls
+data/**/*.csv
+data/**/*.tsv
+!data/README.md
+!data/**/manifest.json
