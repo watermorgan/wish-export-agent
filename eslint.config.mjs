@@ -14,6 +14,8 @@ const config = [
     ignores: [
       '.next/**',
       'node_modules/**',
+      '.worktrees/**',
+      '.tmp/**',
       'next-env.d.ts',
       'public/sw.js',
       'public/workbox-*.js',

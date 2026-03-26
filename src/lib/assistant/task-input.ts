@@ -16,7 +16,9 @@ const taskPatchSchema = z.object({
   taskType: taskTypeSchema.optional(),
   selectedTemplateId: selectedTemplateSchema.nullable().optional(),
   selectedSkillIds: z.array(z.string().trim().min(1)).optional(),
-  modelOverride: z.string().trim().min(1).nullable().optional()
+  modelOverride: z.string().trim().min(1).nullable().optional(),
+  visionModelOverride: z.string().trim().min(1).nullable().optional(),
+  translationModelOverride: z.string().trim().min(1).nullable().optional()
 });
 
 function parseSelectedSkillIds(raw: FormDataEntryValue | null) {
@@ -84,7 +86,9 @@ export async function readAssistantRequest(request: Request): Promise<AssistantR
       taskType: taskTypeSchema.parse(formData.get('taskType')),
       selectedTemplateId: parseSelectedTemplateId(formData.get('selectedTemplateId')),
       selectedSkillIds: parseSelectedSkillIds(formData.get('selectedSkillIds')),
-      modelOverride: parseModelOverride(formData.get('modelOverride'))
+      modelOverride: parseModelOverride(formData.get('translationModelOverride') ?? formData.get('modelOverride')),
+      visionModelOverride: parseModelOverride(formData.get('visionModelOverride')),
+      translationModelOverride: parseModelOverride(formData.get('translationModelOverride'))
     };
   }
 
@@ -98,6 +102,8 @@ export async function readAssistantRequest(request: Request): Promise<AssistantR
     selectedTemplateId: selectedTemplateSchema.nullable().optional(),
     selectedSkillIds: z.array(z.string().trim().min(1)).default([]),
     modelOverride: z.string().trim().min(1).optional(),
+    visionModelOverride: z.string().trim().min(1).optional(),
+    translationModelOverride: z.string().trim().min(1).optional(),
     conversationId: z.string().trim().min(1).optional(),
     userId: z.string().trim().min(1).optional(),
     rawPayload: z.unknown().optional()
@@ -130,6 +136,18 @@ export function applyTaskPatch(
         : patch.selectedTemplateId,
     selectedSkillIds: patch.selectedSkillIds ?? current.selectedSkillIds,
     modelOverride:
-      patch.modelOverride === undefined ? current.modelOverride : patch.modelOverride ?? undefined
+      patch.translationModelOverride !== undefined
+        ? patch.translationModelOverride ?? undefined
+        : patch.modelOverride === undefined
+          ? current.modelOverride
+          : patch.modelOverride ?? undefined,
+    visionModelOverride:
+      patch.visionModelOverride === undefined
+        ? current.visionModelOverride
+        : patch.visionModelOverride ?? undefined,
+    translationModelOverride:
+      patch.translationModelOverride === undefined
+        ? current.translationModelOverride
+        : patch.translationModelOverride ?? undefined
   };
 }

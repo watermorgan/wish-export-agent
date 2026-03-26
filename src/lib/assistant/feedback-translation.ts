@@ -10,9 +10,10 @@ import {
   type FeedbackSourceSection,
   type FeedbackSourceReference
 } from '@/lib/assistant/feedback-source';
-import { extractPdfTextFromPath } from '@/lib/assistant/file-extractor';
+import { buildExtractedPdfResultFromText, extractPdfTextFromPath } from '@/lib/assistant/file-extractor';
 import { generateWithAvailableProvider } from '@/lib/assistant/llm/router';
 import { loadSkillPrompt } from '@/lib/assistant/prompt-loader';
+import { runPdfTranslationPipeline } from '@/lib/assistant/translation-pipeline';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -402,7 +403,8 @@ function chunkFeedbackSection(section: FeedbackSourceSection) {
     chunks.push({
       id: `${section.id}__chunk_${index}`,
       title: `${section.title} · Part ${index}`,
-      segments: section.segments.slice(start, start + SECTION_CHUNK_SIZE)
+      segments: section.segments.slice(start, start + SECTION_CHUNK_SIZE),
+      pageLayoutType: section.pageLayoutType
     });
   }
 
@@ -433,48 +435,37 @@ async function translateSectionsWithProvider(
     for (let index = 0; index < chunkSections.length; index += SECTION_CHUNK_CONCURRENCY) {
       const batch = chunkSections.slice(index, index + SECTION_CHUNK_CONCURRENCY);
       const batchResults = await Promise.all(
-        batch.map(async (chunk) => {
-          const providerResult = await generateWithAvailableProvider({
-            system: systemPrompt,
-            user: buildSectionUserPrompt(sourceFile, request, chunk),
-            timeoutMs: 90000,
-            modelOverride: request.modelOverride
-          });
-
-          return {
-            chunk,
-            provider: providerResult.provider,
-            model: providerResult.model,
-            parsed: safeParseSectionModelResponse(providerResult.text, chunk)
-          };
-        })
+        batch.map(async (chunk) => ({
+          chunk,
+          attempt: await translateChunkWithProvider(
+            sourceFile,
+            request,
+            systemPrompt,
+            section,
+            chunk
+          )
+        }))
       );
 
       for (const result of batchResults) {
-        chunkResults.push(result.parsed);
-        for (const item of result.parsed.segmentTranslations) {
+        chunkResults.push(result.attempt.parsed);
+        for (const item of result.attempt.parsed.segmentTranslations) {
           translationMap.set(item.id, item.translation);
         }
 
-        for (const term of result.parsed.terms ?? []) {
+        for (const term of result.attempt.parsed.terms ?? []) {
           terms.add(term);
         }
 
-        for (const item of result.parsed.pendingItems ?? []) {
+        for (const item of result.attempt.parsed.pendingItems ?? []) {
           pendingItems.push(item);
         }
 
-        providerHits.push(
-          chunkSections.length > 1
-            ? `${section.id}:${result.chunk.id}:${result.provider}`
-            : `${section.id}:${result.provider}`
-        );
-        modelHits.push(
-          chunkSections.length > 1
-            ? `${section.id}:${result.chunk.id}:${result.model ?? request.modelOverride ?? 'default'}`
-            : `${section.id}:${result.model ?? request.modelOverride ?? 'default'}`
-        );
-        sectionProviders.add(result.provider);
+        providerHits.push(...result.attempt.providerHits);
+        modelHits.push(...result.attempt.modelHits);
+        for (const provider of result.attempt.providers) {
+          sectionProviders.add(provider);
+        }
       }
     }
 
@@ -514,6 +505,96 @@ async function translateSectionsWithProvider(
       stages
     }
   };
+}
+
+type ChunkTranslationAttempt = {
+  parsed: SectionTranslationModelResponse;
+  providerHits: string[];
+  modelHits: string[];
+  providers: string[];
+};
+
+async function translateChunkWithProvider(
+  sourceFile: UploadedFile,
+  request: AssistantRequest,
+  systemPrompt: string,
+  parentSection: FeedbackSourceSection,
+  chunk: FeedbackSourceSection
+): Promise<ChunkTranslationAttempt> {
+  try {
+    const providerResult = await generateWithAvailableProvider({
+      system: systemPrompt,
+      user: buildSectionUserPrompt(sourceFile, request, chunk),
+      timeoutMs: 90000,
+      modelOverride: request.modelOverride
+    });
+
+    return {
+      parsed: safeParseSectionModelResponse(providerResult.text, chunk),
+      providerHits: [
+        chunk.id === parentSection.id
+          ? `${parentSection.id}:${providerResult.provider}`
+          : `${parentSection.id}:${chunk.id}:${providerResult.provider}`
+      ],
+      modelHits: [
+        chunk.id === parentSection.id
+          ? `${parentSection.id}:${providerResult.model ?? request.modelOverride ?? 'default'}`
+          : `${parentSection.id}:${chunk.id}:${providerResult.model ?? request.modelOverride ?? 'default'}`
+      ],
+      providers: [providerResult.provider]
+    };
+  } catch (error) {
+    if (chunk.segments.length <= 1) {
+      throw error;
+    }
+
+    const midpoint = Math.ceil(chunk.segments.length / 2);
+    const leftChunk: FeedbackSourceSection = {
+      ...chunk,
+      id: `${chunk.id}__split_1`,
+      title: `${chunk.title} · Split 1`,
+      segments: chunk.segments.slice(0, midpoint)
+    };
+    const rightChunk: FeedbackSourceSection = {
+      ...chunk,
+      id: `${chunk.id}__split_2`,
+      title: `${chunk.title} · Split 2`,
+      segments: chunk.segments.slice(midpoint)
+    };
+
+    const left = await translateChunkWithProvider(
+      sourceFile,
+      request,
+      systemPrompt,
+      parentSection,
+      leftChunk
+    );
+    const right = await translateChunkWithProvider(
+      sourceFile,
+      request,
+      systemPrompt,
+      parentSection,
+      rightChunk
+    );
+
+    return {
+      parsed: {
+        summary: [left.parsed.summary, right.parsed.summary].filter(Boolean).join(' ').trim() || undefined,
+        segmentTranslations: [
+          ...left.parsed.segmentTranslations,
+          ...right.parsed.segmentTranslations
+        ],
+        terms: [...(left.parsed.terms ?? []), ...(right.parsed.terms ?? [])],
+        pendingItems: [
+          ...(left.parsed.pendingItems ?? []),
+          ...(right.parsed.pendingItems ?? [])
+        ]
+      },
+      providerHits: [...left.providerHits, ...right.providerHits],
+      modelHits: [...left.modelHits, ...right.modelHits],
+      providers: [...left.providers, ...right.providers]
+    };
+  }
 }
 
 function buildArtifacts(
@@ -642,6 +723,145 @@ function buildReplyMetadata(
     activeProvider: providerHits.at(-1),
     activeModel: modelHits.at(-1),
     translationMode
+  };
+}
+
+function buildArtifactUrl(relativePath: string | null | undefined) {
+  if (!relativePath) {
+    return null;
+  }
+
+  return `/api/assistant/artifacts?path=${encodeURIComponent(relativePath)}`;
+}
+
+async function buildPipelineFallbackReply(
+  request: AssistantRequest,
+  reply: AssistantReply,
+  sourceFile: UploadedFile,
+  sourceBuildMs: number,
+  startedAt: number
+): Promise<AssistantReply | null> {
+  const filePath = sourceFile.storagePath ?? sourceFile.localPath;
+
+  if (!filePath || !sourceFile.name.toLowerCase().endsWith('.pdf')) {
+    return null;
+  }
+
+  const pipelineResult = await runPdfTranslationPipeline({
+    filePath,
+    fileName: sourceFile.name
+  });
+
+  const pdfArtifactLinks = [];
+
+  if (pipelineResult.outputs.annotatedPdf) {
+    pdfArtifactLinks.push({
+      fileName: pipelineResult.fileName,
+      documentMainType: pipelineResult.documentMainType,
+      outputStrategy: pipelineResult.outputStrategy,
+      primary: 'annotated_preview' as const,
+      bilingualXlsxUrl: null,
+      annotatedPreviewUrl: buildArtifactUrl(
+        pipelineResult.outputs.annotatedPdf.downloadable?.relativePath
+      ),
+      tableStylePdfUrl: null
+    });
+  }
+
+  if (pipelineResult.outputs.bilingualTableBundle) {
+    pdfArtifactLinks.push({
+      fileName: pipelineResult.fileName,
+      documentMainType: pipelineResult.documentMainType,
+      outputStrategy: pipelineResult.outputStrategy,
+      primary: 'bilingual_xlsx' as const,
+      bilingualXlsxUrl: buildArtifactUrl(
+        pipelineResult.outputs.bilingualTableBundle.downloadable?.relativePath
+      ),
+      annotatedPreviewUrl: null,
+      tableStylePdfUrl: buildArtifactUrl(
+        pipelineResult.outputs.bilingualTableBundle.downloadableTableStylePdf?.relativePath
+      )
+    });
+  }
+
+  const coverageText = `已译 ${pipelineResult.diagnostics.translatedSegmentCount}/${pipelineResult.segments.length} 段（覆盖率 ${pipelineResult.diagnostics.translationCoveragePct}%）`;
+  const nextSummary =
+    pipelineResult.diagnostics.translatedSegmentCount > 0
+      ? `意见翻译主链已降级到 PDF pipeline。${coverageText}。`
+      : '意见翻译主链已降级到 PDF pipeline，但当前模型未产出可用中文结果。';
+
+  const fallbackField: ArtifactField = {
+    label: 'PDF Pipeline 结果',
+    value: nextSummary,
+    citation: sourceFile.name
+  };
+
+  const fallbackArtifact: ArtifactSection = {
+    title: '翻译产物入口',
+    kind: 'list',
+    summary: '当前页面已切换为 PDF pipeline 产物入口，可直接预览或下载。',
+    fields: [fallbackField]
+  };
+
+  return {
+    ...reply,
+    summary: nextSummary,
+    draftDirection:
+      '当前结果来自 PDF pipeline 降级链路，优先用于页面预览与单文档验证；如需高覆盖率，再继续优化翻译模型稳定性。',
+    nextActions:
+      pipelineResult.diagnostics.translatedSegmentCount > 0
+        ? [
+            '先打开预览页检查原文与中文位置关系。',
+            '若覆盖率仍低，再继续调翻译模型和分段策略。'
+          ]
+        : [
+            '当前主链没有拿到可用中文，建议先更换更稳定的翻译模型。',
+            '保留本次 PDF pipeline 产物作为诊断样本。'
+          ],
+    artifacts: [...reply.artifacts, fallbackArtifact],
+    auditTrail: [
+      ...reply.auditTrail,
+      {
+        label: '翻译主链已降级',
+        detail: 'comment-translator 实时翻译失败，已自动切换到 PDF pipeline 结果。'
+      },
+      {
+        label: 'PDF pipeline 已执行',
+        detail: `${coverageText} · 文档类型 ${pipelineResult.documentMainType} · 输出策略 ${pipelineResult.outputStrategy}。`
+      }
+    ],
+    metadata: {
+      ...(reply.metadata ?? {}),
+      needsHumanReview: true,
+      providerHits: [...(reply.metadata?.providerHits ?? []), 'modelscope'],
+      modelHits: [
+        ...(reply.metadata?.modelHits ?? []),
+        request.translationModelOverride ??
+          request.modelOverride ??
+          process.env.TRANSLATION_MODEL ??
+          'translation-model'
+      ],
+      activeProvider: 'modelscope',
+      activeModel:
+        request.translationModelOverride ??
+        request.modelOverride ??
+        process.env.TRANSLATION_MODEL ??
+        'translation-model',
+      translationMode: 'real',
+      pdfArtifactLinks,
+      translationTiming: {
+        totalMs: Date.now() - startedAt,
+        sourceBuildMs,
+        stages: [
+          {
+            id: 'pdf-pipeline-fallback',
+            label: 'PDF pipeline 降级链路',
+            durationMs: Date.now() - startedAt,
+            provider: 'modelscope'
+          }
+        ]
+      }
+    }
   };
 }
 
@@ -801,7 +1021,11 @@ export async function maybeRunRealFeedbackTranslation(
   const hasTranslatorSkill = reply.selectedSkills.some((skill) => skill.id === 'comment-translator');
   const sourceFile = pickSourceFile(request.files);
   const sourceBuildStartedAt = Date.now();
-  const sourceReference = sourceFile ? buildFeedbackSourceReference(sourceFile) : null;
+  const sourceExtracted = sourceFile ? buildExtractedPdfResultFromText(sourceFile.contentText ?? '') : null;
+  const sourceReference =
+    sourceFile && sourceExtracted
+      ? buildFeedbackSourceReference(sourceExtracted, { name: sourceFile.name })
+      : null;
   const sourceBuildMs = Date.now() - sourceBuildStartedAt;
 
   if (
@@ -895,8 +1119,23 @@ export async function maybeRunRealFeedbackTranslation(
       ]
     };
   } catch (error) {
-    console.warn('Real feedback translation failed, falling back to local golden fixture.', error);
-    return buildFixtureReply(reply, sourceFile);
+    const message = error instanceof Error ? error.message : 'unknown translation error';
+    console.warn('Real feedback translation failed.', error);
+    try {
+      const fallbackReply = await buildPipelineFallbackReply(
+        request,
+        reply,
+        sourceFile,
+        sourceBuildMs,
+        startedAt
+      );
+      if (fallbackReply) {
+        return fallbackReply;
+      }
+    } catch (fallbackError) {
+      console.warn('PDF pipeline fallback failed.', fallbackError);
+    }
+    throw new Error(`意见翻译失败：${message}`);
   }
   const pendingConfirmations = buildPendingItems(result);
   const hasMergerSkill = reply.selectedSkills.some((skill) => skill.id === 'comment-merger');

@@ -1,0 +1,24 @@
+{
+  "dataset_date": "local",
+  "samples": [
+    {
+      "sample_id": "macade-tp-cici-rain-jacket-w",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test/Macade TP Cici Rain Jacket W.pdf"
+        }
+      ]
+    },
+    {
+      "sample_id": "cici-rain-jacket-sketch",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test/Cici Rain Jacket - sketch.pdf"
+        }
+      ]
+    }
+  ]
+}
+

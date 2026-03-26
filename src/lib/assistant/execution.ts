@@ -10,6 +10,7 @@ import { loadSkillPrompt } from '@/lib/assistant/prompt-loader';
 import { generateWithAvailableProvider } from '@/lib/assistant/llm/router';
 import { parseFullResult, type ParsedStepResult } from '@/lib/assistant/parser';
 import { buildFeedbackSourceReference, type FeedbackSourceReference } from '@/lib/assistant/feedback-source';
+import { buildExtractedPdfResultFromText } from '@/lib/assistant/file-extractor';
 import { maybeRunRealFeedbackTranslation } from '@/lib/assistant/feedback-translation';
 import type {
   ArtifactField,
@@ -508,7 +509,12 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
         .sort((left, right) => (right.contentText?.length ?? 0) - (left.contentText?.length ?? 0))[0];
       
       if (sourceFile) {
-        structuredSource = buildFeedbackSourceReference(sourceFile);
+        const extractedSource = buildExtractedPdfResultFromText(sourceFile.contentText ?? '');
+        if (extractedSource) {
+          structuredSource = buildFeedbackSourceReference(extractedSource, {
+            name: sourceFile.name
+          });
+        }
       }
     }
 

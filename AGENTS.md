@@ -9,6 +9,11 @@
 - Treat this directory as the only Git scope for code and config changes.
 - Prefer local `memory/` constraints over generic external skill defaults.
 - If a requested action conflicts with `memory/execution-boundaries.md`, stop and ask.
+- **Parallel Development (Git Worktree)**: 
+  - For tasks requiring long-running services (e.g., UI dev servers on port 3005) or strict isolation from mainline logic, use `git worktree`.
+  - Maintain the main directory for core algorithm and pipeline development.
+  - Worktrees should be located in `.worktrees/` and use descriptive branch names.
+  - This prevents environment corruption and allows concurrent testing of logic vs. presentation.
 
 ## Project Intent
 - This repository is for an export-sales assistant agent.

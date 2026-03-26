@@ -53,7 +53,7 @@ async function runTests() {
 
     if (errors > 0) process.exit(1);
     console.log('--- Verification Complete: SSR is Healthy ---');
-  } catch (e) {
+  } catch {
     console.error('❌ Server is not reachable. Is it running?');
     process.exit(1);
   }

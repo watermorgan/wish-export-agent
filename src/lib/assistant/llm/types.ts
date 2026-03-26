@@ -6,7 +6,9 @@ export type LlmRequest = {
 };
 
 export type LlmProviderName =
+  | 'dashscope'
   | 'modelscope'
+  | 'glm'
   | 'gemini-cli'
   | 'anthropic'
   | 'claude-cli'

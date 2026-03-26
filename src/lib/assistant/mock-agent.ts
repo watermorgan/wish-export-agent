@@ -3,6 +3,8 @@ import { runAssistant } from '@/lib/assistant/execution';
 import type { AssistantRequest } from '@/lib/assistant/types';
 
 export const MAX_FILES = 5;
+export const MAX_FILE_SIZE_BYTES =
+  Number(process.env.ASSISTANT_MAX_FILE_SIZE_MB ?? '100') * 1024 * 1024;
 
 export const formQuestionSchema = z
   .string({
@@ -14,7 +16,7 @@ export const formQuestionSchema = z
 
 export const uploadedFileSchema = z.object({
   name: z.string().min(1).max(180),
-  size: z.number().nonnegative().max(20 * 1024 * 1024),
+  size: z.number().nonnegative().max(MAX_FILE_SIZE_BYTES),
   type: z.string().min(1).max(120),
   storagePath: z.string().min(1).optional()
 });

@@ -2,11 +2,18 @@
 
 import { useDeferredValue, useEffect, useState, useTransition } from 'react';
 import {
+  quickPrompts,
   roleOptions,
   skillCatalog,
   taskTypeOptions,
   workflowTemplates
 } from '@/lib/assistant/catalog';
+import {
+  defaultTranslationModelId,
+  defaultVisionModelId,
+  translationModelOptions,
+  visionModelOptions
+} from '@/lib/assistant/model-options';
 import type {
   AssistantReply,
   AssistantRole,
@@ -17,25 +24,6 @@ import type {
   TaskType,
   WorkflowTemplate
 } from '@/lib/assistant/types';
-
-const quickPrompts = [
-  '请整理工艺单附件，输出结构化 BOM，并列出缺失字段。',
-  '请保留英文原文，在每段下方增加中文翻译，仅做翻译，不做归并。',
-  '请基于客户邮件和附件，生成英文回复草稿，并把高风险承诺单独列出。'
-];
-
-const modelOptions = [
-  {
-    id: 'Qwen/Qwen3.5-397B-A17B',
-    label: 'Qwen 3.5 397B',
-    description: '更高质量，适合正式翻译。'
-  },
-  {
-    id: 'Qwen/Qwen3.5-35B-A3B',
-    label: 'Qwen 3.5 35B',
-    description: '速度更快，适合快速试跑。'
-  }
-];
 
 type FileDescriptor = {
   name: string;
@@ -71,6 +59,80 @@ function getReviewDecisionLabel(decision: ReviewEntry['decision']) {
   return decision === 'approved' ? '审核通过' : '退回处理';
 }
 
+function buildTranslationHtmlDocument(title: string, bodyHtml: string) {
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f7f4eb;
+        color: #1f2a1f;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        background: #fffdf7;
+        border: 1px solid #d9d1bf;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 16px 40px rgba(31, 42, 31, 0.08);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+      p.meta {
+        margin: 0 0 24px;
+        color: #5f6b63;
+      }
+      .fixture-section {
+        margin-bottom: 20px;
+        padding: 16px;
+        border: 1px solid #e6dfd0;
+        border-radius: 16px;
+        background: #fff;
+      }
+      .fixture-section-header h3 {
+        margin: 0 0 8px;
+      }
+      .fixture-section-header p {
+        margin: 0 0 12px;
+        color: #617063;
+      }
+      .bilingual-block {
+        padding: 12px;
+        border-radius: 12px;
+        background: #f8faf6;
+      }
+      .source-line {
+        margin: 0 0 8px;
+        color: #243024;
+        font-weight: 600;
+        white-space: pre-wrap;
+      }
+      .translation-line {
+        margin: 0;
+        color: #0f5f3a;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${title}</h1>
+      <p class="meta">当前内容来自本次接口返回的结构化翻译结果，可直接预览或下载，不依赖任务持久化接口。</p>
+      ${bodyHtml}
+    </main>
+  </body>
+</html>`;
+}
+
 export function Workspace() {
   const defaultTemplate = workflowTemplates.find(
     (template) => template.id === 'translation-merge'
@@ -84,7 +146,10 @@ export function Workspace() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     defaultTemplate?.id ?? null
   );
-  const [modelOverride, setModelOverride] = useState<string>(modelOptions[0].id);
+  const [visionModelOverride, setVisionModelOverride] = useState<string>(defaultVisionModelId);
+  const [translationModelOverride, setTranslationModelOverride] = useState<string>(
+    defaultTranslationModelId
+  );
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(
     defaultTemplate?.steps.filter((step) => step === 'comment-translator') ?? defaultSkillIds
   );
@@ -110,8 +175,15 @@ export function Workspace() {
     setTaskType(nextReply.taskType);
     setQuestion(nextReply.task?.question ?? question);
     setSelectedTemplateId(nextReply.selectedTemplate?.id ?? null);
-    setSelectedSkillIds(nextReply.selectedSkills.map((skill) => skill.id));
-    setModelOverride(nextReply.task?.modelOverride ?? modelOptions[0].id);
+    setSelectedSkillIds((nextReply.selectedSkills ?? []).map((skill) => skill.id));
+    setVisionModelOverride(
+      nextReply.task?.visionModelOverride ?? defaultVisionModelId
+    );
+    setTranslationModelOverride(
+      nextReply.task?.translationModelOverride ??
+        nextReply.task?.modelOverride ??
+        defaultTranslationModelId
+    );
     setFiles([]);
   }
 
@@ -183,7 +255,9 @@ export function Workspace() {
         formData.append('taskType', taskType);
         formData.append('question', question);
         formData.append('selectedSkillIds', JSON.stringify(selectedSkillIds));
-        formData.append('modelOverride', modelOverride);
+        formData.append('modelOverride', translationModelOverride);
+        formData.append('visionModelOverride', visionModelOverride);
+        formData.append('translationModelOverride', translationModelOverride);
 
         if (selectedTemplateId) {
           formData.append('selectedTemplateId', selectedTemplateId);
@@ -226,7 +300,8 @@ export function Workspace() {
     setQuestion(quickPrompts[1]);
     setSelectedTemplateId(defaultTemplate?.id ?? null);
     setSelectedSkillIds(defaultSkillIds);
-    setModelOverride(modelOptions[0].id);
+    setVisionModelOverride(defaultVisionModelId);
+    setTranslationModelOverride(defaultTranslationModelId);
     setFiles([]);
   }
 
@@ -270,7 +345,28 @@ export function Workspace() {
   const uploadedFileCount = fileDescriptors.length > 0 ? fileDescriptors.length : currentTask?.files.length ?? 0;
   const translationTiming = reply?.metadata?.translationTiming;
   const activeProvider = reply?.metadata?.activeProvider;
-  const activeModel = reply?.metadata?.activeModel ?? modelOverride;
+  const activeModel = reply?.metadata?.activeModel ?? translationModelOverride;
+  const translationHtmlDocument = translationHtml
+    ? buildTranslationHtmlDocument(
+        translationArtifact?.title ?? '翻译结果预览',
+        translationHtml
+      )
+    : null;
+  const primaryArtifactLink = reply?.metadata?.pdfArtifactLinks?.[0];
+  const previewUrl =
+    (primaryArtifactLink?.primary === 'annotated_preview'
+      ? primaryArtifactLink.annotatedPreviewUrl
+      : null) ??
+    primaryArtifactLink?.annotatedPreviewUrl ??
+    null;
+  const downloadUrl =
+    (primaryArtifactLink?.primary === 'bilingual_xlsx'
+      ? primaryArtifactLink.bilingualXlsxUrl
+      : null) ??
+    primaryArtifactLink?.tableStylePdfUrl ??
+    primaryArtifactLink?.bilingualXlsxUrl ??
+    primaryArtifactLink?.annotatedPreviewUrl ??
+    null;
   const guidanceText = isPending
     ? '正在处理文档：1. 抽取内容 2. 整理段落 3. 分段翻译 4. 生成结果与 PDF。'
     : uploadedFileCount === 0
@@ -280,6 +376,28 @@ export function Workspace() {
         : `已上传 ${uploadedFileCount} 个文件。下一步点击“开始翻译”。`;
 
   function openTranslationResult() {
+    const directUrl = previewUrl;
+    if (directUrl) {
+      const resultWindow = window.open(directUrl, '_blank', 'noopener,noreferrer');
+
+      if (!resultWindow) {
+        setError('浏览器阻止了新窗口，请允许弹窗后重试。');
+      }
+      return;
+    }
+
+    if (translationHtmlDocument) {
+      const blob = new Blob([translationHtmlDocument], { type: 'text/html;charset=utf-8' });
+      const objectUrl = URL.createObjectURL(blob);
+      const resultWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+
+      if (!resultWindow) {
+        setError('浏览器阻止了新窗口，请允许弹窗后重试。');
+      }
+      return;
+    }
+
     if (!currentTask) {
       return;
     }
@@ -296,6 +414,29 @@ export function Workspace() {
   }
 
   function downloadTranslationResult() {
+    const directUrl = downloadUrl;
+    if (directUrl) {
+      const link = document.createElement('a');
+      link.href = directUrl;
+      link.download = '';
+      link.click();
+      return;
+    }
+
+    if (translationHtmlDocument) {
+      const blob = new Blob([translationHtmlDocument], { type: 'text/html;charset=utf-8' });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const fileBaseName = fileDescriptors[0]?.name?.replace(/\.[^.]+$/, '') ??
+        currentTask?.title ??
+        'translation-result';
+      link.href = objectUrl;
+      link.download = `${fileBaseName}.translated.html`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      return;
+    }
+
     if (!currentTask) {
       return;
     }
@@ -347,7 +488,9 @@ export function Workspace() {
             question,
             selectedSkillIds,
             selectedTemplateId,
-            modelOverride
+            modelOverride: translationModelOverride,
+            visionModelOverride,
+            translationModelOverride
           })
         });
 
@@ -574,6 +717,7 @@ export function Workspace() {
             <strong>上传文件</strong>
             <p>上传后，默认执行意见翻译。你也可以在下面补充要求。</p>
             <input
+              data-testid="file-input"
               aria-label="上传文件"
               type="file"
               multiple
@@ -688,15 +832,34 @@ export function Workspace() {
 
                 <div className="section-stack">
                   <div className="section-title">
-                    <h3>翻译模型</h3>
+                    <h3>识别模型（A）</h3>
                   </div>
                   <div className="choice-grid compact-grid">
-                    {modelOptions.map((option) => (
+                    {visionModelOptions.map((option) => (
                       <button
-                        className={`choice-card ${modelOverride === option.id ? 'choice-card-active' : ''}`}
+                        className={`choice-card ${visionModelOverride === option.id ? 'choice-card-active' : ''}`}
                         key={option.id}
                         type="button"
-                        onClick={() => setModelOverride(option.id)}
+                        onClick={() => setVisionModelOverride(option.id)}
+                      >
+                        <strong>{option.label}</strong>
+                        <span>{option.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="section-stack">
+                  <div className="section-title">
+                    <h3>翻译模型（B）</h3>
+                  </div>
+                  <div className="choice-grid compact-grid">
+                    {translationModelOptions.map((option) => (
+                      <button
+                        className={`choice-card ${translationModelOverride === option.id ? 'choice-card-active' : ''}`}
+                        key={option.id}
+                        type="button"
+                        onClick={() => setTranslationModelOverride(option.id)}
                       >
                         <strong>{option.label}</strong>
                         <span>{option.description}</span>
@@ -753,6 +916,7 @@ export function Workspace() {
                   保存当前任务
                 </button>
                 <button
+                  data-testid="start-translation"
                   className="primary-button"
                   type="button"
                   disabled={isPending || uploadedFileCount === 0}
@@ -777,7 +941,7 @@ export function Workspace() {
           </div>
 
           {error ? (
-            <div className="answer-card answer-callout">
+            <div className="answer-card answer-callout" data-testid="request-error">
               <h3>请求失败</h3>
               <p>{error}</p>
             </div>
@@ -785,6 +949,7 @@ export function Workspace() {
 
           <div className="answer-grid">
 	            <div className="answer-card result-highlight-card">
+	              <div data-testid="result-summary">
 	              <h3>结果总览</h3>
               <p>
                 {reply?.summary ??
@@ -794,7 +959,7 @@ export function Workspace() {
                   <button
                     className="primary-button"
                     type="button"
-                    disabled={!translationHtml}
+                    disabled={!translationHtml && !previewUrl && !currentTask}
                     onClick={openTranslationResult}
                   >
                     页面查看
@@ -802,20 +967,22 @@ export function Workspace() {
                   <button
                     className="secondary-button"
                     type="button"
-                    disabled={!translationHtml}
+                    disabled={!translationHtml && !downloadUrl && !currentTask}
                     onClick={downloadTranslationResult}
                   >
                     下载翻译结果
                   </button>
                 </div>
 	              {currentTask ? (
-	                <p className="meta-note">
+	                <p className="meta-note" data-testid="task-id">
                   任务ID：{currentTask.id} · 审核状态：
                   {reply?.reviewStatusLabel ?? currentTask.reviewStatus}
                 </p>
               ) : null}
-              <p className="meta-note">
-                当前模型：{modelOptions.find((option) => option.id === activeModel)?.label ?? activeModel}
+              <p className="meta-note" data-testid="active-model">
+                当前翻译模型：
+                {translationModelOptions.find((option) => option.id === activeModel)?.label ??
+                  activeModel}
                 {activeProvider ? ` · Provider：${activeProvider}` : ''}
               </p>
 	              {currentTask?.reviewedBy ? (
@@ -824,7 +991,80 @@ export function Workspace() {
 	                  {currentTask.reviewComment ? ` · 审核意见：${currentTask.reviewComment}` : ''}
 	                </p>
 	              ) : null}
+                </div>
 	            </div>
+
+            <div className="answer-card answer-callout" data-testid="artifact-links">
+              <h3>翻译结果入口</h3>
+              <p className="meta-note">
+                表格类（TP/BOM）优先提供双语 Excel；线稿/批注类优先提供预览页。链接由服务端生成，与下方 JSON 一致。
+              </p>
+
+              {reply?.metadata?.pdfArtifactLinks?.length ? (
+                <ul className="confirmation-list">
+                  {reply.metadata.pdfArtifactLinks.map((link) => (
+                    <li key={link.fileName} className="confirmation-item">
+                      <div className="confirmation-header">
+                        <strong>{link.fileName}</strong>
+                        <span className="tag">
+                          {link.documentMainType} · {link.outputStrategy}
+                        </span>
+                      </div>
+
+                      <div className="result-actions" style={{ marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
+                        {link.bilingualXlsxUrl ? (
+                          <a
+                            className={link.primary === 'bilingual_xlsx' ? 'primary-button' : 'secondary-button'}
+                            href={link.bilingualXlsxUrl}
+                            download
+                          >
+                            下载双语 Excel
+                          </a>
+                        ) : null}
+
+                        {link.annotatedPreviewUrl ? (
+                          <a
+                            className={link.primary === 'annotated_preview' ? 'primary-button' : 'secondary-button'}
+                            href={link.annotatedPreviewUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            打开翻译预览
+                          </a>
+                        ) : null}
+
+                        {link.tableStylePdfUrl ? (
+                          <a
+                            className={link.primary === 'bilingual_xlsx' ? 'secondary-button' : 'primary-button'}
+                            href={link.tableStylePdfUrl}
+                            download
+                          >
+                            下载表格 PDF
+                          </a>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="meta-note">暂无可下载产物。</p>
+              )}
+
+              {reply?.metadata?.pipelineFallbackHints?.length ? (
+                <div style={{ marginTop: 12 }}>
+                  <p className="meta-note">
+                    <strong>模型状态（脱敏）</strong>
+                  </p>
+                  <ul>
+                    {reply.metadata.pipelineFallbackHints.map((hint) => (
+                      <li key={hint} className="meta-note">
+                        {hint}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
 
             <div className="answer-card">
               <h3>下一步</h3>

@@ -20,7 +20,20 @@ export type UploadedFile = {
   size: number;
   type: string;
   contentText?: string;
+  localPath?: string;
   storagePath?: string;
+};
+
+/** Source of extracted segment: text layer, vision/OCR, or merged. */
+export type SegmentSourceType = 'text_layer' | 'vision' | 'merged';
+
+/** Confidence and provenance for extraction (Phase 1 / V2). */
+export type SegmentExtractionMeta = {
+  sourceType: SegmentSourceType;
+  layoutConfidence: number;
+  mergeConfidence: number;
+  regionId?: string;
+  bbox?: { x: number; y: number; w: number; h: number };
 };
 
 export type SkillRiskLevel = 'low' | 'medium' | 'high';
@@ -121,13 +134,28 @@ export type ReviewEntry = {
   createdAt: string;
 };
 
+export type PdfArtifactLinkEntry = {
+  fileName: string;
+  documentMainType: string;
+  outputStrategy: string;
+  /** 主入口：表格类优先 Excel，线稿类优先预览 */
+  primary: 'bilingual_xlsx' | 'annotated_preview';
+  bilingualXlsxUrl: string | null;
+  annotatedPreviewUrl: string | null;
+  tableStylePdfUrl?: string | null;
+};
+
 export type AssistantReplyMetadata = {
   needsHumanReview: boolean;
   providerHits?: string[];
   modelHits?: string[];
   activeProvider?: string;
   activeModel?: string;
-  translationMode?: 'real' | 'fixture' | 'whole-document' | 'section-chunked';
+  translationMode?: 'fixture' | 'whole-document' | 'section-chunked' | 'real';
+  /** 页面可直接渲染的下载/预览入口（与 finalArtifact 中 artifactLinks 一致） */
+  pdfArtifactLinks?: PdfArtifactLinkEntry[];
+  /** 脱敏说明：为何 A/B 可能 fallback（不含密钥与原始响应） */
+  pipelineFallbackHints?: string[];
   translationTiming?: {
     totalMs: number;
     sourceBuildMs?: number;
@@ -149,8 +177,10 @@ export type AssistantRequest = {
   files: UploadedFile[];
   selectedSkillIds: string[];
   selectedTemplateId?: string | null;
-  taskType?: TaskType;
   modelOverride?: string;
+  visionModelOverride?: string;
+  translationModelOverride?: string;
+  taskType?: TaskType;
   conversationId?: string;
   userId?: string;
   rawPayload?: unknown;
@@ -167,6 +197,8 @@ export type TaskRecord = {
   selectedSkillIds: string[];
   selectedTemplateId?: string | null;
   modelOverride?: string;
+  visionModelOverride?: string;
+  translationModelOverride?: string;
   status: TaskStatus;
   reviewStatus: ReviewStatus;
   summary: string;
