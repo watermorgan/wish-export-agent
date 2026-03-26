@@ -714,8 +714,9 @@ export function Workspace() {
           </div>
 
           <div className="dropzone">
+            <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--primary)', marginBottom: '16px' }}>cloud_upload</span>
             <strong>上传文件</strong>
-            <p>上传后，默认执行意见翻译。你也可以在下面补充要求。</p>
+            <p>把需要处理的 PDF、Excel 拖到这里吧 ~</p>
             <input
               data-testid="file-input"
               aria-label="上传文件"
@@ -941,9 +942,38 @@ export function Workspace() {
           </div>
 
           {error ? (
-            <div className="answer-card answer-callout" data-testid="request-error">
-              <h3>请求失败</h3>
-              <p>{error}</p>
+            <div
+              className="answer-card"
+              data-testid="request-error"
+              style={{
+                borderLeft: '6px solid var(--color-risk-coral)',
+                background: 'var(--color-risk-soft)'
+              }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="material-symbols-outlined text-risk-coral">error</span>
+                <h3
+                  className="text-sm font-bold text-risk-coral m-0"
+                  style={{ color: 'var(--color-risk-coral)' }}
+                >
+                  请求失败
+                </h3>
+              </div>
+              {error.length > 150 ? (
+                <details className="group">
+                  <summary className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1 hover:text-risk-coral transition-colors list-none">
+                    <span className="material-symbols-outlined !text-[16px] group-open:rotate-180 transition-transform">
+                      expand_more
+                    </span>
+                    查看详细错误日志
+                  </summary>
+                  <pre className="mt-3 p-4 bg-white/80 rounded-xl text-[11px] text-slate-600 font-mono whitespace-pre-wrap break-all w-full max-w-full max-h-[400px] overflow-y-auto border border-risk-coral/20 shadow-inner">
+                    {error}
+                  </pre>
+                </details>
+              ) : (
+                <p className="text-xs text-slate-700 m-0 font-medium">{error}</p>
+              )}
             </div>
           ) : null}
 
