@@ -10,6 +10,8 @@
     "extract:test": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/test-extraction.ts",
     "extract:eval": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/eval-extraction-dataset.ts data/20260315 data/20260324",
     "eval:fullchain": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/eval-fullchain.ts data/20260315/manifest.json data/20260324/manifest.json data/local/manifest.json",
+    "smoke:pdf": "SMOKE_MODE=fast PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/smoke-pdf-pipeline.ts",
+    "smoke:pdf:full": "SMOKE_MODE=full PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/smoke-pdf-pipeline.ts",
     "eval:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/run-test02-regression.ts",
     "compare:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/compare-test02.ts",
     "verify:test02:ui": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02-ui.ts",

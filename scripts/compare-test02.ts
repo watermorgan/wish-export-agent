@@ -23,6 +23,9 @@ type ComparisonSummaryRow = {
   referenceCount: number;
   status: 'ok' | 'missing_source' | 'failed';
   comparisonReady: boolean;
+  comparisonStatus?: 'pass' | 'warn' | 'fail' | 'no_reference';
+  referenceRecallPct?: number;
+  aiPrecisionPct?: number;
   totalSegments?: number;
   translatedSegmentCount?: number;
   translationCoveragePct?: number;
@@ -80,6 +83,9 @@ async function main() {
         referenceCount: sample.references?.length ?? 0,
         status: pipeline.success && !derivePipelineFailureReason(pipeline) ? 'ok' : 'failed',
         comparisonReady: true,
+        comparisonStatus: comparison.metrics.status,
+        referenceRecallPct: comparison.metrics.referenceRecallPct,
+        aiPrecisionPct: comparison.metrics.aiPrecisionPct,
         totalSegments: pipeline.segments.length,
         translatedSegmentCount: pipeline.diagnostics.translatedSegmentCount,
         translationCoveragePct: pipeline.diagnostics.translationCoveragePct,

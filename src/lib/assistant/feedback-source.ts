@@ -294,12 +294,41 @@ function pushSegment(
   });
 }
 
-function segmentsFromTableRegion(region: ExtractedRegion): FeedbackSourceSegment[] {
+function splitMixedTableCells(rawLine: string) {
+  return rawLine
+    .split(/\s*\|\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function segmentsFromTableRegion(
+  region: ExtractedRegion,
+  layoutType: PageLayoutType
+): FeedbackSourceSegment[] {
   const segments: FeedbackSourceSegment[] = [];
   for (const rawLine of region.lines) {
     const text = rawLine.trim();
     if (!text) continue;
     const cells = text.split(/\s{2,}/).map((item) => item.trim()).filter(Boolean);
+    if (layoutType === 'mixed') {
+      const mixedCells =
+        cells.flatMap((cell) => splitMixedTableCells(cell)).filter(Boolean);
+      if (mixedCells.length >= 2) {
+        for (const cell of mixedCells) {
+          pushSegment(segments, region, cell, 0.91, 0.95);
+        }
+      } else {
+        pushSegment(
+          segments,
+          region,
+          splitMixedTableCells(text).join(' | ') || text,
+          0.9,
+          0.92
+        );
+      }
+      continue;
+    }
+
     if (cells.length >= 2) {
       pushSegment(segments, region, cells.join(' | '), 0.93, 0.95);
     } else {
@@ -311,7 +340,7 @@ function segmentsFromTableRegion(region: ExtractedRegion): FeedbackSourceSegment
 
 function segmentsFromRegion(region: ExtractedRegion, layoutType: PageLayoutType): FeedbackSourceSegment[] {
   if (region.regionType === 'table_block' || layoutType === 'table') {
-    return segmentsFromTableRegion(region);
+    return segmentsFromTableRegion(region, layoutType);
   }
 
   const conservative = isConservativeRegion(region.regionType);

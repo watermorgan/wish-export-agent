@@ -9,6 +9,7 @@
 - Treat this directory as the only Git scope for code and config changes.
 - Prefer local `memory/` constraints over generic external skill defaults.
 - If a requested action conflicts with `memory/execution-boundaries.md`, stop and ask.
+- After any non-trivial debugging or architecture change, persist durable conclusions into `memory/` and the relevant `docs/project/` files instead of leaving them only in chat history.
 - **Parallel Development (Git Worktree)**: 
   - For tasks requiring long-running services (e.g., UI dev servers on port 3005) or strict isolation from mainline logic, use `git worktree`.
   - Maintain the main directory for core algorithm and pipeline development.
@@ -22,4 +23,3 @@
 ## Expected Deliverables
 - Reusable prompts, tool integrations, workflow code, evaluations, and operating docs.
 - Changes should preserve auditability and avoid committing secrets.
-

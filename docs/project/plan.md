@@ -17,6 +17,7 @@
 - 当前主链仍是 `pdftotext -layout -> feedback-source -> 翻译模型`
 - `vision-extraction.ts` 已作为 A 模型辅助识别入口接入主链
 - 输出策略需分流：不能再只用一套结果形态覆盖所有资料
+- 正式 annotated PDF 自 2026-03-29 起必须基于冻结的 `translation_snapshot_v1` 渲染；架构约束见 `translation-design.md`
 - 当前至少要区分：
   - `sketch/comment`
   - `tp/bom/table-heavy pdf`

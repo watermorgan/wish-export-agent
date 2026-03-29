@@ -48,6 +48,69 @@ npm run db:init
 - PWA manifest 已就位，后续可继续完善离线与安装体验
 - 已预留 bot 扩展层，网页端和 Feishu 可复用同一套 agent 服务
 
+## 当前翻译链基线
+
+### A/B 模型拆分
+
+当前 PDF 意见翻译链按两类模型拆分：
+
+- A 模型：视觉/OCR/多模态辅助识别
+- B 模型：结构化 segment 翻译
+
+推荐环境变量：
+
+```bash
+A_MODEL_NAME=Qwen/Qwen3.5-35B-A3B
+A_MODEL_API_URL=https://api-inference.modelscope.cn/v1
+A_MODEL_API_KEY=
+
+B_MODEL_NAME=qwen3.5-27b
+B_MODEL_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+B_MODEL_API_KEY=
+
+VISION_API_KEY=...
+VISION_API_URL=https://api-inference.modelscope.cn/v1
+VISION_MODEL=Qwen/Qwen3.5-35B-A3B
+
+TRANSLATION_API_KEY=
+TRANSLATION_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+TRANSLATION_MODEL=qwen3.5-27b
+```
+
+当前已验证的 B 模型备选：
+
+- `qwen3.5-27b`（百炼 compatible-mode，当前主推）
+- `Qwen3.5-35B-A3B`（本地 OpenAI-compatible，默认优先）
+- `Qwen/Qwen3.5-397B-A17B`
+- `MiniMax/MiniMax-M2.1`
+
+说明：
+
+- 当前仓库已支持私网 OpenAI-compatible 端点无鉴权直连；若无法连接 `172.16.71.201:8001`，会明确提示先连接 VPN。
+- 当前建议组合：
+  - A：`ModelScope Qwen/Qwen3.5-35B-A3B`
+  - B：`DashScope compatible-mode qwen3.5-27b`
+- `DashScope` 的 compatible-mode 必须使用 `https://dashscope.aliyuncs.com/compatible-mode/v1`，不能继续使用旧的 `api/v2/apps/protocols/compatible-mode/v1` 路径。
+- 当前这台本地实例不满足稳定主链接入条件，因此只建议继续做联调，不作为默认 A/B。
+- 页面里选择的 `translationModelOverride` 必须真正传递到 PDF pipeline，而不只是 UI 展示。
+- 若 `qwen3.5-27b` 后续额度或稳定性不足，再切 `Qwen/Qwen3.5-397B-A17B` 或 `MiniMax/MiniMax-M2.1` 做线上验证。
+
+### 当前 PDF 翻译输出策略
+
+- `feedback` 的 PDF 任务优先走 `pdf-pipeline`
+- 对 `sketch/comment` 类页面，优先“页内蓝色中文贴近原文”
+- 稀疏页不默认显示右侧整栏 `CN Notes`
+- `Unassigned Notes` 只保留为诊断能力，正式 PDF 默认不显示
+- 款号、SKU、style code、纯代码类内容不作为翻译标注输出
+
+### 当前识别优先级
+
+当前主矛盾不是“先把模型翻得更花”，而是“先把该识别的块找全”。
+
+- 对 `sketch_comment` 且文本层稀疏的页面，必须强制触发整页视觉识别
+- 颜色、面料、辅料、拉链、按扣、工艺处理、针距、版型、批注说明优先保留
+- logo、页码、版权、编辑日期、重复页头默认视为低价值噪音
+
 ## 下一步建议
 1. 把 `src/lib/assistant/execution.ts` 的 mock 编排替换成真实技能执行
 2. 把当前 PostgreSQL 持久化从单表快照升级成领域表结构和审计子表

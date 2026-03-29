@@ -446,6 +446,18 @@ function buildAuditTrail(
   ];
 }
 
+function shouldBypassLegacyTranslatorStep(
+  request: AssistantRequest,
+  taskType: TaskType,
+  skillId: string
+) {
+  if (taskType !== 'feedback' || skillId !== 'comment-translator') {
+    return false;
+  }
+
+  return request.files.some((file) => file.name.toLowerCase().endsWith('.pdf'));
+}
+
 export async function runAssistant(request: AssistantRequest): Promise<AssistantReply> {
   const taskType = request.taskType ?? inferTaskType(request.question);
   const taskTypeLabel =
@@ -496,8 +508,19 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
   const modelHits: string[] = [];
   let accumulatedArtifacts: ArtifactSection[] = [];
   let accumulatedConfirmations: PendingConfirmation[] = [...pendingConfirmations];
+  const skippedLegacySteps: string[] = [];
 
   for (const skill of selectedSkills) {
+    if (shouldBypassLegacyTranslatorStep(request, taskType, skill.id)) {
+      skippedLegacySteps.push(skill.id);
+      previousResults.push({
+        skillId: skill.id,
+        skillName: skill.name,
+        rawText: '[bypassed] PDF feedback task uses runPdfTranslationPipeline directly.'
+      });
+      continue;
+    }
+
     const systemPrompt = loadSkillPrompt(skill.id);
     
     // Enrich context for specific skills
@@ -587,6 +610,14 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
     artifacts: accumulatedArtifacts.length > 0 ? accumulatedArtifacts : buildArtifacts(taskType, request.question, request.files),
     auditTrail: [
       ...buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
+      ...(skippedLegacySteps.length > 0
+        ? [
+            {
+              label: '旧翻译技能已旁路',
+              detail: `PDF feedback 任务已跳过 [${skippedLegacySteps.join(', ')}] 的 router 调用，改由 PDF pipeline 主链执行。`
+            }
+          ]
+        : []),
       {
         label: 'LLM 编排执行完成',
         detail: `顺序执行了 [${selectedSkills.map(s => s.id).join(', ')}]，命中 provider: ${providerHits.join(', ')}；模型: ${modelHits.join(', ')}`

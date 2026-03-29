@@ -13,7 +13,10 @@ import {
 import { buildExtractedPdfResultFromText, extractPdfTextFromPath } from '@/lib/assistant/file-extractor';
 import { generateWithAvailableProvider } from '@/lib/assistant/llm/router';
 import { loadSkillPrompt } from '@/lib/assistant/prompt-loader';
-import { runPdfTranslationPipeline } from '@/lib/assistant/translation-pipeline';
+import {
+  runPdfTranslationPipeline,
+  type TranslationSnapshot
+} from '@/lib/assistant/translation-pipeline';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -227,8 +230,21 @@ function buildFixtureHtml(text: string) {
 
 function pickSourceFile(files: UploadedFile[]) {
   return [...files]
-    .filter((file) => file.contentText && file.contentText.trim().length > 0)
-    .sort((left, right) => (right.contentText?.length ?? 0) - (left.contentText?.length ?? 0))[0];
+    .filter(
+      (file) =>
+        (file.contentText && file.contentText.trim().length > 0) ||
+        (file.name.toLowerCase().endsWith('.pdf') && (file.storagePath || file.localPath))
+    )
+    .sort((left, right) => {
+      const leftPdfScore =
+        left.name.toLowerCase().endsWith('.pdf') && (left.storagePath || left.localPath) ? 1 : 0;
+      const rightPdfScore =
+        right.name.toLowerCase().endsWith('.pdf') && (right.storagePath || right.localPath) ? 1 : 0;
+      if (leftPdfScore !== rightPdfScore) {
+        return rightPdfScore - leftPdfScore;
+      }
+      return (right.contentText?.length ?? 0) - (left.contentText?.length ?? 0);
+    })[0];
 }
 
 function buildUserPrompt(
@@ -734,12 +750,133 @@ function buildArtifactUrl(relativePath: string | null | undefined) {
   return `/api/assistant/artifacts?path=${encodeURIComponent(relativePath)}`;
 }
 
+function buildPipelineRichTextHtml(
+  annotated: NonNullable<Awaited<ReturnType<typeof runPdfTranslationPipeline>>['outputs']['annotatedPdf']>
+) {
+  const grouped = new Map<number, typeof annotated.items>();
+
+  for (const item of annotated.items) {
+    const bucket = grouped.get(item.pageNumber) ?? [];
+    bucket.push(item);
+    grouped.set(item.pageNumber, bucket);
+  }
+
+  return Array.from(grouped.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([pageNumber, items]) => {
+      const blocks = items
+        .map((item) => {
+          const zh = item.zh?.trim();
+          return `<div class="bilingual-block">
+  <p class="source-line">${escapeHtml(item.en)}</p>
+  <p class="translation-line">${escapeHtml(zh && zh.length > 0 ? zh : '[待人工补译]')}</p>
+</div>`;
+        })
+        .join('\n');
+
+      return `<section class="fixture-section">
+  <header class="fixture-section-header">
+    <h3>Page ${pageNumber}</h3>
+    <p>${items.length} 个识别块</p>
+  </header>
+  <div class="fixture-segment-list">
+    ${blocks}
+  </div>
+</section>`;
+    })
+    .join('\n');
+}
+
+// Legacy debug/fixture structure. Formal annotated PDF now renders from translation_snapshot_v1.
+function buildPipelineStructuredSections(
+  annotated: NonNullable<Awaited<ReturnType<typeof runPdfTranslationPipeline>>['outputs']['annotatedPdf']>,
+  segments: Awaited<ReturnType<typeof runPdfTranslationPipeline>>['segments']
+) {
+  const grouped = new Map<number, typeof annotated.items>();
+  const segmentMeta = new Map(
+    segments.map((segment) => [
+      segment.id,
+      {
+        pageNumber: segment.pageNumber,
+        regionId: segment.regionId,
+        bbox: segment.extractionMeta.bbox
+      }
+    ])
+  );
+
+  for (const item of annotated.items) {
+    const bucket = grouped.get(item.pageNumber) ?? [];
+    bucket.push(item);
+    grouped.set(item.pageNumber, bucket);
+  }
+
+  return Array.from(grouped.entries())
+    .sort((left, right) => left[0] - right[0])
+    .map(([pageNumber, items]) => ({
+      id: `pipeline_page_${pageNumber}`,
+      title: `Page ${pageNumber}`,
+      summary: `${items.length} 个识别块`,
+      segments: items.map((item) => {
+        const meta = segmentMeta.get(item.id);
+        return {
+          source: item.en,
+          translation: item.zh ?? '',
+          renderMode: item.renderMode,
+          pageNumber: meta?.pageNumber ?? item.pageNumber,
+          regionId: meta?.regionId ?? item.regionId,
+          bbox: meta?.bbox
+        };
+      })
+    }));
+}
+
+function buildPipelineSnapshot(
+  annotated: NonNullable<Awaited<ReturnType<typeof runPdfTranslationPipeline>>['outputs']['annotatedPdf']>
+): TranslationSnapshot {
+  return annotated.snapshot;
+}
+
+function buildPipelinePendingItems(
+  pipelineResult: Awaited<ReturnType<typeof runPdfTranslationPipeline>>
+) {
+  const joined = pipelineResult.segments
+    .map((segment) => `${segment.text} ${segment.zh ?? ''}`)
+    .join('\n');
+  const items: PendingConfirmation[] = [];
+
+  if (/EN ATTENTE|待确认|等待确认|待定/i.test(joined)) {
+    items.push({
+      id: 'pipeline-pending-status',
+      label: '生产状态待定',
+      reason: '识别结果中存在待定/等待确认状态，需人工确认后再继续推进样衣或生产。',
+      owner: 'sales',
+      status: 'required'
+    });
+  }
+
+  if (
+    pipelineResult.diagnostics.translationCoveragePct <
+    pipelineResult.diagnostics.businessPreviewThresholdPct
+  ) {
+    items.push({
+      id: 'pipeline-pending-coverage',
+      label: '识别与翻译覆盖待复核',
+      reason: `当前覆盖率 ${pipelineResult.diagnostics.translationCoveragePct}% 低于业务预览门槛 ${pipelineResult.diagnostics.businessPreviewThresholdPct}%，需人工复核遗漏区域。`,
+      owner: 'sales',
+      status: 'required'
+    });
+  }
+
+  return items;
+}
+
 async function buildPipelineFallbackReply(
   request: AssistantRequest,
   reply: AssistantReply,
   sourceFile: UploadedFile,
   sourceBuildMs: number,
-  startedAt: number
+  startedAt: number,
+  mode: 'fallback' | 'primary' = 'fallback'
 ): Promise<AssistantReply | null> {
   const filePath = sourceFile.storagePath ?? sourceFile.localPath;
 
@@ -749,7 +886,8 @@ async function buildPipelineFallbackReply(
 
   const pipelineResult = await runPdfTranslationPipeline({
     filePath,
-    fileName: sourceFile.name
+    fileName: sourceFile.name,
+    translationModelOverride: request.translationModelOverride ?? request.modelOverride
   });
 
   const pdfArtifactLinks = [];
@@ -784,16 +922,26 @@ async function buildPipelineFallbackReply(
     });
   }
 
+  const pendingConfirmations = buildPipelinePendingItems(pipelineResult);
   const coverageText = `已译 ${pipelineResult.diagnostics.translatedSegmentCount}/${pipelineResult.segments.length} 段（覆盖率 ${pipelineResult.diagnostics.translationCoveragePct}%）`;
-  const nextSummary =
-    pipelineResult.diagnostics.translatedSegmentCount > 0
-      ? `意见翻译主链已降级到 PDF pipeline。${coverageText}。`
+  const nextSummary = pipelineResult.diagnostics.translatedSegmentCount > 0
+    ? mode === 'primary'
+      ? `已完成 ${pipelineResult.diagnostics.translatedSegmentCount} 个识别块的原文保留式双语翻译。`
+      : `意见翻译主链已降级到 PDF pipeline。${coverageText}。`
+    : mode === 'primary'
+      ? '当前 PDF pipeline 未产出可用中文结果。'
       : '意见翻译主链已降级到 PDF pipeline，但当前模型未产出可用中文结果。';
 
   const fallbackField: ArtifactField = {
     label: 'PDF Pipeline 结果',
     value: nextSummary,
-    citation: sourceFile.name
+    citation: sourceFile.name,
+    richTextHtml: pipelineResult.outputs.annotatedPdf
+      ? buildPipelineRichTextHtml(pipelineResult.outputs.annotatedPdf)
+      : undefined,
+    structuredData: pipelineResult.outputs.annotatedPdf
+      ? buildPipelineSnapshot(pipelineResult.outputs.annotatedPdf)
+      : undefined
   };
 
   const fallbackArtifact: ArtifactSection = {
@@ -805,9 +953,13 @@ async function buildPipelineFallbackReply(
 
   return {
     ...reply,
+    status: pendingConfirmations.length > 0 ? 'pending_user_confirmation' : reply.status,
+    statusLabel: pendingConfirmations.length > 0 ? '待人工确认' : reply.statusLabel,
     summary: nextSummary,
     draftDirection:
-      '当前结果来自 PDF pipeline 降级链路，优先用于页面预览与单文档验证；如需高覆盖率，再继续优化翻译模型稳定性。',
+      mode === 'primary'
+        ? '当前结果来自 PDF pipeline 主链路，优先用于图面批注/线稿类文档的识别与双语预览。'
+        : '当前结果来自 PDF pipeline 降级链路，优先用于页面预览与单文档验证；如需高覆盖率，再继续优化翻译模型稳定性。',
     nextActions:
       pipelineResult.diagnostics.translatedSegmentCount > 0
         ? [
@@ -818,12 +970,17 @@ async function buildPipelineFallbackReply(
             '当前主链没有拿到可用中文，建议先更换更稳定的翻译模型。',
             '保留本次 PDF pipeline 产物作为诊断样本。'
           ],
+    pendingConfirmations,
+    riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
     artifacts: [...reply.artifacts, fallbackArtifact],
     auditTrail: [
       ...reply.auditTrail,
       {
-        label: '翻译主链已降级',
-        detail: 'comment-translator 实时翻译失败，已自动切换到 PDF pipeline 结果。'
+        label: mode === 'primary' ? 'PDF pipeline 主链已执行' : '翻译主链已降级',
+        detail:
+          mode === 'primary'
+            ? '检测到 PDF 意见翻译任务，已优先切换到 PDF pipeline 识别与翻译链路。'
+            : 'comment-translator 实时翻译失败，已自动切换到 PDF pipeline 结果。'
       },
       {
         label: 'PDF pipeline 已执行',
@@ -833,7 +990,7 @@ async function buildPipelineFallbackReply(
     metadata: {
       ...(reply.metadata ?? {}),
       needsHumanReview: true,
-      providerHits: [...(reply.metadata?.providerHits ?? []), 'modelscope'],
+      providerHits: [...(reply.metadata?.providerHits ?? []), 'pdf-pipeline'],
       modelHits: [
         ...(reply.metadata?.modelHits ?? []),
         request.translationModelOverride ??
@@ -841,7 +998,7 @@ async function buildPipelineFallbackReply(
           process.env.TRANSLATION_MODEL ??
           'translation-model'
       ],
-      activeProvider: 'modelscope',
+      activeProvider: 'pdf-pipeline',
       activeModel:
         request.translationModelOverride ??
         request.modelOverride ??
@@ -854,10 +1011,10 @@ async function buildPipelineFallbackReply(
         sourceBuildMs,
         stages: [
           {
-            id: 'pdf-pipeline-fallback',
-            label: 'PDF pipeline 降级链路',
+            id: mode === 'primary' ? 'pdf-pipeline-primary' : 'pdf-pipeline-fallback',
+            label: mode === 'primary' ? 'PDF pipeline 主链路' : 'PDF pipeline 降级链路',
             durationMs: Date.now() - startedAt,
-            provider: 'modelscope'
+            provider: 'pdf-pipeline'
           }
         ]
       }
@@ -1021,6 +1178,51 @@ export async function maybeRunRealFeedbackTranslation(
   const hasTranslatorSkill = reply.selectedSkills.some((skill) => skill.id === 'comment-translator');
   const sourceFile = pickSourceFile(request.files);
   const sourceBuildStartedAt = Date.now();
+  const isPdfFeedbackTask =
+    isFeedbackTask &&
+    hasTranslatorSkill &&
+    sourceFile?.name.toLowerCase().endsWith('.pdf');
+  const canRunPdfPipeline = Boolean(sourceFile && (sourceFile.storagePath || sourceFile.localPath));
+
+  if (sourceFile && isPdfFeedbackTask && canRunPdfPipeline) {
+    const pipelineReply = await buildPipelineFallbackReply(
+      request,
+      reply,
+      sourceFile,
+      Date.now() - sourceBuildStartedAt,
+      startedAt,
+      'primary'
+    );
+    if (pipelineReply) {
+      return pipelineReply;
+    }
+  }
+
+  if (sourceFile && isPdfFeedbackTask) {
+    return {
+      ...reply,
+      status: 'failed',
+      statusLabel: '执行失败',
+      summary: '当前 PDF 翻译任务未拿到可执行的 pipeline 输入路径，未再回退到旧路由。',
+      nextActions: ['补齐 PDF 本地路径或上传存储路径后重新执行。'],
+      riskAlerts: ['当前已禁止 PDF 任务回退到旧的 router 翻译链，避免入口与正式产物不一致。'],
+      auditTrail: [
+        ...reply.auditTrail,
+        {
+          label: 'PDF pipeline 输入缺失',
+          detail: '检测到 feedback PDF 任务，但未拿到 storagePath/localPath，因此未回退到旧路由。'
+        }
+      ],
+      metadata: {
+        ...(reply.metadata ?? {}),
+        needsHumanReview: true,
+        activeProvider: 'pdf-pipeline',
+        activeModel: request.translationModelOverride ?? request.modelOverride ?? 'translation-model',
+        translationMode: 'real'
+      }
+    };
+  }
+
   const sourceExtracted = sourceFile ? buildExtractedPdfResultFromText(sourceFile.contentText ?? '') : null;
   const sourceReference =
     sourceFile && sourceExtracted

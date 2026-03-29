@@ -1,12 +1,25 @@
+type QwenChatContentPart =
+  | {
+      type: 'text';
+      text: string;
+    }
+  | {
+      type: 'image_url';
+      image_url: {
+        url: string;
+      };
+    };
+
 type QwenChatMessage = {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | QwenChatContentPart[];
 };
 
 type QwenChatInput = {
   messages: QwenChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  modelOverride?: string;
 };
 
 type QwenChatResult = {
@@ -30,8 +43,134 @@ type ModelRuntimeConfig = {
   label: string;
 };
 
+function isPrivateHost(hostname: string) {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname) ||
+    /^192\.168\./.test(hostname)
+  );
+}
+
+function isApiKeyOptional(baseUrl: string) {
+  try {
+    return isPrivateHost(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isVpnHintTarget(baseUrl: string) {
+  try {
+    const hostname = new URL(baseUrl).hostname;
+    return hostname === '172.16.71.201' || isPrivateHost(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function extractTextParts(value: unknown): string[] {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractTextParts(item));
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const candidates = [
+    record.text,
+    record.output_text,
+    record.content
+  ];
+
+  return candidates.flatMap((candidate) => extractTextParts(candidate));
+}
+
+function extractPrimaryText(value: unknown) {
+  return extractTextParts(value).join('\n').trim();
+}
+
+function extractReasoningText(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return '';
+  }
+
+  const record = value as Record<string, unknown>;
+  return extractPrimaryText(
+    record.reasoning_content ??
+      record.reasoning ??
+      record.reasoning_text ??
+      record.thinking ??
+      record.thinking_content
+  );
+}
+
+function describeEmptyContentIssue(payload: unknown) {
+  if (!payload || typeof payload !== 'object') {
+    return '响应体不是 JSON object。';
+  }
+
+  const record = payload as Record<string, unknown>;
+  const choices = Array.isArray(record.choices) ? record.choices : [];
+  const firstChoice =
+    choices.length > 0 && choices[0] && typeof choices[0] === 'object'
+      ? (choices[0] as Record<string, unknown>)
+      : null;
+  const message =
+    firstChoice?.message && typeof firstChoice.message === 'object'
+      ? (firstChoice.message as Record<string, unknown>)
+      : null;
+  const delta =
+    firstChoice?.delta && typeof firstChoice.delta === 'object'
+      ? (firstChoice.delta as Record<string, unknown>)
+      : null;
+  const finishReason =
+    typeof firstChoice?.finish_reason === 'string' ? firstChoice.finish_reason : '';
+  const reasoning =
+    extractReasoningText(message) ||
+    extractReasoningText(delta) ||
+    extractReasoningText(firstChoice);
+
+  if (finishReason === 'length') {
+    return '返回被 finish_reason=length 截断，需提高 max_tokens 或降低单次输出规模。';
+  }
+
+  if (reasoning) {
+    return '仅返回 reasoning_content / thinking，没有稳定的 assistant content；请在 llama.cpp 部署侧确保最终答案写入 message.content。';
+  }
+
+  return '响应中未找到可用的 assistant content。';
+}
+
 function shouldUseResponsesApi(config: ModelRuntimeConfig) {
-  return /dashscope\.aliyuncs\.com/i.test(config.baseUrl) || config.model === 'qwen3.5-flash';
+  return (
+    /dashscope\.aliyuncs\.com/i.test(config.baseUrl) &&
+    !/compatible-mode/i.test(config.baseUrl)
+  );
+}
+
+function shouldDisableThinking(config: ModelRuntimeConfig) {
+  return (
+    isPrivateHostSafe(config.baseUrl) ||
+    /qwen3\.5-(27b|35b-a3b)/i.test(config.model)
+  );
+}
+
+function isPrivateHostSafe(baseUrl: string) {
+  try {
+    return isPrivateHost(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
 }
 
 function logModelDebug(event: string, payload: Record<string, unknown>) {
@@ -39,12 +178,167 @@ function logModelDebug(event: string, payload: Record<string, unknown>) {
   console.log(`[assistant:model] ${event} ${JSON.stringify(payload)}`);
 }
 
+function getRoleTimeoutMs(role: ModelRole) {
+  if (role === 'vision') {
+    return Number(process.env.VISION_MODEL_API_TIMEOUT_MS ?? process.env.MODEL_API_TIMEOUT_MS ?? '30000');
+  }
+  return Number(
+    process.env.TRANSLATION_MODEL_API_TIMEOUT_MS ?? process.env.MODEL_API_TIMEOUT_MS ?? '30000'
+  );
+}
+
 function firstNonEmpty(...values: Array<string | undefined>) {
   return values.find((value) => value && value.trim()) ?? '';
 }
 
-function getRoleConfig(role: ModelRole): ModelRuntimeConfig {
+function pickApiKey(
+  baseUrl: string,
+  primaryCandidates: Array<string | undefined>,
+  fallbackCandidates: Array<string | undefined> = []
+) {
+  const primary = firstNonEmpty(...primaryCandidates);
+  if (primary) {
+    return primary;
+  }
+  if (isApiKeyOptional(baseUrl)) {
+    return '';
+  }
+  return firstNonEmpty(...fallbackCandidates);
+}
+
+function getTranslationOverrideConfig(modelOverride?: string): ModelRuntimeConfig | null {
+  const normalized = modelOverride?.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.includes('/') && !normalized.startsWith('http')) {
+    const baseUrl = firstNonEmpty(
+      process.env.MODELSCOPE_TRANSLATION_API_URL,
+      process.env.MODELSCOPE_API_URL,
+      process.env.TRANSLATION_API_URL,
+      process.env.QWEN_TRANSLATION_BASE_URL,
+      process.env.QWEN_BASE_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE
+    );
+    return {
+      model: modelOverride!.trim(),
+      baseUrl,
+      apiKey: pickApiKey(baseUrl, [
+        process.env.MODELSCOPE_TRANSLATION_API_KEY,
+        process.env.MODELSCOPE_API_KEY,
+        process.env.TRANSLATION_API_KEY,
+        process.env.QWEN_TRANSLATION_API_KEY,
+        process.env.QWEN_API_KEY
+      ], [process.env.OPENAI_API_KEY]),
+      label: 'B-model'
+    };
+  }
+
+  if (normalized === 'qwen3.5-35b-a3b' || normalized.startsWith('qwen3.5-35b-a3b')) {
+    const baseUrl = firstNonEmpty(
+      process.env.LOCAL_OPENAI_API_URL,
+      process.env.LOCAL_MODEL_API_URL,
+      process.env.B_MODEL_API_URL,
+      process.env.TRANSLATION_API_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE
+    );
+    return {
+      model: modelOverride!.trim(),
+      baseUrl,
+      apiKey: pickApiKey(baseUrl, [
+        process.env.LOCAL_OPENAI_API_KEY,
+        process.env.LOCAL_MODEL_API_KEY,
+        process.env.B_MODEL_API_KEY
+      ], [
+        process.env.TRANSLATION_API_KEY,
+        process.env.OPENAI_API_KEY
+      ]),
+      label: 'B-model'
+    };
+  }
+
+  if (normalized === 'qwen3.5-flash' || normalized.startsWith('qwen3.5-flash')) {
+    const baseUrl = firstNonEmpty(
+      process.env.DASHSCOPE_API_URL,
+      process.env.TRANSLATION_API_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE
+    );
+    return {
+      model: modelOverride!.trim(),
+      baseUrl,
+      apiKey: pickApiKey(baseUrl, [
+        process.env.DASHSCOPE_API_KEY,
+        process.env.TRANSLATION_API_KEY
+      ], [process.env.OPENAI_API_KEY]),
+      label: 'B-model'
+    };
+  }
+
+  if (normalized.startsWith('minimax/')) {
+    const baseUrl = firstNonEmpty(
+      process.env.MODELSCOPE_TRANSLATION_API_URL,
+      process.env.MODELSCOPE_API_URL,
+      process.env.TRANSLATION_API_URL,
+      process.env.QWEN_TRANSLATION_BASE_URL,
+      process.env.QWEN_BASE_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE
+    );
+    return {
+      model: modelOverride!.trim(),
+      baseUrl,
+      apiKey: pickApiKey(baseUrl, [
+        process.env.MODELSCOPE_TRANSLATION_API_KEY,
+        process.env.MODELSCOPE_API_KEY,
+        process.env.TRANSLATION_API_KEY,
+        process.env.QWEN_TRANSLATION_API_KEY,
+        process.env.QWEN_API_KEY
+      ], [process.env.OPENAI_API_KEY]),
+      label: 'B-model'
+    };
+  }
+
+  const baseUrl = firstNonEmpty(
+    process.env.TRANSLATION_API_URL,
+    process.env.MODELSCOPE_TRANSLATION_API_URL,
+    process.env.DASHSCOPE_API_URL,
+    process.env.MODELSCOPE_API_URL,
+    process.env.QWEN_TRANSLATION_BASE_URL,
+    process.env.QWEN_BASE_URL,
+    process.env.OPENAI_BASE_URL,
+    process.env.OPENAI_API_BASE
+  );
+  return {
+    model: modelOverride!.trim(),
+    baseUrl,
+    apiKey: pickApiKey(baseUrl, [
+      process.env.TRANSLATION_API_KEY,
+      process.env.MODELSCOPE_TRANSLATION_API_KEY,
+      process.env.DASHSCOPE_API_KEY,
+      process.env.MODELSCOPE_API_KEY,
+      process.env.QWEN_TRANSLATION_API_KEY,
+      process.env.QWEN_API_KEY
+    ], [process.env.OPENAI_API_KEY]),
+    label: 'B-model'
+  };
+}
+
+function getRoleConfig(role: ModelRole, modelOverride?: string): ModelRuntimeConfig {
   if (role === 'vision') {
+    const baseUrl = firstNonEmpty(
+      process.env.A_MODEL_API_URL,
+      process.env.VISION_API_URL,
+      process.env.MODELSCOPE_VISION_API_URL,
+      process.env.QWEN_VISION_BASE_URL,
+      process.env.MODELSCOPE_API_URL,
+      process.env.QWEN_BASE_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE
+    );
     return {
       model: firstNonEmpty(
         process.env.A_MODEL_NAME,
@@ -55,29 +349,35 @@ function getRoleConfig(role: ModelRole): ModelRuntimeConfig {
         process.env.QWEN_MODEL,
         'qwen3.5-35b-instruct'
       ),
-      baseUrl: firstNonEmpty(
-        process.env.A_MODEL_API_URL,
-        process.env.VISION_API_URL,
-        process.env.MODELSCOPE_VISION_API_URL,
-        process.env.QWEN_VISION_BASE_URL,
-        process.env.MODELSCOPE_API_URL,
-        process.env.QWEN_BASE_URL,
-        process.env.OPENAI_BASE_URL,
-        process.env.OPENAI_API_BASE
-      ),
-      apiKey: firstNonEmpty(
+      baseUrl,
+      apiKey: pickApiKey(baseUrl, [
         process.env.A_MODEL_API_KEY,
         process.env.VISION_API_KEY,
         process.env.MODELSCOPE_VISION_API_KEY,
         process.env.QWEN_VISION_API_KEY,
         process.env.MODELSCOPE_API_KEY,
-        process.env.QWEN_API_KEY,
-        process.env.OPENAI_API_KEY
-      ),
+        process.env.QWEN_API_KEY
+      ], [process.env.OPENAI_API_KEY]),
       label: 'A-model'
     };
   }
 
+  const overrideConfig = getTranslationOverrideConfig(modelOverride);
+  if (overrideConfig) {
+    return overrideConfig;
+  }
+
+  const baseUrl = firstNonEmpty(
+    process.env.B_MODEL_API_URL,
+    process.env.TRANSLATION_API_URL,
+    process.env.DASHSCOPE_API_URL,
+    process.env.MODELSCOPE_TRANSLATION_API_URL,
+    process.env.QWEN_TRANSLATION_BASE_URL,
+    process.env.MODELSCOPE_API_URL,
+    process.env.QWEN_BASE_URL,
+    process.env.OPENAI_BASE_URL,
+    process.env.OPENAI_API_BASE
+  );
   return {
     model: firstNonEmpty(
       process.env.B_MODEL_NAME,
@@ -89,27 +389,16 @@ function getRoleConfig(role: ModelRole): ModelRuntimeConfig {
       process.env.QWEN_MODEL,
       'qwen3.5-35b-instruct'
     ),
-    baseUrl: firstNonEmpty(
-      process.env.B_MODEL_API_URL,
-      process.env.TRANSLATION_API_URL,
-      process.env.DASHSCOPE_API_URL,
-      process.env.MODELSCOPE_TRANSLATION_API_URL,
-      process.env.QWEN_TRANSLATION_BASE_URL,
-      process.env.MODELSCOPE_API_URL,
-      process.env.QWEN_BASE_URL,
-      process.env.OPENAI_BASE_URL,
-      process.env.OPENAI_API_BASE
-    ),
-    apiKey: firstNonEmpty(
+    baseUrl,
+    apiKey: pickApiKey(baseUrl, [
       process.env.B_MODEL_API_KEY,
       process.env.TRANSLATION_API_KEY,
       process.env.DASHSCOPE_API_KEY,
       process.env.MODELSCOPE_TRANSLATION_API_KEY,
       process.env.QWEN_TRANSLATION_API_KEY,
       process.env.MODELSCOPE_API_KEY,
-      process.env.QWEN_API_KEY,
-      process.env.OPENAI_API_KEY
-    ),
+      process.env.QWEN_API_KEY
+    ], [process.env.OPENAI_API_KEY]),
     label: 'B-model'
   };
 }
@@ -140,9 +429,9 @@ function buildResponsesUrl(baseUrlOrEndpoint: string) {
   return `${normalized}/responses`;
 }
 
-function isRoleConfigured(role: ModelRole) {
-  const config = getRoleConfig(role);
-  const configured = Boolean(config.baseUrl && config.apiKey);
+function isRoleConfigured(role: ModelRole, modelOverride?: string) {
+  const config = getRoleConfig(role, modelOverride);
+  const configured = Boolean(config.baseUrl && (config.apiKey || isApiKeyOptional(config.baseUrl)));
   logModelDebug('config.check', {
     role,
     configured,
@@ -155,30 +444,31 @@ function isRoleConfigured(role: ModelRole) {
 }
 
 async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<QwenChatResult> {
-  const config = getRoleConfig(role);
+  const config = getRoleConfig(role, input.modelOverride);
   const useResponsesApi = shouldUseResponsesApi(config);
   const endpointUrl = useResponsesApi
     ? buildResponsesUrl(config.baseUrl)
     : buildChatCompletionsUrl(config.baseUrl);
-  if (!config.apiKey) {
+  if (!config.apiKey && !isApiKeyOptional(config.baseUrl)) {
     throw new Error(
       `Model API key is missing for ${config.label}.`
     );
   }
   const requestId = `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
+  const timeoutMs = getRoleTimeoutMs(role);
   logModelDebug('request.start', {
     requestId,
     role,
     url: endpointUrl,
     model: config.model,
     messageCount: input.messages.length,
-    timeoutMs: DEFAULT_TIMEOUT_MS,
+    timeoutMs,
     apiStyle: useResponsesApi ? 'responses' : 'chat_completions'
   });
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(endpointUrl, {
@@ -186,7 +476,7 @@ async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<Qwen
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.apiKey}`
+        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
       },
       body: JSON.stringify(
         useResponsesApi
@@ -197,11 +487,20 @@ async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<Qwen
           : {
               model: config.model,
               messages: input.messages,
+              stream: false,
               temperature: input.temperature ?? 0.2,
-              max_tokens: input.maxTokens ?? 1024
+              max_tokens: input.maxTokens ?? 1024,
+              ...(shouldDisableThinking(config) ? { enable_thinking: false } : {})
             }
       )
     });
+  } catch (error) {
+    if (isVpnHintTarget(config.baseUrl)) {
+      throw new Error(
+        `无法连接本地模型服务 ${config.baseUrl}。请先连接 VPN，并确认 ${config.model} 服务可用后重试。`
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -226,28 +525,32 @@ async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<Qwen
 
   const data = (await response.json()) as {
     output_text?: string;
-    output?: Array<{ content?: Array<{ text?: string }> }>;
-    choices?: Array<{ message?: { content?: string } }>;
+    output?: unknown;
+    choices?: Array<{
+      message?: { content?: unknown; reasoning_content?: unknown; thinking?: unknown };
+      delta?: { content?: unknown; reasoning_content?: unknown; thinking?: unknown };
+      finish_reason?: string;
+      reasoning_content?: unknown;
+    }>;
     model?: string;
     usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
 
   const text = useResponsesApi
-    ? (
-        data.output_text?.trim() ??
-        data.output?.flatMap((item) =>
-          (item.content ?? []).map((contentItem) => contentItem.text?.trim() ?? '')
-        ).filter(Boolean).join('\n').trim() ??
-        ''
-      )
-    : (data.choices?.[0]?.message?.content?.trim() ?? '');
+    ? extractPrimaryText(data.output_text) || extractPrimaryText(data.output)
+    : extractPrimaryText(data.choices?.[0]?.message?.content) ||
+      extractPrimaryText(data.choices?.[0]?.delta?.content);
   if (!text) {
+    const issue = describeEmptyContentIssue(data);
     logModelDebug('request.empty_content', {
       requestId,
       role,
-      elapsedMs: Date.now() - startedAt
+      elapsedMs: Date.now() - startedAt,
+      responseKeys: Object.keys(data),
+      issue,
+      rawPreview: JSON.stringify(data).slice(0, 600)
     });
-    throw new Error(`${config.label} returned empty content.`);
+    throw new Error(`${config.label} returned empty content. ${issue}`);
   }
   logModelDebug('request.success', {
     requestId,
@@ -271,8 +574,8 @@ export function isVisionModelConfigured() {
   return isRoleConfigured('vision');
 }
 
-export function isTranslationModelConfigured() {
-  return isRoleConfigured('translation');
+export function isTranslationModelConfigured(modelOverride?: string) {
+  return isRoleConfigured('translation', modelOverride);
 }
 
 export async function callVisionModelChat(input: QwenChatInput): Promise<QwenChatResult> {
@@ -287,8 +590,8 @@ export function getVisionModelName() {
   return getRoleConfig('vision').model;
 }
 
-export function getTranslationModelName() {
-  return getRoleConfig('translation').model;
+export function getTranslationModelName(modelOverride?: string) {
+  return getRoleConfig('translation', modelOverride).model;
 }
 
 export function isQwenConfigured() {

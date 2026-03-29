@@ -52,7 +52,22 @@
 
 ## Medium
 
-### 3. “无法确定”已开始做后处理，但模型解析失败时仍会整体回退
+### 3. `sketch/comment` 页的主要缺口仍是识别召回，而不是单纯翻译质量
+
+- 验收条款要点：
+  - 该翻译的业务块应先进入结构化结果，再谈翻译质量
+- 当前实现状态：部分满足，但已定位核心根因
+- 证据落点：
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/vision-extraction.ts`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/translation-pipeline.ts`
+  - 样本：`M422123.pdf`
+- 说明：
+  - `Page 1` 的颜色、面料、工艺块之前大面积缺失，不是视觉模型没看到，而是视觉 JSON 因 `finish_reason=length` 被截断，旧逻辑整页丢弃
+  - 当前已加入：业务价值优先、返回数量约束、JSON 截断容错
+- 最小修订建议：
+  - 继续验证这些新块进入 B 模型翻译后的最终业务 PDF
+  - 以 Page 1 的颜色/面料/工艺块是否完整进入结果作为阶段门槛
+### 4. “无法确定”已开始做后处理，但模型解析失败时仍会整体回退
 
 - 验收条款要点：
   - “无法确定”应进入等待人工确认路径，而不是直接报错
@@ -67,7 +82,7 @@
   - 保留现有规则
   - 后续补“解析失败 -> 待人工确认”的细粒度降级路径
 
-### 4. 当前翻译工作台首屏暴露过多系统概念，业务路径不够直接
+### 5. 当前翻译工作台首屏暴露过多系统概念，业务路径不够直接
 
 - 验收条款要点：
   - 业务员上传文件后应能快速理解“下一步做什么”
@@ -86,7 +101,7 @@
   - 把角色 / 模板 / 技能移入“高级设置”
   - 上传后显式提示下一步和当前阶段
 
-### 5. 翻译结果主入口不够突出，页面内仍缺少“打开/下载结果”一级动作
+### 6. 翻译结果主入口不够突出，页面内仍缺少“打开/下载结果”一级动作
 
 - 验收条款要点：
   - 业务员应能快速定位翻译结果
@@ -103,7 +118,7 @@
   - 结果区顶部固定“翻译结果”模块
   - 增加“页面查看 / 打开翻译结果 / 下载翻译 PDF”入口
 
-### 6. dense 页同页展示能力已存在，但无法保证所有高价值项都留在原页
+### 7. dense 页同页展示能力已存在，但无法保证所有高价值项都留在原页
 
 - 验收条款要点：
   - 翻译结果应尽量便于业务确认与推进
@@ -117,8 +132,49 @@
 - 最小修订建议：
   - 为 dense row 增加更强的业务优先级排序
   - 例如优先 `fabric / zipper / logo / seam / trim`，再放数字和单位类行
+  - 若业务确认“原页不可被覆写”，则正式 PDF 应改成 marker + review 页优先，而不是继续压 inline 中文块
 
-### 7. `needsHumanReview` 当前只提供 camelCase；若未来需要对外兼容 snake_case，仍需显式映射
+### 8. `test02` 的 sketch/comment 验收已不再以“是否逐字相同”为准，而应以“语义对、术语像、样式稳”为准
+
+- 验收条款要点：
+  - 识别和翻译效果要接近人工稿，而不是机械追求逐字一致
+- 当前实现状态：部分满足，且收敛方向已验证有效
+- 证据落点：
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/scripts/lib/test02-harness.ts`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/translation-pipeline.ts`
+  - 样本：
+    - `/Users/weitao/Documents/buildworld/aigc/export-agent/data/test02/runs/20260328-calibrate-m422123-v2/`
+    - `/Users/weitao/Documents/buildworld/aigc/export-agent/data/test02/runs/20260329-m445033-online-v2/`
+- 说明：
+  - `m422123`、`m445033` 已证明：通过短标签归一、材料/里布/填充短句模板化、meta 噪音降级，可以把 sketch/comment 样本从“看起来像漏翻”收敛到接近人工稿
+  - 尤其 `m445033` 已从 `fail` 提升到 `pass`，指标达到 `referenceRecallPct=88`、`aiPrecisionPct=68`
+  - 因此当前剩余样本若未通过，优先排查：
+    - 是否被长说明拉低 comparison
+    - 是否把 header / context / admin 信息当成业务候选
+    - 是否缺少颜色/面料/里布/填充/五金类短句归一
+  - `mixed` 样本这轮进一步确认：
+    - 人工稿经常把一个业务块拆成 2 到 3 行中文短句，因此 comparison 需要允许参考侧相邻短句合并
+    - AI 侧则只应按明确多列/多块拆分；若把逗号短句和规格残片过度拆分，会显著拉低 precision
+    - `m4e002` 在该口径下已从 `referenceRecallPct=38 / aiPrecisionPct=29` 提升到 `63 / 35`，说明主问题已经从“识别不到”收敛为“Page 2/5 结构批注和 mixed 噪音控制还不够像人工稿”
+- 最小修订建议：
+  - 保持“线上优先，本地 B 兜底”的样本推进方式
+  - 对未过线样本继续补术语表、短句模板和 comparison canonicalization
+  - 等 `ata019 / hanna / m4e002` 这类剩余样本也达线后，再宣称全集通过
+
+### 9. 正式 PDF 已新增“安全渲染”约束：不得因中文标注遮挡原稿细节
+
+- 验收条款要点：
+  - 服装图细节、英文批注、尺码框信息必须保持可读
+- 当前实现状态：已收敛到更安全的默认策略
+- 证据落点：
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/scripts/render_feedback_pdf.py`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/translation-pipeline.ts`
+- 说明：
+  - 默认不再对非 dense 页直接铺浮动蓝字，而是用小号 marker + 右侧说明栏
+  - dense 页默认改为 marker + review 页，避免底部 inline 区覆盖原页
+  - `FITTING / VOLUME`、`SIZE ... BASE ...`、`common designated size` 等误导性尺码框已从正式 annotated 输出剔除
+
+### 8. `needsHumanReview` 当前只提供 camelCase；若未来需要对外兼容 snake_case，仍需显式映射
 
 - 验收条款要点：
   - 输出 schema 应保持稳定
@@ -137,7 +193,7 @@
 
 ## Low
 
-### 8. 抽取层的“同段合并”是 section-scoped，不是全局通用
+### 9. 抽取层的“同段合并”是 section-scoped，不是全局通用
 
 - 验收条款要点：
   - 翻译应尽量按自然段或完整工艺语义输出
@@ -151,7 +207,7 @@
 - 最小修订建议：
   - 逐步把合并规则从 section 特例扩成更稳定的段落启发式
 
-### 9. PDF 渲染模式的真实依据是页面密度，不是显式文档类型
+### 10. PDF 渲染模式的真实依据是页面密度，不是显式文档类型
 
 - 验收条款要点：
   - 输出应针对不同文档形态可读
@@ -209,7 +265,19 @@
   - 编号全局递增
   - dense 页已支持同页空白区优先 + overflow review 页兜底
 
-### 5. `comment-translator + comment-merger` 组合链已可触发真实翻译
+### 5. A/B 模型拆分与 PDF pipeline-first 已落地
+
+- 实现状态：OK
+- 证据落点：
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/qwen-client.ts`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/feedback-translation.ts`
+  - `/Users/weitao/Documents/buildworld/aigc/export-agent/src/lib/assistant/translation-pipeline.ts`
+- 说明：
+  - A 模型负责视觉/OCR补强
+  - B 模型负责结构化 segment 翻译
+  - PDF feedback 任务默认优先走 `pdf-pipeline`
+  - 页面所选 `translationModelOverride` 已开始真实传递到 pipeline
+### 6. `comment-translator + comment-merger` 组合链已可触发真实翻译
 
 - 实现状态：OK
 - 证据落点：
@@ -220,7 +288,7 @@
   - 当前真实翻译不再因为 `comment-merger` 存在而整体短路
   - merger 仍未变成真实第二阶段，但 translator 已能稳定前移执行
 
-### 6. `metadata.needsHumanReview` 与规则型 pending 兜底已落地
+### 7. `metadata.needsHumanReview` 与规则型 pending 兜底已落地
 
 - 实现状态：OK
 - 证据落点：

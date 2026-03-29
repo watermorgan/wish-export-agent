@@ -21,7 +21,9 @@
 1. `sketch/comment` 文档
 - 主输出策略：`annotated PDF`
 - 优化重点：长说明合并、短标签拆分、对位稳定、漏译和截断控制
-- 下一阶段方向：优先“原位双语”，空间不足时再回退编号/侧注
+- 当前基线：优先“页内蓝色中文贴近原文”，空间不足时再回退编号/侧注
+- 正式 PDF 默认不附加 `Unassigned Notes`
+- 款号、SKU、style code 不作为中文标注重复输出
 
 2. `TP/BOM/table-heavy` 文档
 - 主输出策略：`bilingual table / bilingual xlsx / table-style pdf`
@@ -116,7 +118,21 @@
   - 可通过 `/api/assistant/artifacts?path=<relativePath>` 直接预览
 - 说明：
   - 这一步已不再只是结构字段；已有真实可查看产物
-  - 但最终业务页面样式与正式 PDF 渲染增强仍未完成
+  - 当前已从“右侧整栏说明”推进到“稀疏页页内蓝色标注优先”
+  - 但 OCR 新块的稳定定位与完整召回仍在继续优化
+
+## 本轮新增结论（2026-03-27）
+
+1. `M422123.pdf` 一类问题的主矛盾是识别召回
+- 许多“漏翻”并不是模型不会翻，而是该块没有进入 segment
+
+2. Page-level OCR 需要截断容错
+- A 模型即使识别到了很多业务块，也可能因 `finish_reason=length` 截断 JSON
+- 因此视觉抽取层必须允许“部分闭合 JSON block”被回收，而不是整页丢弃
+
+3. 正式 PDF 与诊断 PDF 要分离
+- `Unassigned Notes` 适合开发诊断
+- 不适合默认暴露给业务用户
 
 ## 本轮更新（工作台入口与 fallback 说明）
 

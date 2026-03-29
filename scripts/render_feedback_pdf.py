@@ -6,6 +6,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+import os
 
 import pdfplumber
 from pypdf import PdfReader, PdfWriter, Transformation
@@ -27,6 +28,14 @@ DENSE_PAGE_NOTE_THRESHOLD = 18
 DENSE_ROW_TOLERANCE = 8.0
 DENSE_ROW_MAX_ITEMS = 3
 DENSE_ROW_MAX_SOURCE_CHARS = 100
+INLINE_NOTE_MAX_WIDTH = 188
+INLINE_NOTE_MIN_WIDTH = 76
+INLINE_NOTE_MAX_SHIFT = 120
+INLINE_NOTE_WIDE_SOURCE_THRESHOLD = 150
+INLINE_NOTE_TALL_SOURCE_THRESHOLD = 48
+MARKER_FONT_SIZE = 10
+USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES") == "1"
+USE_DENSE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_DENSE_INLINE_NOTES") == "1"
 
 
 def normalize_text(value: str) -> str:
@@ -53,13 +62,75 @@ def clean_translation(value: str) -> str:
     return text
 
 
+def normalize_compact(value: str) -> str:
+    return re.sub(r"[\s\-_:/]+", "", value or "").strip().lower()
+
+
+def is_code_like(value: str) -> bool:
+    text = (value or "").strip()
+    if not text or len(text) < 4:
+        return False
+    return bool(re.fullmatch(r"[A-Z0-9][A-Z0-9\s./_-]{3,}", text)) and bool(re.search(r"\d", text))
+
+
+def should_skip_render(source: str, translation: str) -> bool:
+    if not source or not translation:
+        return True
+    normalized_source = normalize_text(source)
+    if re.search(r"^hiver\b", normalized_source):
+        return True
+    if re.search(r"^en attente\b", normalized_source):
+        return True
+    if normalized_source == "dossier style":
+        return True
+    if re.search(r"rights reserved|edited on|all rights reserved|tous droits réservés", source, re.I):
+        return True
+    if re.search(r"^\s*fitting\s*/\s*volume\s*$", normalized_source):
+        return True
+    if re.search(r"\bsize\b.*\bbase\b.*\bm\d{5,}\b", normalized_source):
+        return True
+    if re.search(r"^\s*common designated size\s*$", normalized_source):
+        return True
+    compact_source = normalize_compact(source)
+    compact_translation = normalize_compact(translation)
+    if compact_source and compact_source == compact_translation:
+        return True
+    if is_code_like(source) and compact_source in compact_translation:
+        return True
+    return False
+
+
+def draw_note_marker(pdf: canvas.Canvas, x: float, y: float, label: str) -> None:
+    padding_x = 3
+    padding_y = 2
+    text_width = pdfmetrics.stringWidth(label, "Helvetica-Bold", MARKER_FONT_SIZE)
+    box_width = text_width + padding_x * 2
+    box_height = MARKER_FONT_SIZE + padding_y * 2
+    pdf.setFillColor(colors.white)
+    pdf.setStrokeColor(colors.HexColor("#fca5a5"))
+    pdf.roundRect(x, y - 2, box_width, box_height, 4, fill=1, stroke=1)
+    pdf.setFillColor(MARKER_COLOR)
+    pdf.setFont("Helvetica-Bold", MARKER_FONT_SIZE)
+    pdf.drawString(x + padding_x, y + padding_y, label)
+
+
 def load_structured_translation(response_path: Path) -> dict:
     payload = json.loads(response_path.read_text(encoding="utf-8"))
     for artifact in payload.get("artifacts", []):
         for field in artifact.get("fields", []):
             if isinstance(field, dict) and "structuredData" in field:
-                return field["structuredData"]
-    raise RuntimeError("response.json does not contain structuredData.")
+                structured = field["structuredData"]
+                if (
+                    isinstance(structured, dict)
+                    and structured.get("version") == "translation_snapshot_v1"
+                    and isinstance(structured.get("items"), list)
+                ):
+                    return structured
+                raise RuntimeError(
+                    "response.json structuredData is not a translation_snapshot_v1 payload. "
+                    "Please rerun translation to generate a fresh snapshot."
+                )
+    raise RuntimeError("response.json does not contain translation snapshot structuredData.")
 
 
 def locate_note_bbox(words: list[dict], source: str) -> dict | None:
@@ -120,23 +191,43 @@ def locate_note_bbox(words: list[dict], source: str) -> dict | None:
 
 def build_page_assignment(input_pdf: Path, structured: dict) -> tuple[dict[int, list[dict]], list[dict]]:
     segments: list[dict] = []
-    for section in structured.get("sections", []):
-        for segment in section.get("segments", []):
-            segments.append(
-                {
-                    "section": section.get("title", ""),
-                    "source": segment.get("source", "").strip(),
-                    "translation": clean_translation(segment.get("translation", "")),
-                }
-            )
+    for item in structured.get("items", []):
+        source = str(item.get("en", "")).strip()
+        translation = clean_translation(str(item.get("zh", "")))
+        if should_skip_render(source, translation):
+            continue
+        segments.append(
+            {
+                "source": source,
+                "translation": translation,
+                "page_number": item.get("pageNumber"),
+                "region_id": item.get("regionId"),
+                "source_type": item.get("sourceType"),
+                "render_mode": item.get("renderMode"),
+                "confidence": item.get("confidence"),
+                "bbox": (
+                    {
+                        "x0": item["bbox"]["x"],
+                        "x1": item["bbox"]["x"] + item["bbox"]["w"],
+                        "top": item["bbox"]["y"],
+                        "bottom": item["bbox"]["y"] + item["bbox"]["h"],
+                    }
+                    if isinstance(item.get("bbox"), dict)
+                    and all(key in item["bbox"] for key in ("x", "y", "w", "h"))
+                    else None
+                ),
+            }
+        )
 
     page_notes: dict[int, list[dict]] = defaultdict(list)
     unassigned: list[dict] = []
     page_words: dict[int, list[dict]] = {}
+    page_sizes: dict[int, tuple[float, float]] = {}
 
     with pdfplumber.open(str(input_pdf)) as pdf:
         page_texts = [normalize_text(page.extract_text() or "") for page in pdf.pages]
         for page_index, page in enumerate(pdf.pages, start=1):
+            page_sizes[page_index] = (float(page.width), float(page.height))
             page_words[page_index] = page.extract_words(
                 x_tolerance=2,
                 y_tolerance=3,
@@ -148,11 +239,28 @@ def build_page_assignment(input_pdf: Path, structured: dict) -> tuple[dict[int, 
         source = item["source"]
         normalized_source = normalize_text(source)
         tokens = tokenize(source)[:10]
+        hinted_page = item.get("page_number")
+
+        if hinted_page and item.get("bbox"):
+            page_width, page_height = page_sizes.get(int(hinted_page), (0.0, 0.0))
+            bbox = item["bbox"]
+            max_edge = max(bbox["x1"], bbox["bottom"])
+            if page_width and page_height and max_edge <= 1005:
+                item["bbox"] = {
+                    "x0": bbox["x0"] / 1000 * page_width,
+                    "x1": bbox["x1"] / 1000 * page_width,
+                    "top": bbox["top"] / 1000 * page_height,
+                    "bottom": bbox["bottom"] / 1000 * page_height,
+                }
+            page_notes[int(hinted_page)].append(item)
+            continue
 
         best_score = 0
         best_page = None
 
         for page_index, page_text in enumerate(page_texts, start=1):
+            if hinted_page and page_index != hinted_page:
+                continue
             if normalized_source and normalized_source in page_text:
                 score = len(normalized_source) + 100
             else:
@@ -186,6 +294,140 @@ def shorten_text(value: str, max_chars: int) -> str:
 
 def clone_note(note: dict) -> dict:
     return {key: value for key, value in note.items()}
+
+
+def rects_overlap(a: dict, b: dict, padding: float = 4.0) -> bool:
+    return not (
+        a["x1"] + padding <= b["x0"]
+        or b["x1"] + padding <= a["x0"]
+        or a["bottom"] + padding <= b["top"]
+        or b["bottom"] + padding <= a["top"]
+    )
+
+
+def choose_inline_note_width(page_width: float, bbox: dict, translation: str) -> float:
+    bbox_width = max(0.0, bbox["x1"] - bbox["x0"])
+    if bbox_width >= INLINE_NOTE_WIDE_SOURCE_THRESHOLD:
+        desired = min(
+            max(INLINE_NOTE_MAX_WIDTH, bbox_width - 18),
+            max(INLINE_NOTE_MIN_WIDTH, bbox_width - 14),
+        )
+    else:
+        desired = min(
+            INLINE_NOTE_MAX_WIDTH,
+            max(INLINE_NOTE_MIN_WIDTH, pdfmetrics.stringWidth(translation, "STSong-Light", 11.2) + 8),
+        )
+    remaining_right = page_width - bbox["x1"] - PAGE_PADDING - 8
+    if remaining_right >= desired:
+        return desired
+    remaining_left = bbox["x0"] - PAGE_PADDING - 8
+    if remaining_left >= desired:
+        return desired
+    return max(INLINE_NOTE_MIN_WIDTH, min(desired, page_width * 0.2))
+
+
+def choose_inline_note_candidate(page_width: float, bbox: dict, note_width: float) -> list[tuple[float, float]]:
+    wide_source = (bbox["x1"] - bbox["x0"]) >= 72
+    candidates: list[tuple[float, float]] = []
+
+    if wide_source:
+        candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x0"] + 10), bbox["bottom"] + 6))
+        candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x0"] + 24), max(PAGE_PADDING, bbox["top"] - 12)))
+
+    candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x1"] + 8), max(PAGE_PADDING, bbox["top"] - 2)))
+    candidates.append((max(PAGE_PADDING, bbox["x0"] - note_width - 8), max(PAGE_PADDING, bbox["top"] - 2)))
+    candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x0"] + 12), bbox["bottom"] + 10))
+
+    deduped: list[tuple[float, float]] = []
+    seen: set[tuple[int, int]] = set()
+    for x, top in candidates:
+        key = (round(x), round(top))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((x, top))
+    return deduped
+
+
+def choose_inline_note_chars(note_width: float, bbox: dict) -> int:
+    bbox_width = max(0.0, bbox["x1"] - bbox["x0"])
+    bbox_height = max(0.0, bbox["bottom"] - bbox["top"])
+    if bbox_width >= 220 or bbox_height >= 72:
+        return 72
+    if bbox_width >= 160 or bbox_height >= 48 or note_width >= 200:
+        return 56
+    if bbox_width >= 110 or note_width >= 140:
+        return 46
+    return 38
+
+
+def build_inline_note_layout(
+    page_width: float,
+    page_height: float,
+    notes: list[dict],
+    translation_style: ParagraphStyle,
+) -> tuple[list[dict], list[dict]]:
+    placed: list[dict] = []
+    overflow: list[dict] = []
+
+    ordered_notes = sorted(
+        [note for note in notes if note.get("bbox") and note.get("translation")],
+        key=lambda note: (note["bbox"]["top"], note["bbox"]["x0"]),
+    )
+
+    for note in ordered_notes:
+        bbox = note["bbox"]
+        translation = shorten_text(
+            note["translation"],
+            choose_inline_note_chars(
+                choose_inline_note_width(page_width, bbox, note["translation"]),
+                bbox,
+            ),
+        )
+        note_width = choose_inline_note_width(page_width, bbox, translation)
+        para = Paragraph(translation, translation_style)
+        _, note_height = para.wrap(note_width, 1000)
+        note_height += 2
+        placed_rect = None
+
+        for candidate_x, candidate_top in choose_inline_note_candidate(page_width, bbox, note_width):
+            for shift in range(0, INLINE_NOTE_MAX_SHIFT + 1, 12):
+                top = candidate_top + shift
+                if top + note_height > page_height - PAGE_PADDING:
+                    break
+
+                rect = {
+                    "x0": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)),
+                    "x1": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)) + note_width,
+                    "top": top,
+                    "bottom": top + note_height,
+                }
+
+                if any(rects_overlap(rect, item["_rect"]) for item in placed):
+                    continue
+                if rects_overlap(rect, bbox, padding=2.0):
+                    continue
+
+                placed_rect = rect
+                break
+
+            if placed_rect:
+                break
+
+        if not placed_rect:
+            overflow.append(note)
+            continue
+
+        placed.append(
+            {
+                **note,
+                "_inline_text": translation,
+                "_inline_para": para,
+                "_rect": placed_rect,
+            }
+        )
+
+    return placed, overflow
 
 
 def fit_notes_single_page(page_height: float, notes: list[dict], base_styles: dict) -> tuple[list[dict], dict]:
@@ -411,11 +653,9 @@ def create_dense_marker_overlay(page_width: float, page_height: float, rows: lis
         if not bbox:
             continue
 
-        marker_x = max(10, bbox["x0"] - 18)
-        marker_y = min(page_height - 18, page_height - bbox["top"] + 4)
-        pdf.setFillColor(MARKER_COLOR)
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(marker_x, marker_y, row["label"])
+        marker_x = max(6, bbox["x0"] - 14)
+        marker_y = min(page_height - 16, page_height - bbox["top"] + 6)
+        draw_note_marker(pdf, marker_x, marker_y, row["label"])
 
     pdf.save()
     buffer.seek(0)
@@ -585,11 +825,9 @@ def create_dense_inline_overlay(
         if not bbox:
             continue
 
-        marker_x = max(10, bbox["x0"] - 14)
-        marker_y = min(page_height - 18, page_height - bbox["top"] + 4)
-        pdf.setFillColor(MARKER_COLOR)
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(marker_x, marker_y, row["label"])
+        marker_x = max(6, bbox["x0"] - 14)
+        marker_y = min(page_height - 16, page_height - bbox["top"] + 6)
+        draw_note_marker(pdf, marker_x, marker_y, row["label"])
 
     band_y = PAGE_PADDING - 6
     band_height = layout["used_height"] + 22
@@ -660,11 +898,9 @@ def create_overlay_page(page_width: float, page_height: float, page_number: int,
         if not bbox:
             continue
 
-        marker_x = max(10, bbox["x0"] - 18)
-        marker_y = min(page_height - 18, page_height - bbox["top"] + 6)
-        pdf.setFillColor(MARKER_COLOR)
-        pdf.setFont("Helvetica-Bold", 24)
-        pdf.drawString(marker_x, marker_y, str(note["note_number"]))
+        marker_x = max(6, bbox["x0"] - 14)
+        marker_y = min(page_height - 16, page_height - bbox["top"] + 6)
+        draw_note_marker(pdf, marker_x, marker_y, str(note["note_number"]))
 
     for note in fitted_notes:
         note_height = note["_render_height"]
@@ -704,6 +940,75 @@ def create_overlay_page(page_width: float, page_height: float, page_number: int,
     pdf.save()
     buffer.seek(0)
     return PdfReader(buffer)
+
+
+def create_inline_note_overlay(
+    page_width: float,
+    page_height: float,
+    notes: list[dict],
+    styles: dict,
+) -> tuple[PdfReader | None, list[dict]]:
+    if not notes:
+        return None, []
+
+    inline_translation_style = ParagraphStyle(
+        "inline-translation",
+        parent=styles["translation"],
+        fontSize=11.2,
+        leading=13.2,
+        textColor=colors.HexColor("#0a6fd6"),
+    )
+
+    placed, overflow = build_inline_note_layout(
+        page_width,
+        page_height,
+        notes,
+        inline_translation_style,
+    )
+    if not placed:
+        return None, notes
+
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=(page_width, page_height))
+
+    for note in placed:
+        bbox = note["bbox"]
+        rect = note["_rect"]
+        anchor_y = page_height - ((bbox["top"] + bbox["bottom"]) / 2)
+        text_y = page_height - rect["top"] - 1
+        anchor_x = bbox["x1"] if rect["x0"] >= bbox["x1"] else bbox["x0"]
+        if rect["x0"] > bbox["x1"]:
+            line_end_x = rect["x0"] - 4
+        elif rect["x1"] < bbox["x0"]:
+            line_end_x = rect["x1"] + 4
+        else:
+            line_end_x = rect["x0"] + 2
+
+        pdf.setStrokeColor(colors.HexColor("#9ac5f5"))
+        pdf.setLineWidth(0.8)
+        pdf.line(anchor_x, anchor_y, line_end_x, text_y - 2)
+
+        pdf.setFillColor(colors.white)
+        pdf.setStrokeColor(colors.white)
+        pdf.roundRect(
+            rect["x0"] - 2,
+            page_height - rect["bottom"] - 1,
+            rect["x1"] - rect["x0"] + 4,
+            rect["bottom"] - rect["top"] + 2,
+            4,
+            fill=1,
+            stroke=0,
+        )
+
+        note["_inline_para"].drawOn(
+            pdf,
+            rect["x0"],
+            page_height - rect["bottom"],
+        )
+
+    pdf.save()
+    buffer.seek(0)
+    return PdfReader(buffer), overflow
 
 
 def create_dense_review_pages(page_width: float, page_height: float, page_number: int, notes: list[dict], styles: dict) -> list[PdfReader]:
@@ -838,31 +1143,78 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                 height=float(page.mediabox.height),
             )
             new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-            inline_overlay, overflow_rows = create_dense_inline_overlay(
+            if USE_DENSE_INLINE_NOTES:
+                inline_overlay, overflow_rows = create_dense_inline_overlay(
+                    float(page.mediabox.width),
+                    float(page.mediabox.height),
+                    dense_rows,
+                    render_styles,
+                )
+                if inline_overlay:
+                    new_page.merge_page(inline_overlay.pages[0])
+                if overflow_rows:
+                    marker_overlay = create_dense_marker_overlay(
+                        float(page.mediabox.width),
+                        float(page.mediabox.height),
+                        overflow_rows,
+                    )
+                    if not inline_overlay:
+                        new_page.merge_page(marker_overlay.pages[0])
+                    for review_page in create_dense_review_pages(
+                        float(page.mediabox.width),
+                        float(page.mediabox.height),
+                        page_number,
+                        [note for note in notes_for_page if note.get("note_number") in {num for row in overflow_rows for num in row.get("note_numbers", [])}],
+                        render_styles,
+                    ):
+                        writer.add_page(review_page.pages[0])
+            else:
+                if dense_rows:
+                    marker_overlay = create_dense_marker_overlay(
+                        float(page.mediabox.width),
+                        float(page.mediabox.height),
+                        dense_rows,
+                    )
+                    new_page.merge_page(marker_overlay.pages[0])
+                    for review_page in create_dense_review_pages(
+                        float(page.mediabox.width),
+                        float(page.mediabox.height),
+                        page_number,
+                        notes_for_page,
+                        render_styles,
+                    ):
+                        writer.add_page(review_page.pages[0])
+            continue
+
+        if USE_INLINE_NOTES:
+            inline_overlay, inline_overflow = create_inline_note_overlay(
                 float(page.mediabox.width),
                 float(page.mediabox.height),
-                dense_rows,
+                notes_for_page,
                 render_styles,
             )
             if inline_overlay:
-                new_page.merge_page(inline_overlay.pages[0])
-            if overflow_rows:
-                marker_overlay = create_dense_marker_overlay(
-                    float(page.mediabox.width),
-                    float(page.mediabox.height),
-                    overflow_rows,
+                new_page = writer.add_blank_page(
+                    width=float(page.mediabox.width),
+                    height=float(page.mediabox.height),
                 )
-                if not inline_overlay:
-                    new_page.merge_page(marker_overlay.pages[0])
-                for review_page in create_dense_review_pages(
-                    float(page.mediabox.width),
-                    float(page.mediabox.height),
-                    page_number,
-                    [note for note in notes_for_page if note.get("note_number") in {num for row in overflow_rows for num in row.get("note_numbers", [])}],
-                    render_styles,
-                ):
-                    writer.add_page(review_page.pages[0])
-            continue
+                new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                new_page.merge_page(inline_overlay.pages[0])
+                if inline_overflow:
+                    overflow_page = writer.add_blank_page(
+                        width=float(page.mediabox.width) + PANEL_WIDTH,
+                        height=float(page.mediabox.height),
+                    )
+                    overflow_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                    overlay_reader = create_overlay_page(
+                        float(page.mediabox.width),
+                        float(page.mediabox.height),
+                        page_number,
+                        inline_overflow,
+                        render_styles,
+                    )
+                    overflow_page.merge_page(overlay_reader.pages[0])
+                continue
 
         new_page = writer.add_blank_page(
             width=float(page.mediabox.width) + PANEL_WIDTH,
@@ -878,7 +1230,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
         )
         new_page.merge_page(overlay_reader.pages[0])
 
-    if unassigned:
+    if unassigned and os.environ.get("FEEDBACK_RENDER_INCLUDE_UNASSIGNED") == "1":
         appendix_buffer = io.BytesIO()
         appendix_pdf = canvas.Canvas(appendix_buffer, pagesize=(842, 595))
         appendix_pdf.setFillColor(colors.HexColor("#0f172a"))

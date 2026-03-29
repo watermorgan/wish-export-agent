@@ -3,20 +3,18 @@ import { constants } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import type { TranslationSnapshot } from '@/lib/assistant/translation-pipeline';
 import type { ArtifactField, AssistantRequest, AssistantReply } from '@/lib/assistant/types';
 
 const execFileAsync = promisify(execFile);
 const TASK_OUTPUT_DIR = join(process.cwd(), '.tmp', 'task-artifacts');
 
-type StructuredTranslationPayload = {
-  sections: Array<unknown>;
-};
-
-function isStructuredTranslation(value: unknown): value is StructuredTranslationPayload {
+function isTranslationSnapshot(value: unknown): value is TranslationSnapshot {
   return (
     typeof value === 'object' &&
     value !== null &&
-    Array.isArray((value as { sections?: unknown }).sections)
+    (value as { version?: unknown }).version === 'translation_snapshot_v1' &&
+    Array.isArray((value as { items?: unknown }).items)
   );
 }
 
@@ -75,51 +73,9 @@ async function resolveInputPdfPath(request: AssistantRequest) {
 function findStructuredField(reply: AssistantReply): ArtifactField | null {
   for (const section of reply.artifacts) {
     for (const field of section.fields) {
-      if (isStructuredTranslation(field.structuredData)) {
+      if (isTranslationSnapshot(field.structuredData)) {
         return field;
       }
-    }
-  }
-
-  return null;
-}
-
-async function findCachedTranslatorResponse(sourceFileName: string) {
-  const tmpDir = join(process.cwd(), '.tmp');
-  if (!(await pathExists(tmpDir))) {
-    return null;
-  }
-
-  const entries = await readdir(tmpDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const responsePath = join(tmpDir, entry.name, 'translator-response.json');
-    if (!(await pathExists(responsePath))) {
-      continue;
-    }
-
-    try {
-      const payload = JSON.parse(await readFile(responsePath, 'utf8')) as {
-        artifacts?: Array<{
-          fields?: Array<{
-            citation?: string;
-            structuredData?: {
-              sourceFile?: string;
-            };
-          }>;
-        }>;
-      };
-      const firstField = payload.artifacts?.[0]?.fields?.[0];
-      const candidateSource =
-        firstField?.structuredData?.sourceFile ?? firstField?.citation ?? null;
-      if (candidateSource === sourceFileName) {
-        return responsePath;
-      }
-    } catch {
-      continue;
     }
   }
 
@@ -144,42 +100,30 @@ export async function ensureTranslationPdfArtifact(
   const outputPdfName = `${resolvedSource.fileName.replace(/\.[^.]+$/, '')}.annotated.pdf`;
   const outputPdfPath = join(taskDir, outputPdfName);
 
-  if (await pathExists(outputPdfPath)) {
-    return {
-      pdfPath: outputPdfPath,
-      fileName: outputPdfName
-    };
+  if (!structuredField || !isTranslationSnapshot(structuredField.structuredData)) {
+    return null;
   }
 
-  if (structuredField) {
-    const payload = {
-      summary: reply.summary,
-      artifacts: [
-        {
-          title: '原文保留式双语翻译',
-          kind: 'text',
-          summary: '基于任务结果生成的双语标注 PDF。',
-          fields: [
-            {
-              label: structuredField.label,
-              value: structuredField.value,
-              citation: resolvedSource.fileName,
-              structuredData: structuredField.structuredData
-            }
-          ]
-        }
-      ]
-    };
+  const payload = {
+    summary: reply.summary,
+    artifacts: [
+      {
+        title: '原文保留式双语翻译',
+        kind: 'text',
+        summary: '基于冻结的 pipeline snapshot 重新渲染正式标注 PDF。',
+        fields: [
+          {
+            label: structuredField.label,
+            value: structuredField.value,
+            citation: resolvedSource.fileName,
+            structuredData: structuredField.structuredData
+          }
+        ]
+      }
+    ]
+  };
 
-    await writeFile(responseJsonPath, JSON.stringify(payload, null, 2), 'utf8');
-  } else {
-    const cachedResponsePath = await findCachedTranslatorResponse(resolvedSource.fileName);
-    if (!cachedResponsePath) {
-      return null;
-    }
-
-    await writeFile(responseJsonPath, await readFile(cachedResponsePath, 'utf8'), 'utf8');
-  }
+  await writeFile(responseJsonPath, JSON.stringify(payload, null, 2), 'utf8');
 
   await execFileAsync('python3', [
     join(process.cwd(), 'scripts', 'render_feedback_pdf.py'),

@@ -28,10 +28,36 @@ type PipelineInput = {
   filePath: string;
   fileName: string;
   maxSegmentsForTranslation?: number;
+  translationModelOverride?: string;
 };
 
 export type DocumentMainType = 'sketch_comment' | 'tp_bom_table_heavy' | 'mixed';
 export type OutputStrategy = 'annotated_pdf' | 'bilingual_table_bundle';
+export type TranslationSnapshot = {
+  version: 'translation_snapshot_v1';
+  generatedAt: string;
+  fileName: string;
+  documentMainType: DocumentMainType;
+  outputStrategy: 'annotated_pdf';
+  diagnostics: {
+    translatedSegmentCount: number;
+    translationCoveragePct: number;
+    aModelExecuted: boolean;
+    bModelExecuted: boolean;
+  };
+  items: Array<{
+    id: string;
+    pageNumber: number;
+    regionId: string;
+    en: string;
+    zh?: string;
+    renderMode: 'inline' | 'footnote';
+    bbox?: { x: number; y: number; w: number; h: number };
+    sourceType: string;
+    confidence: number;
+    pageLayoutType?: string;
+  }>;
+};
 
 export type PipelineResult = {
   fileName: string;
@@ -78,6 +104,7 @@ export type PipelineResult = {
       mergeConfidence: number;
       regionId?: string;
       bbox?: { x: number; y: number; w: number; h: number };
+      pageLayoutType?: string;
     };
   }>;
   outputs: {
@@ -87,6 +114,7 @@ export type PipelineResult = {
         kind: 'annotated_html_preview';
         relativePath: string;
       };
+      snapshot: TranslationSnapshot;
       items: Array<{
         id: string;
         pageNumber: number;
@@ -230,7 +258,11 @@ function computeTableSegmentShare(
   return tableSegments / totalSegments;
 }
 
-function scoreSegmentForTranslation(text: string) {
+function scoreSegmentForTranslation(
+  text: string,
+  segment?: PipelineResult['segments'][number],
+  documentMainType?: DocumentMainType
+) {
   const normalized = text.replace(/\s+/g, ' ').trim();
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   let score = Math.min(normalized.length, 260);
@@ -254,21 +286,44 @@ function scoreSegmentForTranslation(text: string) {
   if (/please|advise|comment|supplier|weight|composition|fabric|zip|velcro|sample/i.test(normalized)) {
     score += 12;
   }
+  if (documentMainType === 'mixed' && segment) {
+    const layoutType = segment.extractionMeta.pageLayoutType;
+    if (layoutType === 'sketch') score += 26;
+    if (layoutType === 'mixed') score += 6;
+    if (layoutType === 'reference') score -= 10;
+    if (layoutType === 'table') score -= 20;
+    if (layoutType === 'sketch' && segment.extractionMeta.sourceType === 'vision') {
+      score += 8;
+    }
+  }
 
   return score;
 }
 
-function selectSegmentsForTranslation(
+function normalizeSelectionText(text: string) {
+  return text.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function pickSegmentsRoundRobin(
   segments: PipelineResult['segments'],
-  limit?: number
+  limit: number,
+  picked: Map<string, PipelineResult['segments'][number]>,
+  seenNormalized: Set<string>,
+  documentMainType?: DocumentMainType
 ) {
-  if (!limit || limit <= 0 || segments.length <= limit) {
-    return segments;
+  if (limit <= 0 || segments.length === 0) {
+    return;
   }
 
   const groups = new Map<number, Array<PipelineResult['segments'][number] & { __score: number }>>();
   for (const segment of segments) {
-    const enriched = { ...segment, __score: scoreSegmentForTranslation(segment.text) };
+    if (picked.has(segment.id)) {
+      continue;
+    }
+    const enriched = {
+      ...segment,
+      __score: scoreSegmentForTranslation(segment.text, segment, documentMainType)
+    };
     const bucket = groups.get(segment.pageNumber) ?? [];
     bucket.push(enriched);
     groups.set(segment.pageNumber, bucket);
@@ -278,10 +333,6 @@ function selectSegmentsForTranslation(
   }
 
   const orderedPages = [...groups.keys()].sort((a, b) => a - b);
-  const picked = new Map<string, PipelineResult['segments'][number]>();
-  const seenNormalized = new Set<string>();
-
-  // Round-robin by page first, to avoid spending all calls on the first page/header blocks.
   while (picked.size < limit) {
     let advanced = false;
     for (const page of orderedPages) {
@@ -289,26 +340,97 @@ function selectSegmentsForTranslation(
       if (!bucket || bucket.length === 0) continue;
       let next = bucket.shift();
       while (next) {
-        const normalized = next.text.replace(/\s+/g, ' ').trim().toLowerCase();
+        const normalized = normalizeSelectionText(next.text);
         if (!seenNormalized.has(normalized)) break;
         next = bucket.shift();
       }
       if (!next) continue;
       picked.set(next.id, next);
-      seenNormalized.add(next.text.replace(/\s+/g, ' ').trim().toLowerCase());
+      seenNormalized.add(normalizeSelectionText(next.text));
       advanced = true;
       if (picked.size >= limit) break;
     }
     if (!advanced) break;
   }
+}
+
+function selectSegmentsForTranslation(
+  segments: PipelineResult['segments'],
+  limit?: number,
+  documentMainType?: DocumentMainType
+) {
+  if (!limit || limit <= 0 || segments.length <= limit) {
+    return segments;
+  }
+
+  const picked = new Map<string, PipelineResult['segments'][number]>();
+  const seenNormalized = new Set<string>();
+  const mixedSketchSegments =
+    documentMainType === 'mixed'
+      ? segments.filter((segment) => segment.extractionMeta.pageLayoutType === 'sketch')
+      : [];
+  const visionSegments = segments.filter((segment) => segment.extractionMeta.sourceType === 'vision');
+  const nonVisionSegments = segments.filter((segment) => segment.extractionMeta.sourceType !== 'vision');
+  const reservedMixedSketchShare = Number(process.env.B_MODEL_RESERVED_MIXED_SKETCH_SHARE ?? '0.35');
+  const reservedMixedSketchFloor = Number(process.env.B_MODEL_RESERVED_MIXED_SKETCH_FLOOR ?? '8');
+  const reservedMixedSketchSlots =
+    documentMainType === 'mixed'
+      ? Math.min(
+          mixedSketchSegments.length,
+          Math.max(
+            0,
+            Math.min(
+              limit,
+              Math.max(reservedMixedSketchFloor, Math.floor(limit * reservedMixedSketchShare))
+            )
+          )
+        )
+      : 0;
+  const reservedVisionShare = Number(process.env.B_MODEL_RESERVED_VISION_SHARE ?? '0.25');
+  const reservedVisionFloor = Number(process.env.B_MODEL_RESERVED_VISION_FLOOR ?? '4');
+  const reservedVisionSlots = Math.min(
+    visionSegments.length,
+    Math.max(
+      0,
+      Math.min(
+        limit,
+        Math.max(reservedVisionFloor, Math.floor(limit * reservedVisionShare))
+      )
+    )
+  );
+
+  if (reservedMixedSketchSlots > 0) {
+    pickSegmentsRoundRobin(
+      mixedSketchSegments,
+      reservedMixedSketchSlots,
+      picked,
+      seenNormalized,
+      documentMainType
+    );
+  }
+
+  if (reservedVisionSlots > 0) {
+    pickSegmentsRoundRobin(
+      visionSegments,
+      reservedVisionSlots,
+      picked,
+      seenNormalized,
+      documentMainType
+    );
+  }
+
+  pickSegmentsRoundRobin(nonVisionSegments, limit, picked, seenNormalized, documentMainType);
 
   if (picked.size < limit) {
     const rest = segments
       .filter((segment) => !picked.has(segment.id))
-      .map((segment) => ({ segment, score: scoreSegmentForTranslation(segment.text) }))
+      .map((segment) => ({
+        segment,
+        score: scoreSegmentForTranslation(segment.text, segment, documentMainType)
+      }))
       .sort((a, b) => b.score - a.score);
     for (const item of rest) {
-      const normalized = item.segment.text.replace(/\s+/g, ' ').trim().toLowerCase();
+      const normalized = normalizeSelectionText(item.segment.text);
       if (seenNormalized.has(normalized)) continue;
       picked.set(item.segment.id, item.segment);
       seenNormalized.add(normalized);
@@ -387,6 +509,202 @@ function selectOutputStrategy(documentMainType: DocumentMainType): OutputStrateg
   return documentMainType === 'tp_bom_table_heavy' ? 'bilingual_table_bundle' : 'annotated_pdf';
 }
 
+function selectVisionTargetPages(
+  extracted: Awaited<ReturnType<typeof extractPdfText>>,
+  sections: Array<{ pageLayoutType: string; segments: Array<{ pageNumber: number; text: string }> }>,
+  documentMainType: DocumentMainType,
+  diagnostics: {
+    earlyGatePages: number[];
+    lowConfidencePages: number[];
+  }
+) {
+  const targets = new Set<number>([...diagnostics.earlyGatePages, ...diagnostics.lowConfidencePages]);
+  const pageLayoutByPage = new Map<number, string>();
+  for (const section of sections) {
+    const pageNumber = section.segments[0]?.pageNumber;
+    if (pageNumber && !pageLayoutByPage.has(pageNumber)) {
+      pageLayoutByPage.set(pageNumber, section.pageLayoutType);
+    }
+  }
+
+  if (documentMainType !== 'sketch_comment') {
+    if (documentMainType === 'mixed') {
+      for (const page of extracted.pages) {
+        const layoutType = pageLayoutByPage.get(page.pageNumber);
+        if (layoutType !== 'sketch') {
+          continue;
+        }
+        const pageSections = sections.filter((section) =>
+          section.segments.some((segment) => segment.pageNumber === page.pageNumber)
+        );
+        const segmentCount = pageSections.reduce((sum, section) => sum + section.segments.length, 0);
+        const extractedCharCount = pageSections.reduce(
+          (sum, section) => sum + section.segments.reduce((sub, segment) => sub + segment.text.length, 0),
+          0
+        );
+        const nonEmptyLineCount = page.lines.filter((line) => line.trim()).length;
+        const sparseMixedCandidate =
+          nonEmptyLineCount <= 18 || segmentCount <= 8 || extractedCharCount <= 220;
+        if (sparseMixedCandidate) {
+          targets.add(page.pageNumber);
+        }
+      }
+    }
+    return Array.from(targets).sort((a, b) => a - b);
+  }
+
+  for (const page of extracted.pages) {
+    const nonEmptyLineCount = page.lines.filter((line) => line.trim()).length;
+    const pageSections = sections.filter((section) =>
+      section.segments.some((segment) => segment.pageNumber === page.pageNumber)
+    );
+    const segmentCount = pageSections.reduce((sum, section) => sum + section.segments.length, 0);
+    const extractedCharCount = pageSections.reduce(
+      (sum, section) => sum + section.segments.reduce((sub, segment) => sub + segment.text.length, 0),
+      0
+    );
+    const sparseSketchPage =
+      nonEmptyLineCount <= 14 || segmentCount <= 6 || extractedCharCount <= 140;
+
+    if (sparseSketchPage) {
+      targets.add(page.pageNumber);
+    }
+  }
+
+  return Array.from(targets).sort((a, b) => a - b);
+}
+
+function normalizeCompactSegmentText(text: string) {
+  return text.replace(/[\s\-_/.:,#]+/g, '').trim().toLowerCase();
+}
+
+function toSegmentTokenSet(text: string) {
+  return new Set(
+    text
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+      .split(/[^a-z0-9\u4e00-\u9fff]+/i)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+  );
+}
+
+function buildSegmentBigrams(text: string) {
+  const normalized = normalizeCompactSegmentText(text);
+  const bigrams = new Set<string>();
+  for (let index = 0; index < normalized.length - 1; index += 1) {
+    bigrams.add(normalized.slice(index, index + 2));
+  }
+  return bigrams;
+}
+
+function segmentOverlapRatio<T>(left: Set<T>, right: Set<T>) {
+  if (left.size === 0 || right.size === 0) {
+    return 0;
+  }
+  let overlap = 0;
+  for (const item of left) {
+    if (right.has(item)) {
+      overlap += 1;
+    }
+  }
+  return overlap / Math.max(left.size, right.size);
+}
+
+function segmentTextSimilarity(left: string, right: string) {
+  const normalizedLeft = left.replace(/\s+/g, ' ').trim().toLowerCase();
+  const normalizedRight = right.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!normalizedLeft || !normalizedRight) {
+    return 0;
+  }
+  if (normalizedLeft === normalizedRight) {
+    return 1;
+  }
+  const compactLeft = normalizeCompactSegmentText(left);
+  const compactRight = normalizeCompactSegmentText(right);
+  if (compactLeft && compactLeft === compactRight) {
+    return 0.98;
+  }
+  return Math.max(
+    segmentOverlapRatio(toSegmentTokenSet(left), toSegmentTokenSet(right)),
+    segmentOverlapRatio(buildSegmentBigrams(left), buildSegmentBigrams(right))
+  );
+}
+
+function buildVisionSegments(
+  baseSegments: PipelineResult['segments'],
+  visionBlocks: ExtractedBlock[],
+  pageLayoutByPage?: Map<number, string>
+): PipelineResult['segments'] {
+  const ignoredPatterns = [
+    /tous droits réservés/i,
+    /all rights reserved/i,
+    /edited on\s+\d{2}\/\d{2}\/\d{4}/i,
+    /^warning:/i,
+    /^avertissement/i,
+    /^\d+\/\d+$/,
+    /^\d+(?:[.,]\d+)?(?:cm|mm)?$/i,
+    /^ikks men$/i,
+    /^description$/i
+  ];
+  const existingSegmentsByPage = new Map<number, PipelineResult['segments']>();
+  for (const segment of baseSegments) {
+    const bucket = existingSegmentsByPage.get(segment.pageNumber) ?? [];
+    bucket.push(segment);
+    existingSegmentsByPage.set(segment.pageNumber, bucket);
+  }
+  const appended: PipelineResult['segments'] = [];
+
+  for (const block of visionBlocks) {
+    const normalized = block.text.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      continue;
+    }
+    if (normalized.length > 160) {
+      continue;
+    }
+    if (ignoredPatterns.some((pattern) => pattern.test(normalized))) {
+      continue;
+    }
+
+    const existingPageSegments = existingSegmentsByPage.get(block.pageNumber) ?? [];
+    const hasAnchoredMatch = existingPageSegments.some(
+      (segment) => segmentTextSimilarity(segment.text, normalized) >= 0.86
+    );
+    if (hasAnchoredMatch) {
+      continue;
+    }
+
+    const appendedSegment = {
+      id: `${block.regionId}_vision`,
+      text: normalized,
+      pageNumber: block.pageNumber,
+      regionId: block.regionId,
+      extractionMeta: {
+        sourceType: block.sourceType,
+        layoutConfidence: Math.max(0.55, Math.min(0.98, block.confidence)),
+        mergeConfidence: Math.max(0.55, Math.min(0.98, block.confidence)),
+        regionId: block.regionId,
+        bbox: block.bbox,
+        pageLayoutType:
+          existingPageSegments[0]?.extractionMeta.pageLayoutType ?? pageLayoutByPage?.get(block.pageNumber)
+      }
+    };
+    appended.push(appendedSegment);
+    const nextBucket = existingSegmentsByPage.get(block.pageNumber) ?? [];
+    nextBucket.push(appendedSegment);
+    existingSegmentsByPage.set(block.pageNumber, nextBucket);
+  }
+
+  return [...baseSegments, ...appended].sort((left, right) => {
+    if (left.pageNumber !== right.pageNumber) {
+      return left.pageNumber - right.pageNumber;
+    }
+    return left.id.localeCompare(right.id);
+  });
+}
+
 function buildBilingualTableBundle(
   segments: PipelineResult['segments']
 ): NonNullable<PipelineResult['outputs']['bilingualTableBundle']> {
@@ -403,6 +721,12 @@ function buildBilingualTableBundle(
       zh: segment.zh
     }))
   };
+}
+
+function selectMixedSupplementTableSegments(segments: PipelineResult['segments']) {
+  return segments.filter((segment) =>
+    ['table', 'reference'].includes(String(segment.extractionMeta.pageLayoutType ?? ''))
+  );
 }
 
 async function materializeBilingualXlsx(
@@ -926,11 +1250,12 @@ function escapeHtml(input: string) {
 }
 
 function buildAnnotatedPdfOutput(
-  segments: PipelineResult['segments']
+  segments: PipelineResult['segments'],
+  documentMainType: DocumentMainType
 ): NonNullable<PipelineResult['outputs']['annotatedPdf']> {
   const footnotes: Array<{ index: number; id: string; zh: string }> = [];
   const items = segments.map((segment) => {
-    const zh = segment.zh;
+    const zh = shouldSuppressAnnotatedZh(segment, documentMainType) ? undefined : segment.zh;
     if (!zh) {
       return {
         id: segment.id,
@@ -965,8 +1290,143 @@ function buildAnnotatedPdfOutput(
   return {
     mode: 'inline_bilingual_preferred' as const,
     items,
-    footnotes
+    footnotes,
+    snapshot: {
+      version: 'translation_snapshot_v1',
+      generatedAt: new Date().toISOString(),
+      fileName: '',
+      documentMainType,
+      outputStrategy: 'annotated_pdf',
+      diagnostics: {
+        translatedSegmentCount: 0,
+        translationCoveragePct: 0,
+        aModelExecuted: false,
+        bModelExecuted: false
+      },
+      items: []
+    }
   };
+}
+
+function buildTranslationSnapshot(
+  fileName: string,
+  documentMainType: DocumentMainType,
+  annotated: NonNullable<PipelineResult['outputs']['annotatedPdf']>,
+  segments: PipelineResult['segments'],
+  diagnostics: Pick<
+    PipelineResult['diagnostics'],
+    'translatedSegmentCount' | 'translationCoveragePct' | 'aModelExecuted' | 'bModelExecuted'
+  >
+): TranslationSnapshot {
+  const segmentMeta = new Map(
+    segments.map((segment) => [
+      segment.id,
+      {
+        bbox: segment.extractionMeta.bbox,
+        sourceType: segment.extractionMeta.sourceType,
+        pageLayoutType: segment.extractionMeta.pageLayoutType,
+        confidence: Math.max(
+          0,
+          Math.min(1, Math.max(segment.extractionMeta.layoutConfidence, segment.extractionMeta.mergeConfidence))
+        )
+      }
+    ])
+  );
+
+  return {
+    version: 'translation_snapshot_v1',
+    generatedAt: new Date().toISOString(),
+    fileName,
+    documentMainType,
+    outputStrategy: 'annotated_pdf',
+    diagnostics: {
+      translatedSegmentCount: diagnostics.translatedSegmentCount,
+      translationCoveragePct: diagnostics.translationCoveragePct,
+      aModelExecuted: diagnostics.aModelExecuted,
+      bModelExecuted: diagnostics.bModelExecuted
+    },
+    items: annotated.items.map((item) => {
+      const meta = segmentMeta.get(item.id);
+      return {
+        id: item.id,
+        pageNumber: item.pageNumber,
+        regionId: item.regionId,
+        en: item.en,
+        zh: item.zh,
+        renderMode: item.renderMode,
+        bbox: meta?.bbox,
+        sourceType: meta?.sourceType ?? 'unknown',
+        confidence: meta?.confidence ?? 0,
+        pageLayoutType: meta?.pageLayoutType
+      };
+    })
+  };
+}
+
+function shouldSuppressAnnotatedZh(
+  segment: PipelineResult['segments'][number],
+  documentMainType: DocumentMainType
+) {
+  const source = segment.text.replace(/\s+/g, ' ').trim();
+  const layoutType = segment.extractionMeta.pageLayoutType;
+  if (!segment.zh?.trim()) {
+    return false;
+  }
+
+  const baseSuppressed =
+    /all rights reserved|edited on/i.test(source) ||
+    /^\s*dossier style\s*$/i.test(source) ||
+    /^\s*fitting\s*\/\s*volume\s*$/i.test(source) ||
+    /^hiver\b.*\b(styliste|graphiste)\b/i.test(source) ||
+    /\b(styliste|graphiste|mod[ée]liste|acheteur|n[ée]goce|designer|graphic designer|model maker|purchaser|style sheet|oversea)\b/i.test(source) ||
+    /^m\d{5,}\s+graphiste$/i.test(source) ||
+    /^(client|style no\.?|erp|qty|price|sales|date)\s*:/i.test(source) ||
+    /\bsize\b.*\bbase\b.*\bm\d{5,}\b/i.test(source) ||
+    /^\s*common designated size\s*$/i.test(source) ||
+    /^\s*proto\s*#\d+\s*$/i.test(source);
+
+  if (baseSuppressed) {
+    return true;
+  }
+
+  if (documentMainType === 'mixed') {
+    const isActionableStructureNote =
+      /\b(zip|zipper|button|snap|velcro|tape|seam|sleeve|cuff|waist|waistband|pocket|placket|hem|hood|collar|strap|loop|dart|opening|closure|binding|elastic)\b/i.test(
+        source
+      ) ||
+      /\b(拉链|按扣|魔术贴|贴条|缝线|袖|袖口|腰头|口袋|门襟|下摆|帽|领|带袢|袢带|省|开口|闭合|包边|松紧)\b/i.test(
+        segment.zh ?? ''
+      );
+    if ((layoutType === 'table' || layoutType === 'reference') && !isActionableStructureNote) {
+      return true;
+    }
+    return (
+      /^style:\s+/i.test(source) ||
+      /^created:\s*\d{4}\s+\d{2}\s+\d{2}/i.test(source) ||
+      /^updated:\s*$/i.test(source) ||
+      /^supplier:\s*$/i.test(source) ||
+      /^(quality|details|references|front|back|colours|trims|men|womenswear)$/i.test(source) ||
+      /^on body(\s*\|\s*clean sketch)?$/i.test(source) ||
+      /^clean sketch$/i.test(source) ||
+      /^option\s*\d+$/i.test(source) ||
+      /^artwork sent sep(?:erately)?$/i.test(source) ||
+      /^see (?:sep image|next page) for (?:reference|details)$/i.test(source) ||
+      /^as original sample$/i.test(source) ||
+      /^making$/i.test(source) ||
+      /^at side$/i.test(source) ||
+      /^style no\.?\s*:/i.test(source) ||
+      /^sku\s*:/i.test(source) ||
+      /^season\s*:/i.test(source) ||
+      /^款号[:：]/i.test(segment.zh ?? '') ||
+      /^成分[:：]/i.test(segment.zh ?? '') ||
+      /^克重[:：]/i.test(segment.zh ?? '') ||
+      /^幅宽[:：]/i.test(segment.zh ?? '') ||
+      /^\d+%[a-z\u4e00-\u9fff\s]+$/i.test(segment.zh ?? '') ||
+      /^\d+\s*(gsm|gr\/m2|cm)\b/i.test(segment.zh ?? '')
+    );
+  }
+
+  return false;
 }
 
 type BModelBatchStats = {
@@ -977,6 +1437,8 @@ type BModelBatchStats = {
   providerHits: string[];
   retranslatePasses: number;
   retranslatedSegmentCount: number;
+  visionSecondStagePasses: number;
+  visionSecondStageSegmentCount: number;
 };
 
 function classifyBModelError(
@@ -998,12 +1460,701 @@ function classifyBModelError(
   return 'http';
 }
 
+function selectVisionRecoverySegments(
+  segments: PipelineResult['segments'],
+  scopedSegmentIds: Set<string>,
+  translated: Map<string, string>,
+  limit: number,
+  documentMainType?: DocumentMainType
+) {
+  if (limit <= 0) return [] as PipelineResult['segments'];
+
+  const picked = new Map<string, PipelineResult['segments'][number]>();
+  const seenNormalized = new Set<string>();
+  const candidates = segments
+    .filter(
+      (segment) =>
+        segment.extractionMeta.sourceType === 'vision' &&
+        !scopedSegmentIds.has(segment.id) &&
+        !translated.has(segment.id)
+    )
+    .map((segment) => ({
+      segment,
+      score: scoreSegmentForTranslation(segment.text, segment, documentMainType),
+      confidence:
+        Math.max(
+          segment.extractionMeta.layoutConfidence || 0,
+          segment.extractionMeta.mergeConfidence || 0
+        ) || 0
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      if (a.segment.pageNumber !== b.segment.pageNumber) {
+        return a.segment.pageNumber - b.segment.pageNumber;
+      }
+      return a.segment.text.localeCompare(b.segment.text);
+    })
+    .map((item) => item.segment);
+
+  pickSegmentsRoundRobin(candidates, limit, picked, seenNormalized);
+  return candidates.filter((segment) => picked.has(segment.id));
+}
+
+function extractBalancedJsonCandidate(raw: string) {
+  const normalized = raw
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.startsWith('{') || normalized.startsWith('[')) {
+    return normalized;
+  }
+
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{' || char === '[') {
+      if (depth === 0) {
+        start = index;
+      }
+      depth += 1;
+      continue;
+    }
+
+    if ((char === '}' || char === ']') && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        return normalized.slice(start, index + 1);
+      }
+    }
+  }
+
+  return normalized;
+}
+
+function safeParseTranslationResponse(raw: string) {
+  const candidate = extractBalancedJsonCandidate(raw);
+  const parsed = JSON.parse(candidate) as
+    | {
+        translations?: Array<{ id?: string; zh?: string; text?: string }>;
+      }
+    | Array<{ id?: string; zh?: string; text?: string }>;
+
+  const items = Array.isArray(parsed) ? parsed : (parsed.translations ?? []);
+  return items
+    .map((item) => ({
+      id: item.id,
+      zh: item.zh?.trim() || item.text?.trim()
+    }))
+    .filter((item): item is { id: string; zh: string } => Boolean(item.id && item.zh));
+}
+
+function normalizeMaterialTerms(value: string) {
+  return value
+    .replace(/\bNYLON\b/gi, '尼龙')
+    .replace(/\bSPANDEX\b/gi, '氨纶')
+    .replace(/\bPOLYESTER\b/gi, '涤纶')
+    .replace(/\bPOLY\b/gi, '涤纶')
+    .replace(/\bSP\b/gi, '氨纶')
+    .replace(/\bCOL\b/gi, '配色')
+    .replace(/\bGR\/M²\b/gi, '克/平方米')
+    .replace(/\bGR\/M2\b/gi, '克/平方米')
+    .replace(/\bCM\b/gi, 'CM');
+}
+
+function normalizeSourceText(value: string) {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function normalizeFashionTranslation(source: string, zh: string) {
+  const normalizedSource = normalizeSourceText(source);
+  let text = zh.replace(/\s+/g, ' ').trim();
+
+  if (!text) return text;
+
+  if (/^02\s+noir$/i.test(normalizedSource)) {
+    return '02#黑色';
+  }
+
+  if (/^48\s+marine$/i.test(normalizedSource)) {
+    return '48#海军蓝';
+  }
+
+  if (/^67\s+ecorce\b/i.test(normalizedSource)) {
+    return '67#咖色';
+  }
+
+  if (/^\d+\s+noir$/i.test(source)) {
+    return text.replace(/^\d+\s*/, '').trim() || '黑色';
+  }
+
+  const shellFabricMatch = source.match(/shell fabric option\s*#\s*(\d+)\s*:\s*(.*)$/i);
+  if (shellFabricMatch) {
+    const optionNo = shellFabricMatch[1];
+    const spec = normalizeMaterialTerms(shellFabricMatch[2].replace(/\s+/g, ' ').trim());
+    return `面料${optionNo}：${spec}`;
+  }
+
+  if (/^pocketing\b/i.test(source)) {
+    return '袋布：涤棉磨毛斜纹，配色同面布';
+  }
+
+  if (/plastic snap/i.test(source) && /top front fly button/i.test(source)) {
+    const size = source.match(/(\d+)(?:\s*mm)?/i)?.[1];
+    const prefix = size ? `${size}mm` : '';
+    return `${prefix}塑料四合扣黑色门襟用`;
+  }
+
+  if (/autoblock zipper/i.test(source) && /gun metal/i.test(source)) {
+    return '枪色自动锁头闭尾拉链';
+  }
+
+  if (/reverse coil zipper/i.test(source) && /ikks/i.test(source) && /front pockets?/i.test(source)) {
+    return '5#尼龙反装开尾拉链+IKKS拉头前门拉链，袋拉链顺大身色';
+  }
+
+  if (/reverse coil zipper/i.test(source) && /black/i.test(source) && /inside pocket/i.test(source)) {
+    return '3#尼龙反装拉链黑色';
+  }
+
+  if (/^\s*71694\s*$/i.test(normalizedSource)) {
+    return '71694烫标';
+  }
+
+  if (/^73518$/i.test(normalizedSource)) {
+    return '尺码标';
+  }
+
+  if (/^ø\s*15$/i.test(normalizedSource)) {
+    return '15mm';
+  }
+
+  if (/^\s*m145023\s*$/i.test(normalizedSource)) {
+    return '版型同M145023';
+  }
+
+  if (/invisible zipper/i.test(source) && /right arm/i.test(source)) {
+    return '右臂票袋隐形拉链配色';
+  }
+
+  if (/body lining/i.test(source) && /02 noir/i.test(normalizedSource)) {
+    return '身里春亚纺 黑色';
+  }
+
+  if (/lining/i.test(source) && /poly pongee/i.test(normalizedSource) && /02 noir/i.test(normalizedSource)) {
+    return '身里春亚纺 黑色';
+  }
+
+  if (/inside cuff knit rib/i.test(source)) {
+    return '袖口1X1尼龙罗纹，配色';
+  }
+
+  if (/inside collar knit rib/i.test(normalizedSource)) {
+    return '1X1罗纹内领';
+  }
+
+  if (/inside baseball collar in 1\/1 knit rib/i.test(normalizedSource)) {
+    return '棒球领采用1X1罗纹';
+  }
+
+  if (/outside flat collat? in outshell fabric/i.test(normalizedSource)) {
+    return '面料平装领';
+  }
+
+  if (/perforation laser/i.test(source)) {
+    return '激光打孔';
+  }
+
+  if (/middle back length/i.test(source) && /91,?5cm/i.test(normalizedSource)) {
+    return '版型和尺寸参考M241043，XL码；后中长度67CM，总袖长91.5CM';
+  }
+
+  if (/padding/i.test(source) && /60grs/i.test(normalizedSource) && /40grs/i.test(normalizedSource)) {
+    return '60g大身，40g袖子';
+  }
+
+  if (/padding same weight and quality as m145023/i.test(normalizedSource)) {
+    return '填充：与M145023相同';
+  }
+
+  if (/shell fabric .* same as m245013/i.test(normalizedSource)) {
+    return '面料1 与M245013相同面料';
+  }
+
+  if (/contrasted fabric same scuba fabric as m145023/i.test(normalizedSource)) {
+    return '面料2 与M145023相同面料';
+  }
+
+  if (/reflective transfer print line/i.test(source) && /anthracite/i.test(normalizedSource)) {
+    return '深灰色反光';
+  }
+
+  if (/^new logo label\b/i.test(normalizedSource) && /tbc/i.test(normalizedSource)) {
+    return '新主标';
+  }
+
+  if (/new logo label/i.test(normalizedSource)) {
+    return '新logo主标';
+  }
+
+  if (
+    /5mm metal zipper/i.test(normalizedSource) &&
+    /new ikks puller/i.test(normalizedSource) &&
+    /shin+?y silv/i.test(normalizedSource)
+  ) {
+    return '5#金属新ikks拉片，亮银色拉链与原样相同';
+  }
+
+  if (/55\s*sage/i.test(normalizedSource) && /front pockets? opening/i.test(normalizedSource)) {
+    return '55#绿色 门襟+侧袋';
+  }
+
+  if (/^55\s+sage\b/i.test(normalizedSource)) {
+    return '55#绿色';
+  }
+
+  if (
+    /pression dessous/i.test(normalizedSource) &&
+    /84851/i.test(normalizedSource) &&
+    /shin+?y silv/i.test(normalizedSource)
+  ) {
+    return '15mm-四合扣与原样相同亮银色饰面';
+  }
+
+  if (/3mm reverse coil zipper/i.test(normalizedSource) && /matching color/i.test(normalizedSource)) {
+    return '3#反装闭尾尼龙拉链颜色顺面料';
+  }
+
+  if (/outshell fabric option#?1/i.test(normalizedSource) && /on inside pocket/i.test(normalizedSource)) {
+    return '面料1 | 内袋';
+  }
+
+  if (/on inside pocket/i.test(normalizedSource)) {
+    return '内袋';
+  }
+
+  if (/3mm elasticated drawstring/i.test(normalizedSource) && /matching color/i.test(normalizedSource)) {
+    return '3MM底摆橡筋绳颜色顺面料';
+  }
+
+  if (/metal eyelets/i.test(normalizedSource) || /2 holes metal stopper/i.test(normalizedSource)) {
+    return '亮银色金属气眼，底摆仿金属双孔调节卡扣';
+  }
+
+  if (/same as original sample/i.test(normalizedSource) && /middle back length\s*74cm/i.test(normalizedSource)) {
+    return '样板按照原样品，但是后中长做到74CM';
+  }
+
+  if (/middle back length\s*74cm/i.test(normalizedSource)) {
+    return '后中长做到74CM';
+  }
+
+  if (/same send more fabric options as original sample/i.test(normalizedSource)) {
+    return '提供与原样相同的更多布料选项！';
+  }
+
+  if (/same puffy look as original sample/i.test(normalizedSource)) {
+    return '仿羽绒棉外观和参考样衣相同蓬松度';
+  }
+
+  if (/body lining/i.test(normalizedSource) && /poly twill lining as original sample/i.test(normalizedSource)) {
+    return '身里：斜纹涤里料同原样';
+  }
+
+  if (/poly twill lining as original sample/i.test(normalizedSource)) {
+    return '斜纹涤里料同原样';
+  }
+
+  if (/matching color with shell fabric color/i.test(normalizedSource)) {
+    return '颜色顺主身面料';
+  }
+
+  if (/pocketing fabric/i.test(normalizedSource) && /brushed poly tricot/i.test(normalizedSource)) {
+    return '袋布：经编起毛布颜色顺主身面料';
+  }
+
+  if (/flat collar filled with padding/i.test(normalizedSource)) {
+    return '衣领内充棉';
+  }
+
+  if (/5mm met(?:al)? zipped first opening/i.test(normalizedSource) && /as original sample/i.test(normalizedSource)) {
+    return '5#金属拉链同原样品';
+  }
+
+  if (/pression dessous plat/i.test(normalizedSource)) {
+    return '15MM四合扣';
+  }
+
+  if (/^\s*back elasticated waistband\s*$/i.test(source)) {
+    return '后腰部橡筋';
+  }
+
+  if (/^\s*chino pocket \+ pleat\s*$/i.test(source)) {
+    return '斜插侧袋';
+  }
+
+  if (/^\s*dart\s*$/i.test(source)) {
+    return '省';
+  }
+
+  const pipedPocketMatch = source.match(/(\d+)\s*mm\s*piped pocket/i);
+  if (pipedPocketMatch) {
+    return `${pipedPocketMatch[1]}mm单开线口袋`;
+  }
+
+  if (/^\s*\d+\s*mm\s*plastic snap\b/i.test(source) && /black/i.test(source)) {
+    const size = source.match(/(\d+)\s*mm/i)?.[1] ?? '17';
+    return `${size}mm塑料门襟扣`;
+  }
+
+  const baseStyleMatch = source.match(/\bbase\s+(m\d{5,})\b/i);
+  if (baseStyleMatch) {
+    return `版型基于${baseStyleMatch[1].toUpperCase()}`;
+  }
+
+  if (/^option\s*#?\s*1\s+no wash$/i.test(normalizedSource)) {
+    return '选项#1：免洗';
+  }
+
+  if (/^option\s*#?\s*2\s+light garment enzyme wahs$/i.test(normalizedSource)) {
+    return '选项#2：轻酵素洗';
+  }
+
+  if (/^nm 35 4pts\/1cm$/i.test(normalizedSource)) {
+    return '车缝：NM 35 4针/1CM';
+  }
+
+  if (/^new logo label\b/i.test(normalizedSource) && /\b11\b/.test(normalizedSource)) {
+    return '新主标 11#色';
+  }
+
+  if (/^fitting\s*\/\s*volume\b/i.test(normalizedSource) && /attachment sample/i.test(source)) {
+    return '尺寸和版型同参考样衣';
+  }
+
+  if (/^inside neckline patched jersey band$/i.test(normalizedSource)) {
+    return '领圈有针织带';
+  }
+
+  if (/drop-?in side pockets/i.test(normalizedSource)) {
+    return '侧插袋设计';
+  }
+
+  if (/^wrinkle free fabric$/i.test(normalizedSource)) {
+    return '抗皱面料';
+  }
+
+  if (/^glued bottom hem$/i.test(normalizedSource)) {
+    return '贴合下摆工艺';
+  }
+
+  if (/^quality spec:\s*lightweight fabric,\s*quick dry and moisture wicking\.\s*4-way stretch$/i.test(normalizedSource)) {
+    return '轻薄面料，具备快干排湿功能。四面弹力且抗皱。';
+  }
+
+  if (
+    /^value driver:/i.test(normalizedSource) &&
+    /wrinkle free/i.test(normalizedSource) &&
+    /glued edges/i.test(normalizedSource) &&
+    /plain jersey/i.test(normalizedSource)
+  ) {
+    return '需支持无缝胶合工艺。采用平纹针织结构，';
+  }
+
+  if (
+    /good .*body.*not flimsy.*spongy/i.test(normalizedSource) ||
+    /more or less the fabric below/i.test(normalizedSource)
+  ) {
+    return '面料需有骨感不软塌，呈现海绵般柔软质感。';
+  }
+
+  if (/^advice of you believe it is a good fit$/i.test(normalizedSource)) {
+    return '请评估确认是否适用。';
+  }
+
+  if (/^-lightweight skirt with double pockets$/i.test(normalizedSource)) {
+    return '侧边双口袋';
+  }
+
+  if (/^-pocket at cb in waist seam$/i.test(normalizedSource)) {
+    return '后腰缝线处设口袋';
+  }
+
+  if (/^-filled piping detail at front and back$/i.test(normalizedSource)) {
+    return '前后片滚边夹牙';
+  }
+
+  if (/^-glued hem at bottom$/i.test(normalizedSource)) {
+    return '贴合下摆';
+  }
+
+  if (/^-folded waist with elastic at waist$/i.test(normalizedSource)) {
+    return '折叠式松紧腰头';
+  }
+
+  if (/^-inner shorts attached to skirt$/i.test(normalizedSource)) {
+    return '裙身内置短裤衬里';
+  }
+
+  if (/^-rubber logo front and back$/i.test(normalizedSource)) {
+    return '前后有硅胶Logo';
+  }
+
+  if (/^centered,\s*2\s*cm\s*from waist$/i.test(normalizedSource)) {
+    return '居中定位，距腰线2厘米';
+  }
+
+  if (/^open pocket at cb,\s*12\s*cm\s*wide,?$/i.test(normalizedSource)) {
+    return '后中开口袋，宽度12厘米';
+  }
+
+  if (/^filled piping in contrast colo/u.test(normalizedSource) || /^filled piping in contrast colour$/i.test(normalizedSource)) {
+    return '前后片滚边夹牙';
+  }
+
+  if (/^slanting side pocket$/i.test(normalizedSource)) {
+    return '侧插袋设计';
+  }
+
+  if (/^double layer shell pocket,?$/i.test(normalizedSource)) {
+    return '双层面料口袋';
+  }
+
+  if (/^folded and glued top$/i.test(normalizedSource)) {
+    return '口袋顶端做贴合工艺';
+  }
+
+  if (/^new inner shorts,?$/i.test(normalizedSource) || /^new inner shorts$/i.test(normalizedSource)) {
+    return '内裤见下页';
+  }
+
+  if (/^see next page for details$/i.test(normalizedSource)) {
+    return '内裤见下页';
+  }
+
+  if (/^logo rubber print$/i.test(normalizedSource)) {
+    return '裤腿内侧有硅胶防滑带';
+  }
+
+  if (/^inside leg as grip function$/i.test(normalizedSource)) {
+    return '裤腿内侧有硅胶防滑带';
+  }
+
+  if (/^to prevent shorts from$/i.test(normalizedSource) || /^moving upwards$/i.test(normalizedSource)) {
+    return '防止短裤上滑';
+  }
+
+  if (/same back construction/i.test(source) && /attachment/i.test(source)) {
+    return '后背结构与附件相同';
+  }
+
+  if (/same front workmanship/i.test(source) && /attachment/i.test(source)) {
+    return '与参考样品相同的正面工艺';
+  }
+
+  if (/tunnel pocket on front/i.test(source) && /top stitch/i.test(normalizedSource)) {
+    return '前身袋鼠兜，顶部缝合在身内';
+  }
+
+  if (/side seam is deported on back body/i.test(normalizedSource)) {
+    return '侧缝移到后身';
+  }
+
+  if (/hood facing/i.test(normalizedSource) && /my42033/i.test(normalizedSource)) {
+    return '帽上隐形磁吸朝向与MY42033相同';
+  }
+
+  if (/hood pattern and assembling as my42033/i.test(normalizedSource)) {
+    return '面料做三拼接帽，没有填充与MY42033相同做法';
+  }
+
+  if (/middle front placket/i.test(normalizedSource) && /zipped opening/i.test(normalizedSource)) {
+    return '门贴内有拉链';
+  }
+
+  if (/84851 on front opening/i.test(normalizedSource)) {
+    return '门襟84851四合扣';
+  }
+
+  if (/84851 on cuff opening/i.test(normalizedSource)) {
+    return '袖口84851四合扣';
+  }
+
+  if (/thermofused chest flap/i.test(normalizedSource)) {
+    return '前胸贴袋';
+  }
+
+  if (/front hidden zipped pocket/i.test(normalizedSource) && /thermofused/i.test(normalizedSource)) {
+    return '袋口压双面胶，内藏拉链口袋';
+  }
+
+  if (/top back yoke/i.test(normalizedSource) && /thermofused/i.test(normalizedSource)) {
+    return '后浮水压双面胶';
+  }
+
+  if (/reflective line on middle back/i.test(normalizedSource)) {
+    return '后背反光面胶';
+  }
+
+  if (/thermofused under placket/i.test(normalizedSource)) {
+    return '暗襟双面胶';
+  }
+
+  if (/inside zipped pocket/i.test(normalizedSource) && /one side zipper/i.test(normalizedSource)) {
+    return '3#反装尼龙拉链，单侧漏拉齿';
+  }
+
+  if (/inclined front cutting/i.test(normalizedSource) && /zipped pocket/i.test(normalizedSource)) {
+    return '正面倾斜分割线装3#隐形拉链';
+  }
+
+  if (/outshell fabric on assembled cuff/i.test(normalizedSource) && /55mm/i.test(normalizedSource)) {
+    return '大身面料做袖克夫5.5cm高';
+  }
+
+  if (/25mm hem/i.test(normalizedSource)) {
+    return '25mm明线';
+  }
+
+  if (/scuba fabric on sleeves$/i.test(normalizedSource)) {
+    return '袖子空气层';
+  }
+
+  if (/scuba fabric on back body \+ sleeves/i.test(normalizedSource)) {
+    return '后身和袖子采用空气层';
+  }
+
+  if (/back shoulder decorative seam/i.test(normalizedSource) && /outshell fabric shoulder part/i.test(normalizedSource)) {
+    return '采用前身面料拼接肩部部分';
+  }
+
+  if (/under front placket in outshell fabric/i.test(normalizedSource)) {
+    return '暗襟采用前身材料';
+  }
+
+  if (/dull poly lining fabric/i.test(normalizedSource)) {
+    return '春亚纺身里';
+  }
+
+  if (/inside outshell fabric piped pocket/i.test(normalizedSource) && /hidden coil zipped entrance/i.test(normalizedSource)) {
+    return '里兜牙用面料';
+  }
+
+  if (/5\.?5\s*cm\s*height cuffs/i.test(normalizedSource) && /no polar fleece/i.test(normalizedSource)) {
+    return '5.5cm高袖口和底摆与主身面料相同，棉质，但反面无羊羔毛';
+  }
+
+  if (/2\s*cm\s*height collar/i.test(normalizedSource) && /no polar fleece/i.test(normalizedSource)) {
+    return '2CM领高与主身面料相同，棉质，但反面无羊羔毛';
+  }
+
+  text = normalizeMaterialTerms(text)
+    .replace(/^侧边$/g, '侧边双口袋')
+    .replace(/^底边[:：]?\s*胶粘$/g, '贴合下摆工艺')
+    .replace(/^底边[:：]?\s*粘合$/g, '贴合下摆')
+    .replace(/^贴边侧袋$/g, '侧插袋设计')
+    .replace(/^免烫面料$/g, '抗皱面料')
+    .replace(/^双层壳袋$/g, '双层面料口袋')
+    .replace(/^折叠粘合上片$/g, '口袋顶端做贴合工艺')
+    .replace(/^新内短裤$/g, '内裤见下页')
+    .replace(/^斜插袋，logo\s*橡胶印花$/i, '侧插袋设计')
+    .replace(/^贴胶底边（?内裆防滑）?$/g, '裤腿内侧有硅胶防滑带')
+    .replace(/^外观：防止短裤$/g, '防止短裤上滑')
+    .replace(/^向上移动$/g, '防止短裤上滑')
+    .replace(/^-双口袋轻薄裙$/g, '侧边双口袋')
+    .replace(/^-后中腰缝插袋$/g, '后腰缝线处设口袋')
+    .replace(/^-前片和后片填充滚边细节$/g, '前后片滚边夹牙')
+    .replace(/^-内短裤缝合至裙身$/g, '裙身内置短裤衬里')
+    .replace(/^-前片及后片：橡胶\s*logo$/i, '前后有硅胶Logo')
+    .replace(/^居中，距腰(?:围|头)\s*2\s*cm$/i, '居中定位，距腰线2厘米')
+    .replace(/^后中开袋，宽\s*12\s*(cm|厘米)$/i, '后中开口袋，宽度12厘米')
+    .replace(/^撞色填充滚边$/g, '前后片滚边夹牙')
+    .replace(/^款号[:：]\s*67\s*ecorce.*$/i, '67#咖色')
+    .replace(/^颜色[:：]\s*55\s*sage.*$/i, '55#绿色')
+    .replace(/^款号[:：]\s*nm\s*120$/i, 'NM 120')
+    .replace(/^付款方式[:：]\s*t\/t$/i, 'T/T')
+    .replace(/^按扣$/g, '15mm四合扣')
+    .replace(/^拉链$/g, '5#金属拉链')
+    .replace(/^袖口[:：]\s*松紧$/g, '罗纹袖口')
+    .replace(/^logo\s*刺绣$/i, '刺绣Logo')
+    .replace(/^plat\s*\|\s*84851.*$/i, '15mm-四合扣与原样相同亮银色饰面')
+    .replace(/^外观：与原样衣同款的蓬松效果$/g, '仿羽绒棉外观和参考样衣相同蓬松度')
+    .replace(/^面料：刷毛涤纶针织布$/g, '斜纹涤里料同原样')
+    .replace(/^后中长：74cm$/i, '做到74CM')
+    .replace(/^48\s+海军蓝$/g, '48#海军蓝')
+    .replace(/^新logo标$/i, '新logo主标')
+    .replace(/^新LOGO标$/i, '新logo主标')
+    .replace(/^压平下摆$/g, '15MM四合扣')
+    .replace(/^前开襟[:：]?\s*84851$/g, '门襟84851四合扣')
+    .replace(/^84851\s*在袖口开(?:口|衩)处$/g, '袖口84851四合扣')
+    .replace(/^隐形拉链[:：]?(?:前袋|侧袋)?.*$/g, '3#隐形拉链侧')
+    .replace(/^3#尼龙反装拉链黑色$/g, '里兜3#反装尼龙')
+    .replace(/^面料[:：]?\s*华悦.*m245013.*$/i, '面料1 与M245013相同面料')
+    .replace(/^对比面料[:：]?.*m145023.*$/i, '面料2 与M145023相同面料')
+    .replace(/^里料（前衣身）[:：]?.*02\s*黑色.*$/g, '身里春亚纺 黑色')
+    .replace(/^领内罗纹[:：]?.*1\/1.*$/g, '1X1罗纹内领')
+    .replace(/^填充物[:：]?.*m145023.*$/i, '填充：与M145023相同')
+    .replace(/^外平领[:：]?.*$/g, '面料平装领')
+    .replace(/^前门襟内侧[:：]?.*$/g, '暗襟采用前身材料')
+    .replace(/^面料[:：]?\s*哑光涤纶里布$/g, '春亚纺身里')
+    .replace(/^内里外层面料包边口袋.*$/g, '里兜牙用面料')
+    .replace(/^外层面料[:：]\s*组装袖口.*55mm.*$/i, '大身面料做袖克夫5.5cm高')
+    .replace(/^25mm\s*(折边|下摆)$/g, '25mm明线')
+    .replace(/后腰松紧带/g, '后腰部橡筋')
+    .replace(/卡其布口袋\s*\+\s*褶裥/g, '斜插侧袋')
+    .replace(/包边袋/g, '单开线口袋')
+    .replace(/嵌线袋/g, '单开线口袋')
+    .replace(/塑料四合扣：黑色/g, '塑料门襟扣')
+    .replace(/配色：与外层面料同色/g, '配色同面布')
+    .replace(/颜色：与外层面料同色/g, '配色同面布')
+    .replace(/自动锁拉链门襟用/g, '自动锁头闭尾拉链')
+    .replace(/版型基于\s*m(\d{5,})/gi, (_, code) => `版型基于M${code}`);
+
+  return text;
+}
+
+function isReasoningHeavyLocalBModel(modelOverride?: string) {
+  const candidate = (
+    modelOverride?.trim() ||
+    process.env.B_MODEL_NAME ||
+    process.env.TRANSLATION_MODEL ||
+    ''
+  ).toLowerCase();
+  return candidate === 'qwen3.5-35b-a3b' || candidate.startsWith('qwen3.5-35b-a3b');
+}
+
 async function translateSegmentsWithModelB(
   segments: PipelineResult['segments'],
-  maxSegmentsForTranslation?: number
+  maxSegmentsForTranslation?: number,
+  translationModelOverride?: string,
+  documentMainType?: DocumentMainType
 ): Promise<{ map: Map<string, string>; stats: BModelBatchStats }> {
   const translated = new Map<string, string>();
-  const configured = isTranslationModelConfigured();
+  const configured = isTranslationModelConfigured(translationModelOverride);
   const stats: BModelBatchStats = {
     configured,
     batchAttempts: 0,
@@ -1011,25 +2162,48 @@ async function translateSegmentsWithModelB(
     lastErrorKind: 'none',
     providerHits: [],
     retranslatePasses: 0,
-    retranslatedSegmentCount: 0
+    retranslatedSegmentCount: 0,
+    visionSecondStagePasses: 0,
+    visionSecondStageSegmentCount: 0
   };
   if (!configured || segments.length === 0) {
     stats.lastErrorKind = configured ? 'none' : 'not_configured';
     return { map: translated, stats };
   }
-  const scopedSegments = selectSegmentsForTranslation(segments, maxSegmentsForTranslation);
+  const scopedSegments = selectSegmentsForTranslation(
+    segments,
+    maxSegmentsForTranslation,
+    documentMainType
+  );
+  const reasoningHeavyLocalModel = isReasoningHeavyLocalBModel(translationModelOverride);
 
-  const batchSize = Number(process.env.B_MODEL_BATCH_SIZE ?? '1');
-  const baseMaxTokens = Number(process.env.B_MODEL_MAX_TOKENS ?? '450');
+  const batchSize = Number(process.env.B_MODEL_BATCH_SIZE ?? (reasoningHeavyLocalModel ? '2' : '1'));
+  const baseMaxTokens = Number(
+    process.env.B_MODEL_MAX_TOKENS ?? (reasoningHeavyLocalModel ? '1600' : '450')
+  );
   const segTextMaxChars = Number(process.env.B_MODEL_SEG_TEXT_MAX_CHARS ?? '800');
   const batchDelayMs = Number(process.env.B_MODEL_BATCH_DELAY_MS ?? '0');
   const rateLimitRetryLimit = Number(process.env.B_MODEL_RATE_LIMIT_RETRY_LIMIT ?? '0');
   const rateLimitBackoffMs = Number(process.env.B_MODEL_RATE_LIMIT_BACKOFF_MS ?? '4000');
+  const transportRetryLimit = Number(process.env.B_MODEL_TRANSPORT_RETRY_LIMIT ?? '1');
   const retranslateEnabled = process.env.B_MODEL_RETRANSLATE_ENABLED !== '0';
   const retranslateMaxPasses = Number(process.env.B_MODEL_RETRANSLATE_MAX_PASSES ?? '2');
   const retranslateBatchDelayMs = Number(process.env.B_MODEL_RETRANSLATE_DELAY_MS ?? '1200');
-  const retranslateMaxTokens = Number(process.env.B_MODEL_RETRANSLATE_MAX_TOKENS ?? '320');
+  const retranslateMaxTokens = Number(
+    process.env.B_MODEL_RETRANSLATE_MAX_TOKENS ?? (reasoningHeavyLocalModel ? '900' : '320')
+  );
+  const visionSecondStageEnabled = process.env.B_MODEL_VISION_SECOND_STAGE_ENABLED !== '0';
+  const visionSecondStageMaxSegments = Number(
+    process.env.B_MODEL_VISION_SECOND_STAGE_MAX_SEGMENTS ?? '8'
+  );
+  const visionSecondStageDelayMs = Number(
+    process.env.B_MODEL_VISION_SECOND_STAGE_DELAY_MS ?? String(retranslateBatchDelayMs)
+  );
+  const visionSecondStageMaxTokens = Number(
+    process.env.B_MODEL_VISION_SECOND_STAGE_MAX_TOKENS ?? String(retranslateMaxTokens)
+  );
   let stopDueRateLimit = false;
+  const scopedSegmentIds = new Set(scopedSegments.map((segment) => segment.id));
 
   async function runPass(
     passSegments: PipelineResult['segments'],
@@ -1037,7 +2211,7 @@ async function translateSegmentsWithModelB(
       batchSize: number;
       delayMs: number;
       maxTokens: number;
-      promptMode: 'default' | 'retranslate';
+      promptMode: 'default' | 'retranslate' | 'vision_recover';
     }
   ) {
     for (let i = 0; i < passSegments.length; i += options.batchSize) {
@@ -1053,6 +2227,9 @@ async function translateSegmentsWithModelB(
               '只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
               '不要解释，不要补充备注，不要遗漏 id。',
               '如果只有 1 个片段，也必须返回 translations 数组。',
+              '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+              '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+              '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
               '',
               '未译片段：',
               JSON.stringify(
@@ -1062,10 +2239,30 @@ async function translateSegmentsWithModelB(
                 }))
               )
             ].join('\n')
+          : options.promptMode === 'vision_recover'
+            ? [
+                '你是服装工艺单视觉补翻模型(B-vision-recover)。下面片段来自 OCR/视觉补强，但尚未进入首轮翻译结果。',
+                '请只补翻这些片段，只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+                '不要解释，不要补充备注，不要遗漏 id。',
+                '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+                '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+                '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+                '',
+                '视觉补强片段：',
+                JSON.stringify(
+                  batch.map((s) => ({
+                    id: s.id,
+                    text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
+                  }))
+                )
+              ].join('\n')
           : [
               '你是服装工艺单翻译模型(B)。仅翻译结构化片段，不做结构识别，不做内容合并。',
               '输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
               '请保留每个 id，不要新增或删除。',
+              '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+              '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+              '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
               '',
               '片段：',
               JSON.stringify(
@@ -1088,30 +2285,35 @@ async function translateSegmentsWithModelB(
                 content:
                   options.promptMode === 'retranslate'
                     ? 'You are a precise retry translation model for untranslated segments.'
+                    : options.promptMode === 'vision_recover'
+                      ? 'You are a precise recovery translation model for OCR/vision supplement segments.'
                     : 'You are a precise segment translation model.'
               },
               { role: 'user', content: prompt }
             ],
             temperature: 0.1,
+            modelOverride: translationModelOverride,
             maxTokens:
               transportRetriesUsed === 0
                 ? options.maxTokens
                 : Math.max(220, Math.floor(options.maxTokens * 0.7))
           });
-          const normalized = result.text
-            .replace(/^```(?:json)?\s*/i, '')
-            .replace(/\s*```$/, '')
-            .trim();
-          const parsed = JSON.parse(normalized) as {
-            translations?: Array<{ id?: string; zh?: string }>;
-          };
+          const parsed = safeParseTranslationResponse(result.text);
           stats.batchJsonOk += 1;
           stats.providerHits.push(
-            options.promptMode === 'retranslate' ? 'translation-model:retranslate' : 'translation-model'
+            options.promptMode === 'retranslate'
+              ? 'translation-model:retranslate'
+              : options.promptMode === 'vision_recover'
+                ? 'translation-model:vision-recover'
+                : 'translation-model'
           );
-          for (const item of parsed.translations ?? []) {
+          const sourceById = new Map(batch.map((segment) => [segment.id, segment.text]));
+          for (const item of parsed) {
             if (item.id && item.zh) {
-              translated.set(item.id, item.zh);
+              translated.set(
+                item.id,
+                normalizeFashionTranslation(sourceById.get(item.id) ?? '', item.zh)
+              );
             }
           }
           break;
@@ -1140,7 +2342,7 @@ async function translateSegmentsWithModelB(
             break;
           }
           if (kind !== 'timeout' && kind !== 'http') break;
-          if (transportRetriesUsed >= 1) break;
+          if (transportRetriesUsed >= transportRetryLimit) break;
           transportRetriesUsed += 1;
         }
       }
@@ -1177,6 +2379,38 @@ async function translateSegmentsWithModelB(
       if (remaining === 0 || stopDueRateLimit) {
         break;
       }
+    }
+  }
+
+  if (
+    visionSecondStageEnabled &&
+    !stopDueRateLimit &&
+    typeof maxSegmentsForTranslation === 'number' &&
+    maxSegmentsForTranslation > 0 &&
+    segments.length > scopedSegments.length
+  ) {
+    const recoverySegments = selectVisionRecoverySegments(
+      segments,
+      scopedSegmentIds,
+      translated,
+      visionSecondStageMaxSegments,
+      documentMainType
+    );
+    if (recoverySegments.length > 0) {
+      stats.visionSecondStagePasses += 1;
+      await runPass(recoverySegments, {
+        batchSize: 1,
+        delayMs: visionSecondStageDelayMs,
+        maxTokens: visionSecondStageMaxTokens,
+        promptMode: 'vision_recover'
+      });
+      stats.visionSecondStageSegmentCount += recoverySegments.filter((segment) =>
+        translated.has(segment.id)
+      ).length;
+      logPipelineDebug('pipeline.b_model_vision_second_stage', {
+        attemptedSegments: recoverySegments.length,
+        translatedSegments: recoverySegments.filter((segment) => translated.has(segment.id)).length
+      });
     }
   }
   return { map: translated, stats };
@@ -1226,6 +2460,13 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
   }
 
   const built = buildFeedbackSourceReferenceWithDiagnostics(extracted, { name: input.fileName });
+  const pageLayoutByPage = new Map<number, string>();
+  for (const section of built.reference.sections) {
+    const pageNumber = section.segments[0]?.pageNumber;
+    if (pageNumber && !pageLayoutByPage.has(pageNumber)) {
+      pageLayoutByPage.set(pageNumber, section.pageLayoutType);
+    }
+  }
   const layoutCounts = computePageLevelLayoutCounts(built.reference.sections);
   const pageCount = Math.max(1, extracted.pages.length);
   const totalSegmentCount = built.reference.sections.reduce(
@@ -1250,9 +2491,19 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     earlyGatePages: built.diagnostics.earlyGatePages,
     lowConfidencePages: built.diagnostics.lowConfidencePages
   });
+  const visionTargetPages = selectVisionTargetPages(
+    extracted,
+    built.reference.sections,
+    documentMainType,
+    built.diagnostics
+  );
   const lowConfidenceSegments = built.reference.sections
     .flatMap((section) => section.segments)
-    .filter((segment) => built.diagnostics.lowConfidenceRegionIds.includes(segment.regionId));
+    .filter(
+      (segment) =>
+        built.diagnostics.lowConfidenceRegionIds.includes(segment.regionId) ||
+        visionTargetPages.includes(segment.pageNumber)
+    );
   const textLayerBlocks: ExtractedBlock[] = lowConfidenceSegments.map((segment) => ({
     pageNumber: segment.pageNumber,
     regionId: segment.regionId,
@@ -1264,25 +2515,30 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     ),
     sourceType: 'text_layer'
   }));
-  const aModelTriggered = textLayerBlocks.length > 0;
+  const aModelTriggered = visionTargetPages.length > 0 || textLayerBlocks.length > 0;
+  let visionBlocks: ExtractedBlock[] = [];
   let aModelExecuted = false;
   try {
     const aResult = await extractWithVisionFallback(
       {
         filePath: input.filePath,
         mimeType: 'application/pdf',
-        textLayerBlocks
+        textLayerBlocks,
+        targetPages: visionTargetPages
       },
       aModelTriggered ? createQwenVisionProvider() : undefined
     );
     aModelExecuted = aModelTriggered && !aResult.fallbackUsed;
+    visionBlocks = aResult.blocks;
     logPipelineDebug('pipeline.a_model_result', {
       pipelineId,
       fileName: input.fileName,
       aModelTriggered,
       aModelExecuted,
       fallbackUsed: aResult.fallbackUsed,
-      provider: aResult.provider ?? 'none'
+      provider: aResult.provider ?? 'none',
+      targetPages: visionTargetPages,
+      returnedBlocks: aResult.blocks.length
     });
   } catch {
     aModelExecuted = false;
@@ -1293,19 +2549,25 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     });
   }
 
-  const segments: PipelineResult['segments'] = built.reference.sections.flatMap((section) =>
+  const baseSegments: PipelineResult['segments'] = built.reference.sections.flatMap((section) =>
     section.segments.map((segment) => ({
       id: segment.id,
       text: segment.text,
       pageNumber: segment.pageNumber,
       regionId: segment.regionId,
-      extractionMeta: segment.extractionMeta
+      extractionMeta: {
+        ...segment.extractionMeta,
+        pageLayoutType: section.pageLayoutType
+      }
     }))
   );
+  const segments = buildVisionSegments(baseSegments, visionBlocks, pageLayoutByPage);
 
   const { map: translatedMap, stats: bModelStats } = await translateSegmentsWithModelB(
     segments,
-    input.maxSegmentsForTranslation
+    input.maxSegmentsForTranslation,
+    input.translationModelOverride,
+    documentMainType
   );
   for (const segment of segments) {
     const zh = translatedMap.get(segment.id);
@@ -1332,9 +2594,17 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
             return bundle;
           })()
         }
-      : {
-          annotatedPdf: buildAnnotatedPdfOutput(segments)
-        };
+      : (() => {
+          const mixedSupplementSegments =
+            documentMainType === 'mixed' ? selectMixedSupplementTableSegments(segments) : [];
+          return {
+            annotatedPdf: buildAnnotatedPdfOutput(segments, documentMainType),
+            bilingualTableBundle:
+              mixedSupplementSegments.length > 0
+                ? buildBilingualTableBundle(mixedSupplementSegments)
+                : undefined
+          };
+        })();
   if (outputs.bilingualTableBundle) {
     try {
       outputs.bilingualTableBundle.downloadable = await materializeBilingualXlsx(
@@ -1355,6 +2625,18 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     }
   }
   if (outputs.annotatedPdf) {
+    outputs.annotatedPdf.snapshot = buildTranslationSnapshot(
+      input.fileName,
+      documentMainType,
+      outputs.annotatedPdf,
+      segments,
+      {
+        translatedSegmentCount: coverage.translatedSegmentCount,
+        translationCoveragePct: coverage.translationCoveragePct,
+        aModelExecuted,
+        bModelExecuted: bModelStats.configured && bModelStats.batchAttempts > 0
+      }
+    );
     try {
       outputs.annotatedPdf.downloadable = await materializeAnnotatedHtmlPreview(
         path.basename(input.fileName),

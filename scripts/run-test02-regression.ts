@@ -38,6 +38,9 @@ type SampleSummary = {
   businessPreviewReady?: boolean;
   previewSuppressedReason?: string | null;
   comparisonReady?: boolean;
+  comparisonStatus?: 'pass' | 'warn' | 'fail' | 'no_reference';
+  referenceRecallPct?: number;
+  aiPrecisionPct?: number;
   artifacts?: {
     annotatedPreview?: string | null;
     bilingualXlsx?: string | null;
@@ -80,6 +83,13 @@ async function main() {
 
   const manifest = (await loadManifest(manifestPath)) as DatasetManifest;
   await writeJson(path.join(dirs.runRoot, 'manifest.snapshot.json'), manifest);
+  const onlySamples = new Set(
+    (process.env.TEST02_ONLY_SAMPLES ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+  const skipExisting = process.env.TEST02_SKIP_EXISTING === '1';
 
   process.env.ASSISTANT_EXPORT_DIR = toRepoRelative(dirs.exportsDir);
   ({ runPdfTranslationPipeline } = await import('../src/lib/assistant/translation-pipeline'));
@@ -95,8 +105,57 @@ async function main() {
     const resolvedSource = sourcePdf ? resolveRepoPath(sourcePdf) : null;
     const sampleOutDir = path.join(dirs.samplesDir, sample.sample_id);
     await mkdir(sampleOutDir, { recursive: true });
+    const pipelineResultPath = path.join(sampleOutDir, 'pipeline-result.json');
+
+    if (onlySamples.size > 0 && !onlySamples.has(sample.sample_id)) {
+      if (skipExisting && existsSync(pipelineResultPath)) {
+        const result = JSON.parse(
+          await readFile(pipelineResultPath, 'utf8')
+        ) as Awaited<ReturnType<RunPdfTranslationPipeline>>;
+        let comparisonReady = false;
+        let comparisonStatus: SampleSummary['comparisonStatus'];
+        let referenceRecallPct: number | undefined;
+        let aiPrecisionPct: number | undefined;
+        try {
+          const comparison = await writeComparisonArtifacts(sample, pipelineResultPath);
+          comparisonReady = true;
+          comparisonStatus = comparison.metrics.status;
+          referenceRecallPct = comparison.metrics.referenceRecallPct;
+          aiPrecisionPct = comparison.metrics.aiPrecisionPct;
+        } catch {
+          comparisonReady = false;
+        }
+
+        summaries.push({
+          sampleId: sample.sample_id,
+          sourcePdf,
+          referenceCount: sample.references?.length ?? 0,
+          status: result.success && !derivePipelineFailureReason(result) ? 'ok' : 'failed',
+          outputStrategy: result.outputStrategy,
+          documentMainType: result.documentMainType,
+          translatedSegmentCount: result.diagnostics.translatedSegmentCount,
+          totalSegments: result.segments.length,
+          translationCoveragePct: result.diagnostics.translationCoveragePct,
+          businessPreviewReady: result.diagnostics.isBusinessPreviewReady,
+          previewSuppressedReason: result.diagnostics.previewSuppressedReason ?? null,
+          comparisonReady,
+          comparisonStatus,
+          referenceRecallPct,
+          aiPrecisionPct,
+          artifacts: {
+            annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
+            bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
+            tableStylePdf:
+              result.outputs.bilingualTableBundle?.downloadableTableStylePdf?.relativePath ?? null
+          },
+          error: derivePipelineFailureReason(result) ?? undefined
+        });
+      }
+      continue;
+    }
 
     if (!resolvedSource || !existsSync(resolvedSource)) {
+      console.log(`[test02] ${sample.sample_id}: missing source`);
       summaries.push({
         sampleId: sample.sample_id,
         sourcePdf,
@@ -108,14 +167,26 @@ async function main() {
     }
 
     try {
-      const result = await runPdfTranslationPipeline({
-        filePath: resolvedSource,
-        fileName: path.basename(resolvedSource),
-        maxSegmentsForTranslation
-      });
+      console.log(
+        `[test02] ${sample.sample_id}: pipeline start (${path.basename(resolvedSource)})`
+      );
+      const result =
+        skipExisting && existsSync(pipelineResultPath)
+          ? (JSON.parse(await readFile(pipelineResultPath, 'utf8')) as Awaited<
+              ReturnType<RunPdfTranslationPipeline>
+            >)
+          : await runPdfTranslationPipeline({
+              filePath: resolvedSource,
+              fileName: path.basename(resolvedSource),
+              maxSegmentsForTranslation
+            });
 
-      const pipelineResultPath = path.join(sampleOutDir, 'pipeline-result.json');
-      await writeJson(pipelineResultPath, result);
+      if (!(skipExisting && existsSync(pipelineResultPath))) {
+        await writeJson(pipelineResultPath, result);
+      }
+      console.log(
+        `[test02] ${sample.sample_id}: pipeline done success=${result.success} coverage=${result.diagnostics.translationCoveragePct}%`
+      );
 
       if (sample.references?.length) {
         await writeJson(path.join(sampleOutDir, 'references.json'), sample.references);
@@ -123,38 +194,69 @@ async function main() {
 
       let comparisonReady = false;
       try {
-        await writeComparisonArtifacts(sample, pipelineResultPath);
+        const comparison = await writeComparisonArtifacts(sample, pipelineResultPath);
         comparisonReady = true;
+        summaries.push({
+          sampleId: sample.sample_id,
+          sourcePdf,
+          referenceCount: sample.references?.length ?? 0,
+          status: result.success && !derivePipelineFailureReason(result) ? 'ok' : 'failed',
+          outputStrategy: result.outputStrategy,
+          documentMainType: result.documentMainType,
+          translatedSegmentCount: result.diagnostics.translatedSegmentCount,
+          totalSegments: result.segments.length,
+          translationCoveragePct: result.diagnostics.translationCoveragePct,
+          businessPreviewReady: result.diagnostics.isBusinessPreviewReady,
+          previewSuppressedReason: result.diagnostics.previewSuppressedReason ?? null,
+          comparisonReady,
+          comparisonStatus: comparison.metrics.status,
+          referenceRecallPct: comparison.metrics.referenceRecallPct,
+          aiPrecisionPct: comparison.metrics.aiPrecisionPct,
+          artifacts: {
+            annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
+            bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
+            tableStylePdf:
+              result.outputs.bilingualTableBundle?.downloadableTableStylePdf?.relativePath ?? null
+          },
+          error: derivePipelineFailureReason(result) ?? undefined
+        });
       } catch (comparisonError) {
         comparisonReady = false;
         console.error(
           `[test02] comparison failed for ${sample.sample_id}:`,
           comparisonError instanceof Error ? comparisonError.message : comparisonError
         );
+        console.log(`[test02] ${sample.sample_id}: comparison failed`);
+        summaries.push({
+          sampleId: sample.sample_id,
+          sourcePdf,
+          referenceCount: sample.references?.length ?? 0,
+          status: result.success && !derivePipelineFailureReason(result) ? 'ok' : 'failed',
+          outputStrategy: result.outputStrategy,
+          documentMainType: result.documentMainType,
+          translatedSegmentCount: result.diagnostics.translatedSegmentCount,
+          totalSegments: result.segments.length,
+          translationCoveragePct: result.diagnostics.translationCoveragePct,
+          businessPreviewReady: result.diagnostics.isBusinessPreviewReady,
+          previewSuppressedReason: result.diagnostics.previewSuppressedReason ?? null,
+          comparisonReady,
+          artifacts: {
+            annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
+            bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
+            tableStylePdf:
+              result.outputs.bilingualTableBundle?.downloadableTableStylePdf?.relativePath ?? null
+          },
+          error: derivePipelineFailureReason(result) ?? undefined
+        });
       }
-
-      summaries.push({
-        sampleId: sample.sample_id,
-        sourcePdf,
-        referenceCount: sample.references?.length ?? 0,
-        status: result.success && !derivePipelineFailureReason(result) ? 'ok' : 'failed',
-        outputStrategy: result.outputStrategy,
-        documentMainType: result.documentMainType,
-        translatedSegmentCount: result.diagnostics.translatedSegmentCount,
-        totalSegments: result.segments.length,
-        translationCoveragePct: result.diagnostics.translationCoveragePct,
-        businessPreviewReady: result.diagnostics.isBusinessPreviewReady,
-        previewSuppressedReason: result.diagnostics.previewSuppressedReason ?? null,
-        comparisonReady,
-        artifacts: {
-          annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
-          bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
-          tableStylePdf:
-            result.outputs.bilingualTableBundle?.downloadableTableStylePdf?.relativePath ?? null
-        },
-        error: derivePipelineFailureReason(result) ?? undefined
-      });
+      if (comparisonReady) {
+        console.log(`[test02] ${sample.sample_id}: comparison ready`);
+      }
     } catch (error) {
+      console.error(
+        `[test02] ${sample.sample_id}: pipeline exception`,
+        error instanceof Error ? error.message : error
+      );
       summaries.push({
         sampleId: sample.sample_id,
         sourcePdf,

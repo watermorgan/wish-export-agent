@@ -11,8 +11,16 @@ type OpenAiCompatibleMessage = {
 };
 
 type OpenAiCompatibleChoice = {
+  finish_reason?: string;
+  reasoning_content?: string;
   delta?: {
     content?:
+      | string
+      | Array<{
+          type?: 'text';
+          text?: string;
+        }>;
+    reasoning_content?:
       | string
       | Array<{
           type?: 'text';
@@ -21,6 +29,12 @@ type OpenAiCompatibleChoice = {
   };
   message?: {
     content?:
+      | string
+      | Array<{
+          type?: 'text';
+          text?: string;
+        }>;
+    reasoning_content?:
       | string
       | Array<{
           type?: 'text';
@@ -60,14 +74,36 @@ const EMPTY_TEXT_RETRY_BACKOFF_MS = Number(
   process.env.OPENAI_COMPAT_EMPTY_TEXT_RETRY_BACKOFF_MS ?? '1200'
 );
 
+function isPrivateHost(hostname: string) {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname) ||
+    /^192\.168\./.test(hostname)
+  );
+}
+
+function isApiKeyOptional(baseUrl: string) {
+  try {
+    return isPrivateHost(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function maybeWrapVpnError(baseUrl: string, error: unknown) {
+  if (!isApiKeyOptional(baseUrl)) {
+    return error;
+  }
+  return new Error(
+    `无法连接本地模型服务 ${baseUrl}。请先连接 VPN，并确认对应模型服务可用后重试。`
+  );
+}
+
 function extractTextContent(
-  content:
-    | string
-    | Array<{
-        type?: 'text';
-        text?: string;
-      }>
-    | undefined
+  content: unknown
 ) {
   if (typeof content === 'string') {
     return content.trim();
@@ -82,6 +118,25 @@ function extractTextContent(
   }
 
   return '';
+}
+
+function describeEmptyChatResponse(payload: OpenAiCompatibleResponse) {
+  const choice = payload.choices?.[0];
+  const finishReason = choice?.finish_reason?.trim();
+  const reasoning =
+    extractTextContent(choice?.message?.reasoning_content) ||
+    extractTextContent(choice?.delta?.reasoning_content) ||
+    extractTextContent(choice?.reasoning_content);
+
+  if (finishReason === 'length') {
+    return '返回被 finish_reason=length 截断，需提高 max_tokens 或降低单次输出规模。';
+  }
+
+  if (reasoning) {
+    return '仅返回 reasoning_content / thinking，没有稳定的 assistant content；请在 llama.cpp 部署侧确保最终答案写入 message.content。';
+  }
+
+  return '响应中未找到可用的 assistant content。';
 }
 
 function normalizeResponsesEndpoint(baseUrlOrEndpoint: string) {
@@ -130,6 +185,10 @@ export async function generateOpenAiCompatibleText({
     }
   ];
 
+  if (!apiKey && !isApiKeyOptional(baseUrl)) {
+    throw new Error(`${label} 缺少 API Key。`);
+  }
+
   for (let attempt = 0; attempt <= EMPTY_TEXT_RETRY_LIMIT; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -138,8 +197,8 @@ export async function generateOpenAiCompatibleText({
       const response = await fetch(baseUrl, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
         },
         body: JSON.stringify({
           model,
@@ -170,13 +229,14 @@ export async function generateOpenAiCompatibleText({
         continue;
       }
 
-      throw new Error(`${label} 未返回可用文本内容。原始响应：${raw.slice(0, 800)}`);
+      const issue = describeEmptyChatResponse(payload);
+      throw new Error(`${label} 未返回可用文本内容。${issue} 原始响应：${raw.slice(0, 800)}`);
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(`${label} 请求超时（>${timeoutMs}ms）。`);
       }
 
-      throw error;
+      throw maybeWrapVpnError(baseUrl, error);
     } finally {
       clearTimeout(timer);
     }
@@ -205,6 +265,10 @@ export async function generateResponsesCompatibleText({
     }
   ];
 
+  if (!apiKey && !isApiKeyOptional(baseUrl)) {
+    throw new Error(`${label} 缺少 API Key。`);
+  }
+
   for (let attempt = 0; attempt <= EMPTY_TEXT_RETRY_LIMIT; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -213,8 +277,8 @@ export async function generateResponsesCompatibleText({
       const response = await fetch(normalizeResponsesEndpoint(baseUrl), {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
         },
         body: JSON.stringify({
           model,
@@ -247,7 +311,7 @@ export async function generateResponsesCompatibleText({
         throw new Error(`${label} 请求超时（>${timeoutMs}ms）。`);
       }
 
-      throw error;
+      throw maybeWrapVpnError(baseUrl, error);
     } finally {
       clearTimeout(timer);
     }

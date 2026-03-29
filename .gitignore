@@ -36,3 +36,15 @@ public/sw.js
 public/workbox-*.js
 public/worker-*.js
 public/swe-worker-*.js
+
+# Local business datasets and regression outputs
+data/test02/*
+!data/test02/README.md
+!data/test02/manifest.json
+!data/test02/reviews/
+data/test02/reviews/*
+!data/test02/reviews/README.md
+!data/test02/runs/
+data/test02/runs/*
+!data/test02/runs/README.md
+docs/project/pdf-pipeline-smoke-report*.json

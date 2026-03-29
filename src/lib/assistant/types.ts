@@ -34,6 +34,7 @@ export type SegmentExtractionMeta = {
   mergeConfidence: number;
   regionId?: string;
   bbox?: { x: number; y: number; w: number; h: number };
+  pageLayoutType?: 'sketch' | 'table' | 'reference' | 'mixed';
 };
 
 export type SkillRiskLevel = 'low' | 'medium' | 'high';

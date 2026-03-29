@@ -43,7 +43,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   if (!artifact) {
     return NextResponse.json(
-      { error: '当前任务尚未生成可下载的翻译 PDF，请先重新执行翻译。' },
+      { error: '当前任务未包含可重渲染的 translation snapshot，请重新执行翻译以生成新的正式 PDF 快照。' },
       { status: 409 }
     );
   }
@@ -60,4 +60,3 @@ export async function GET(request: Request, context: RouteContext) {
     }
   });
 }
-

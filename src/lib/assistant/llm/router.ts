@@ -34,6 +34,14 @@ function resolveProviderFromModel(modelOverride: string): LlmProviderName {
     return 'dashscope';
   }
 
+  if (normalized === 'minimax/minimax-m2.1') {
+    return 'modelscope';
+  }
+
+  if (normalized.startsWith('minimax/')) {
+    return 'modelscope';
+  }
+
   if (normalized.startsWith('glm-')) {
     return 'glm';
   }
