@@ -355,35 +355,35 @@ export async function normalizeReferenceBundle(sample: SampleEntry) {
 }
 
 export function normalizeAiComparisonItems(pipeline: PipelineResult) {
-  const baseItems = pipeline.outputs.bilingualTableBundle?.rows?.length
-    ? pipeline.outputs.bilingualTableBundle.rows.map((row, index) => ({
-      index: index + 1,
-      source: 'bilingual_table_bundle' as const,
-      pageNumber: row.pageNumber,
-      regionId: row.regionId,
-      textEn: row.en ?? '',
-      textZh: row.zh?.trim() ?? '',
-      locationLabel: `P${row.pageNumber ?? '?'} · ${row.regionId ?? 'region'}`
-    }))
-    : pipeline.outputs.annotatedPdf?.items?.length
-      ? pipeline.outputs.annotatedPdf.items.map((item, index) => ({
-      index: index + 1,
-      source: 'annotated_preview' as const,
-      pageNumber: item.pageNumber,
-      regionId: item.regionId,
-      textEn: item.en ?? '',
-      textZh: item.zh?.trim() ?? '',
-      locationLabel: `P${item.pageNumber ?? '?'} · ${item.regionId ?? 'region'}`
+  const baseItems = pipeline.segments.length
+    ? pipeline.segments.map((segment, index) => ({
+        index: index + 1,
+        source: 'segments' as const,
+        pageNumber: segment.pageNumber,
+        regionId: segment.regionId,
+        textEn: segment.text ?? '',
+        textZh: segment.zh?.trim() ?? '',
+        locationLabel: `P${segment.pageNumber ?? '?'} · ${segment.regionId ?? 'region'}`
       }))
-      : pipeline.segments.map((segment, index) => ({
-    index: index + 1,
-    source: 'segments' as const,
-    pageNumber: segment.pageNumber,
-    regionId: segment.regionId,
-    textEn: segment.text ?? '',
-    textZh: segment.zh?.trim() ?? '',
-    locationLabel: `P${segment.pageNumber ?? '?'} · ${segment.regionId ?? 'region'}`
-      }));
+    : pipeline.outputs.bilingualTableBundle?.rows?.length
+      ? pipeline.outputs.bilingualTableBundle.rows.map((row, index) => ({
+          index: index + 1,
+          source: 'bilingual_table_bundle' as const,
+          pageNumber: row.pageNumber,
+          regionId: row.regionId,
+          textEn: row.en ?? '',
+          textZh: row.zh?.trim() ?? '',
+          locationLabel: `P${row.pageNumber ?? '?'} · ${row.regionId ?? 'region'}`
+        }))
+      : (pipeline.outputs.annotatedPdf?.items ?? []).map((item, index) => ({
+          index: index + 1,
+          source: 'annotated_preview' as const,
+          pageNumber: item.pageNumber,
+          regionId: item.regionId,
+          textEn: item.en ?? '',
+          textZh: item.zh?.trim() ?? '',
+          locationLabel: `P${item.pageNumber ?? '?'} · ${item.regionId ?? 'region'}`
+        }));
 
   if (pipeline.documentMainType !== 'mixed') {
     return baseItems;

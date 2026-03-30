@@ -38,6 +38,16 @@
 - 仅重算对比（已有 `pipeline-result.json`）：  
   `npm run compare:test02 -- data/test02/manifest.json <runId>`
 
+## 口径收敛补充（2026-03-30）
+
+- **comparison 现在优先消费 `pipeline.segments`，不再优先消费 `outputs.annotatedPdf.items`**。这意味着：
+  - 正式稿 suppress 掉的条目，不会再被误判成“主链没翻到”
+  - test02 评测与正式 PDF 展示层已经解耦
+- **当前新的 sketch refresh 直接暴露了另一个更上游的 blocker**：
+  - 在 2026-03-30 这轮在线环境中，`m415013`、`m422123` 已出现 `coverage=0%`
+  - 这说明当时的在线 B 模型没有稳定产出中文，问题不在 comparison 规则本身
+  - 因此这类 run 的 `fail / 0%` 不能继续拿来讨论 sketch harness 粒度，必须先恢复一个稳定的 B 环境，或切回本地/更稳的线上 B 再重跑
+
 ---
 
 ## 历史结论摘要（2026-03-24）
