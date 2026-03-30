@@ -125,6 +125,8 @@ export type SampleComparison = {
     documentMainType: string;
     hasAnnotatedPreview: boolean;
     hasBilingualTableBundle: boolean;
+    maxSegmentsForTranslation?: number;
+    budgetCapped: boolean;
   };
   referenceStats: {
     documentCount: number;
@@ -137,6 +139,14 @@ export type SampleComparison = {
   sideBySideRows: SideBySideComparisonRow[];
   reviewHints: string[];
   generatedAt: string;
+};
+
+export type EvaluationRunContext = {
+  manifestPath: string;
+  generatedAt: string;
+  maxSegmentsForTranslation?: number;
+  skipExisting?: boolean;
+  onlySamples?: string[];
 };
 
 type SummaryRow = {
@@ -155,6 +165,8 @@ type SummaryRow = {
   comparisonStatus?: ComparisonMetrics['status'];
   referenceRecallPct?: number;
   aiPrecisionPct?: number;
+  maxSegmentsForTranslation?: number;
+  budgetCapped?: boolean;
   artifacts?: {
     annotatedPreview?: string | null;
     bilingualXlsx?: string | null;
@@ -783,20 +795,25 @@ function filterMixedAiCandidates(aiCandidates: ComparisonCandidate[]) {
   return aiCandidates.filter((item) => {
     const text = item.text.replace(/\s+/g, ' ').trim();
     return !(
+      /^m\d+[a-z0-9-]*$/i.test(text) ||
       /^款号[:：]/.test(text) ||
       /^成分[:：]/.test(text) ||
       /^克重[:：]/.test(text) ||
       /^幅宽[:：]/.test(text) ||
+      /^面料[/:：]?织物$/.test(text) ||
+      /^#?[a-z0-9-]{4,}$/i.test(text) ||
       /^\d+%[A-Z ]+$/i.test(text) ||
       /^底压$/.test(text) ||
       /^原样$/.test(text) ||
       /^后视图$/.test(text) ||
       /^15mm$/.test(text) ||
       /^内袋$/.test(text) ||
+      /^t\/t$/i.test(text) ||
       /^下摆[:：]可调节腰带$/.test(text) ||
       /^底身侧[:：]可调节腰带$/.test(text) ||
       /^底边可调节腰带$/.test(text) ||
-      /^面料[:：]起皱轻尼龙$/.test(text)
+      /^面料[:：]起皱轻尼龙$/.test(text) ||
+      /^前中第二开口 ?\+ ?领口 ?\+ ?护颈$/.test(text)
     );
   });
 }
@@ -934,7 +951,10 @@ function buildComparisonMetrics(
 function buildReviewHints(
   pipeline: PipelineResult,
   referenceBundle: NormalizedReferenceBundle,
-  metrics: ComparisonMetrics
+  metrics: ComparisonMetrics,
+  options?: {
+    maxSegmentsForTranslation?: number;
+  }
 ) {
   const hints = [
     '先看 AI 中文是否覆盖关键页，再看术语是否与人工参考件一致。',
@@ -947,6 +967,15 @@ function buildReviewHints(
 
   if (!pipeline.diagnostics.isBusinessPreviewReady) {
     hints.push('当前覆盖率低于业务预览阈值，请不要把产物当成完整翻译稿。');
+  }
+
+  if (
+    typeof options?.maxSegmentsForTranslation === 'number' &&
+    pipeline.segments.length > options.maxSegmentsForTranslation
+  ) {
+    hints.push(
+      `当前 run 设置了 TEST02_MAX_SEGMENTS=${options.maxSegmentsForTranslation}，本样本属于预算裁剪场景；Recall/Precision 只能作为受限口径参考。`
+    );
   }
 
   if (!pipeline.outputs.annotatedPdf?.downloadable && !pipeline.outputs.bilingualTableBundle?.downloadable) {
@@ -965,7 +994,10 @@ function buildReviewHints(
 export function buildSampleComparison(
   sample: SampleEntry,
   pipeline: PipelineResult,
-  referenceBundle: NormalizedReferenceBundle
+  referenceBundle: NormalizedReferenceBundle,
+  options?: {
+    maxSegmentsForTranslation?: number;
+  }
 ) {
   const aiItems = normalizeAiComparisonItems(pipeline);
   const referenceItems = referenceBundle.documents.flatMap((document) => document.items);
@@ -1001,7 +1033,11 @@ export function buildSampleComparison(
       outputStrategy: pipeline.outputStrategy,
       documentMainType: pipeline.documentMainType,
       hasAnnotatedPreview: Boolean(pipeline.outputs.annotatedPdf?.downloadable?.relativePath),
-      hasBilingualTableBundle: Boolean(pipeline.outputs.bilingualTableBundle?.downloadable?.relativePath)
+      hasBilingualTableBundle: Boolean(pipeline.outputs.bilingualTableBundle?.downloadable?.relativePath),
+      maxSegmentsForTranslation: options?.maxSegmentsForTranslation,
+      budgetCapped:
+        typeof options?.maxSegmentsForTranslation === 'number' &&
+        pipeline.segments.length > options.maxSegmentsForTranslation
     },
     referenceStats: {
       documentCount: referenceBundle.documents.length,
@@ -1012,7 +1048,7 @@ export function buildSampleComparison(
     unmatchedAi: comparisonMetrics.unmatchedAi.slice(0, UNMATCHED_LIMIT),
     unmatchedReference: comparisonMetrics.unmatchedReference.slice(0, UNMATCHED_LIMIT),
     sideBySideRows,
-    reviewHints: buildReviewHints(pipeline, referenceBundle, comparisonMetrics.metrics),
+    reviewHints: buildReviewHints(pipeline, referenceBundle, comparisonMetrics.metrics, options),
     generatedAt: new Date().toISOString()
   } satisfies SampleComparison;
 }
@@ -1027,6 +1063,10 @@ export function buildComparisonMarkdown(comparison: SampleComparison) {
   );
   lines.push(`- Output Strategy: ${comparison.aiStats.outputStrategy}`);
   lines.push(`- Document Type: ${comparison.aiStats.documentMainType}`);
+  lines.push(
+    `- Max Segments: ${typeof comparison.aiStats.maxSegmentsForTranslation === 'number' ? comparison.aiStats.maxSegmentsForTranslation : 'unlimited'}`
+  );
+  lines.push(`- Budget Capped: ${comparison.aiStats.budgetCapped ? 'yes' : 'no'}`);
   lines.push(`- Reference Documents: ${comparison.referenceStats.documentCount}`);
   lines.push(`- Reference Items: ${comparison.referenceStats.totalReferenceItems}`);
   lines.push(`- Match Status: ${comparison.metrics.status}`);
@@ -1120,13 +1160,25 @@ export async function writeMarkdown(filePath: string, value: string) {
   await writeFile(filePath, value, 'utf8');
 }
 
-export function buildSummaryMarkdown(runId: string, manifestPath: string, summaries: SummaryRow[]) {
+export function buildSummaryMarkdown(
+  runId: string,
+  manifestPath: string,
+  summaries: SummaryRow[],
+  context?: EvaluationRunContext
+) {
   const lines: string[] = [];
   lines.push('# test02 Regression Run');
   lines.push('');
   lines.push(`- Run ID: \`${runId}\``);
   lines.push(`- Manifest: \`${manifestPath}\``);
-  lines.push(`- Generated at: ${new Date().toISOString()}`);
+  lines.push(`- Generated at: ${context?.generatedAt ?? new Date().toISOString()}`);
+  lines.push(
+    `- TEST02_MAX_SEGMENTS: ${typeof context?.maxSegmentsForTranslation === 'number' ? context.maxSegmentsForTranslation : 'unlimited'}`
+  );
+  lines.push(`- TEST02_SKIP_EXISTING: ${context?.skipExisting ? '1' : '0'}`);
+  if (context?.onlySamples?.length) {
+    lines.push(`- TEST02_ONLY_SAMPLES: \`${context.onlySamples.join(',')}\``);
+  }
   lines.push('');
   lines.push(
     '| Sample | Status | Match | Recall | Precision | Coverage | PreviewReady | Comparison | References | Notes |'
@@ -1147,7 +1199,9 @@ export function buildSummaryMarkdown(runId: string, manifestPath: string, summar
         ? `missing source: ${item.sourcePdf ?? '-'}`
         : item.status === 'failed'
           ? item.error ?? 'pipeline failed'
-          : item.previewSuppressedReason ?? '';
+          : [item.previewSuppressedReason ?? '', item.budgetCapped ? 'budget-capped' : '']
+              .filter(Boolean)
+              .join(' · ');
 
     lines.push(
       `| ${item.sampleId} | ${item.status} | ${matchStatus} | ${recall} | ${precision} | ${coverage} | ${item.businessPreviewReady ? 'yes' : 'no'} | ${item.comparisonReady ? 'yes' : 'no'} | ${item.referenceCount} | ${notes} |`

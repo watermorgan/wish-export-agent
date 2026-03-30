@@ -16,6 +16,7 @@ import {
   toRepoRelative,
   writeJson,
   writeMarkdown,
+  type EvaluationRunContext,
   type DatasetManifest,
   type SampleEntry
 } from './lib/test02-harness';
@@ -41,6 +42,8 @@ type SampleSummary = {
   comparisonStatus?: 'pass' | 'warn' | 'fail' | 'no_reference';
   referenceRecallPct?: number;
   aiPrecisionPct?: number;
+  maxSegmentsForTranslation?: number;
+  budgetCapped?: boolean;
   artifacts?: {
     annotatedPreview?: string | null;
     bilingualXlsx?: string | null;
@@ -60,13 +63,16 @@ function derivePipelineFailureReason(result: Awaited<ReturnType<RunPdfTranslatio
 
 async function writeComparisonArtifacts(
   sample: SampleEntry,
-  pipelineResultPath: string
+  pipelineResultPath: string,
+  options?: {
+    maxSegmentsForTranslation?: number;
+  }
 ) {
   const pipeline = JSON.parse(await readFile(pipelineResultPath, 'utf8')) as Awaited<
     ReturnType<RunPdfTranslationPipeline>
   >;
   const referenceBundle = await normalizeReferenceBundle(sample);
-  const comparison = buildSampleComparison(sample, pipeline, referenceBundle);
+  const comparison = buildSampleComparison(sample, pipeline, referenceBundle, options);
   const sampleDir = path.dirname(pipelineResultPath);
 
   await writeJson(path.join(sampleDir, 'reference-normalized.json'), referenceBundle);
@@ -97,6 +103,15 @@ async function main() {
   const maxSegmentsRaw = Number(process.env.TEST02_MAX_SEGMENTS ?? '0');
   const maxSegmentsForTranslation =
     Number.isFinite(maxSegmentsRaw) && maxSegmentsRaw > 0 ? maxSegmentsRaw : undefined;
+  const generatedAt = new Date().toISOString();
+  const context: EvaluationRunContext = {
+    manifestPath: toRepoRelative(manifestPath),
+    generatedAt,
+    maxSegmentsForTranslation,
+    skipExisting,
+    onlySamples: [...onlySamples]
+  };
+  await writeJson(path.join(dirs.reportsDir, 'run-context.json'), context);
 
   const summaries: SampleSummary[] = [];
 
@@ -117,7 +132,9 @@ async function main() {
         let referenceRecallPct: number | undefined;
         let aiPrecisionPct: number | undefined;
         try {
-          const comparison = await writeComparisonArtifacts(sample, pipelineResultPath);
+          const comparison = await writeComparisonArtifacts(sample, pipelineResultPath, {
+            maxSegmentsForTranslation
+          });
           comparisonReady = true;
           comparisonStatus = comparison.metrics.status;
           referenceRecallPct = comparison.metrics.referenceRecallPct;
@@ -142,6 +159,10 @@ async function main() {
           comparisonStatus,
           referenceRecallPct,
           aiPrecisionPct,
+          maxSegmentsForTranslation,
+          budgetCapped:
+            typeof maxSegmentsForTranslation === 'number' &&
+            result.segments.length > maxSegmentsForTranslation,
           artifacts: {
             annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
             bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
@@ -194,7 +215,9 @@ async function main() {
 
       let comparisonReady = false;
       try {
-        const comparison = await writeComparisonArtifacts(sample, pipelineResultPath);
+        const comparison = await writeComparisonArtifacts(sample, pipelineResultPath, {
+          maxSegmentsForTranslation
+        });
         comparisonReady = true;
         summaries.push({
           sampleId: sample.sample_id,
@@ -212,6 +235,10 @@ async function main() {
           comparisonStatus: comparison.metrics.status,
           referenceRecallPct: comparison.metrics.referenceRecallPct,
           aiPrecisionPct: comparison.metrics.aiPrecisionPct,
+          maxSegmentsForTranslation,
+          budgetCapped:
+            typeof maxSegmentsForTranslation === 'number' &&
+            result.segments.length > maxSegmentsForTranslation,
           artifacts: {
             annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
             bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
@@ -240,6 +267,10 @@ async function main() {
           businessPreviewReady: result.diagnostics.isBusinessPreviewReady,
           previewSuppressedReason: result.diagnostics.previewSuppressedReason ?? null,
           comparisonReady,
+          maxSegmentsForTranslation,
+          budgetCapped:
+            typeof maxSegmentsForTranslation === 'number' &&
+            result.segments.length > maxSegmentsForTranslation,
           artifacts: {
             annotatedPreview: result.outputs.annotatedPdf?.downloadable?.relativePath ?? null,
             bilingualXlsx: result.outputs.bilingualTableBundle?.downloadable?.relativePath ?? null,
@@ -272,19 +303,22 @@ async function main() {
     runId,
     manifestPath: toRepoRelative(manifestPath),
     exportRoot: toRepoRelative(dirs.exportsDir),
-    generatedAt: new Date().toISOString(),
+    generatedAt,
+    maxSegmentsForTranslation: maxSegmentsForTranslation ?? null,
+    skipExisting,
+    onlySamples: [...onlySamples],
     summaries
   };
 
   await writeJson(path.join(dirs.reportsDir, 'summary.json'), summaryJson);
   await writeMarkdown(
     path.join(dirs.reportsDir, 'summary.md'),
-    buildSummaryMarkdown(runId, toRepoRelative(manifestPath), summaries)
+    buildSummaryMarkdown(runId, toRepoRelative(manifestPath), summaries, context)
   );
   await writeJson(path.join(path.dirname(dirs.runRoot), 'LATEST_RUN.json'), {
     runId,
     path: toRepoRelative(dirs.runRoot),
-    generatedAt: new Date().toISOString()
+    generatedAt
   });
 
   console.log(JSON.stringify(summaryJson, null, 2));

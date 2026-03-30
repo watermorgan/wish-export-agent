@@ -14,6 +14,7 @@ import {
   resolveManifestPath,
   writeJson,
   writeMarkdown,
+  type EvaluationRunContext,
   type DatasetManifest
 } from './lib/test02-harness';
 
@@ -26,6 +27,8 @@ type ComparisonSummaryRow = {
   comparisonStatus?: 'pass' | 'warn' | 'fail' | 'no_reference';
   referenceRecallPct?: number;
   aiPrecisionPct?: number;
+  maxSegmentsForTranslation?: number;
+  budgetCapped?: boolean;
   totalSegments?: number;
   translatedSegmentCount?: number;
   translationCoveragePct?: number;
@@ -48,6 +51,15 @@ async function main() {
   const runId = process.argv[3] ?? nowRunId();
   const dirs = buildRunDirectories(runId);
   const manifest = (await loadManifest(manifestPath)) as DatasetManifest;
+  const maxSegmentsRaw = Number(process.env.TEST02_MAX_SEGMENTS ?? '0');
+  const maxSegmentsForTranslation =
+    Number.isFinite(maxSegmentsRaw) && maxSegmentsRaw > 0 ? maxSegmentsRaw : undefined;
+  const generatedAt = new Date().toISOString();
+  const context: EvaluationRunContext = {
+    manifestPath: path.relative(process.cwd(), manifestPath),
+    generatedAt,
+    maxSegmentsForTranslation
+  };
 
   const summaries: ComparisonSummaryRow[] = [];
 
@@ -71,7 +83,9 @@ async function main() {
     try {
       const pipeline = JSON.parse(await readFile(pipelineResultPath, 'utf8')) as PipelineResult;
       const referenceBundle = await normalizeReferenceBundle(sample);
-      const comparison = buildSampleComparison(sample, pipeline, referenceBundle);
+      const comparison = buildSampleComparison(sample, pipeline, referenceBundle, {
+        maxSegmentsForTranslation
+      });
 
       await writeJson(path.join(sampleDir, 'reference-normalized.json'), referenceBundle);
       await writeJson(path.join(sampleDir, 'comparison.json'), comparison);
@@ -86,6 +100,10 @@ async function main() {
         comparisonStatus: comparison.metrics.status,
         referenceRecallPct: comparison.metrics.referenceRecallPct,
         aiPrecisionPct: comparison.metrics.aiPrecisionPct,
+        maxSegmentsForTranslation,
+        budgetCapped:
+          typeof maxSegmentsForTranslation === 'number' &&
+          pipeline.segments.length > maxSegmentsForTranslation,
         totalSegments: pipeline.segments.length,
         translatedSegmentCount: pipeline.diagnostics.translatedSegmentCount,
         translationCoveragePct: pipeline.diagnostics.translationCoveragePct,
@@ -108,14 +126,16 @@ async function main() {
   const payload = {
     runId,
     manifestPath: path.relative(process.cwd(), manifestPath),
-    generatedAt: new Date().toISOString(),
+    generatedAt,
+    maxSegmentsForTranslation: maxSegmentsForTranslation ?? null,
     summaries
   };
 
+  await writeJson(path.join(dirs.reportsDir, 'run-context.json'), context);
   await writeJson(path.join(dirs.reportsDir, 'comparison-summary.json'), payload);
   await writeMarkdown(
     path.join(dirs.reportsDir, 'comparison-summary.md'),
-    buildSummaryMarkdown(runId, path.relative(process.cwd(), manifestPath), summaries)
+    buildSummaryMarkdown(runId, path.relative(process.cwd(), manifestPath), summaries, context)
   );
 
   console.log(JSON.stringify(payload, null, 2));
