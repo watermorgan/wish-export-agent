@@ -57,6 +57,11 @@ flowchart TB
 - 当前已补充两类运行门槛：
   - role 级超时：`TRANSLATION_MODEL_API_TIMEOUT_MS` / `VISION_MODEL_API_TIMEOUT_MS`
   - B 侧 transport retry：`B_MODEL_TRANSPORT_RETRY_LIMIT`
+- 当前已补充一个最小 B fallback：
+  - 主 B 整轮未产出任何中文，且 `batchJsonOk=0` 或最近错误不是 `none` 时，允许切一次备用 B
+  - fallback 只覆盖 B，不改 A；也不重写已成功产出的 `segment -> zh`
+  - 环境变量：`B_MODEL_FALLBACK_NAME` / `B_MODEL_FALLBACK_API_URL` / `B_MODEL_FALLBACK_API_KEY`
+  - 诊断字段：`bModelFallbackUsed`、`bModelActiveModel`
 - 当前已新增固定样本冒烟脚本：
   - `npm run smoke:pdf`
   - `npm run smoke:pdf` 默认只跑快速集（当前为 `M422123`）
@@ -73,6 +78,18 @@ flowchart TB
     - `Cici Rain Jacket - sketch` → `40%`
   - 当前 full 的通过含义是“B 调用与脚本运行稳定、能在有界时间内产出中文”，不是“这些样本已经达到最终业务完稿覆盖率”
 - 结论上，后续“快照里没中文”的问题应先通过配额 / timeout / batch / retry 收敛，而不是继续修改正式 PDF 渲染层。
+- 2026-03-30 补充：
+  - 代码侧 fallback 已接入，但当前本地备用 B 端点在该环境下返回“请先连接 VPN”，因此这轮未完成 fallback 成功态的端到端验收
+  - 同日 fast smoke 也在 90s 窗口内超时，说明当前更上游的在线 / 网络环境仍不稳定；不能把这类 run 继续解读为主链逻辑退化
+  - 同日补测线上备用 `qwen3.5-flash`：
+    - fallback 链已命中，diagnostics 能正确记录 `bModelFallbackUsed=true` 和 `bModelActiveModel=qwen3.5-flash`
+    - 但当前 DashScope key / endpoint 返回 `403 Forbidden`
+  - 当前结论应更新为：fallback 逻辑已经可用，但仍缺少一个“当前环境可成功返回 JSON 中文”的备用 B 目标
+  - 之后本地模型服务恢复可达，已验证：
+    - 本地 B 单条结构化翻译可返回 JSON
+    - 在 `M422123` 上，主 B 强制故障 + 本地 B fallback 时，`smoke:pdf` 可恢复到 `translatedSegmentCount=10/10`、`coverage=100%`
+    - A 也已补最小 fallback；在 `M422123` 上，主 A + 主 B 同时故障、A/B 都落到本地 `Qwen3.5-9B-Q8_0.gguf` 时，`smoke:pdf` 可恢复到 `28/33` 段中文、`coverage=85%`，且 `aModelExecuted=true`、`bModelFallbackUsed=true`
+    - 说明当前代码侧 A/B fallback 已能在真实 PDF 上闭环，后续差距重新回到“识别召回 / comparison 粒度 / 术语风格”而不是“主链断掉”
 
 ### 第二阶段起点：A 稳定性先做锚定，不先大改策略
 

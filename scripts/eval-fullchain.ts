@@ -41,6 +41,7 @@ type FullchainEvalRow = {
   bModelBatchAttempts: number;
   bModelBatchJsonOk: number;
   bModelLastErrorKind: string;
+  bModelFallbackUsed: boolean;
   scriptDerivedHumanReviewItems: number;
   notes: string;
 };
@@ -60,6 +61,7 @@ function buildFullchainNotes(pipeline: {
       | 'http'
       | 'rate_limited'
       | 'parse';
+    bModelFallbackUsed?: boolean;
   };
 }): string {
   const {
@@ -68,7 +70,8 @@ function buildFullchainNotes(pipeline: {
     bModelApiConfigured,
     bModelBatchAttempts,
     bModelBatchJsonOk,
-    bModelLastErrorKind
+    bModelLastErrorKind,
+    bModelFallbackUsed
   } = pipeline.diagnostics;
 
   const aNote = aModelTriggered
@@ -88,6 +91,9 @@ function buildFullchainNotes(pipeline: {
     bNote = `B:批次解析全部成功(${bModelBatchJsonOk}/${bModelBatchAttempts})`;
   } else {
     bNote = `B:批次解析部分成功(${bModelBatchJsonOk}/${bModelBatchAttempts})，最近错误=${bModelLastErrorKind}`;
+  }
+  if (bModelFallbackUsed) {
+    bNote += '，已切备用B';
   }
 
   return `抽取与导出链路完成；${aNote}；${bNote}。`;
@@ -123,6 +129,7 @@ async function evaluateSourcePdf(sourcePdfPath: string, sampleId: string, refere
       bModelBatchAttempts: 0,
       bModelBatchJsonOk: 0,
       bModelLastErrorKind: 'none',
+      bModelFallbackUsed: false,
       scriptDerivedHumanReviewItems: 3,
       notes: pipeline.error ?? '抽取失败'
     } satisfies FullchainEvalRow;
@@ -154,6 +161,7 @@ async function evaluateSourcePdf(sourcePdfPath: string, sampleId: string, refere
     bModelBatchAttempts: pipeline.diagnostics.bModelBatchAttempts,
     bModelBatchJsonOk: pipeline.diagnostics.bModelBatchJsonOk,
     bModelLastErrorKind: pipeline.diagnostics.bModelLastErrorKind,
+    bModelFallbackUsed: pipeline.diagnostics.bModelFallbackUsed ?? false,
     scriptDerivedHumanReviewItems,
     notes: buildFullchainNotes(pipeline)
   } satisfies FullchainEvalRow;
@@ -174,13 +182,13 @@ function toMarkdown(rows: FullchainEvalRow[], missingManifests: string[]) {
   }
 
   lines.push(
-    '| Sample | Source PDF | DocType | OutputStrategy | Refs | Segments | EarlyGate | LowConfPages | 2ndPassReq | aAssistProbeTriggered | aAssistProbeCompleted | translationProbeCompleted | zhPopulationPct | bBatchJsonOk | bLastError | scriptDerivedHumanReviewItems | Notes |'
+    '| Sample | Source PDF | DocType | OutputStrategy | Refs | Segments | EarlyGate | LowConfPages | 2ndPassReq | aAssistProbeTriggered | aAssistProbeCompleted | translationProbeCompleted | zhPopulationPct | bBatchJsonOk | bLastError | bFallback | scriptDerivedHumanReviewItems | Notes |'
   );
-  lines.push('| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | ---: | --- | --- | ---: | --- |');
+  lines.push('| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | ---: | --- | --- | --- | ---: | --- |');
 
   for (const row of rows) {
     lines.push(
-      `| ${row.sampleId} | ${path.basename(row.sourcePdf)} | ${row.documentMainType} | ${row.outputStrategy} | ${row.referenceCount} | ${row.segments} | ${row.earlyGatePages} | ${row.lowConfidencePages} | ${row.secondPassRequired ? 'yes' : 'no'} | ${row.aAssistProbeTriggered ? 'yes' : 'no'} | ${row.aAssistProbeCompleted ? 'yes' : 'no'} | ${row.translationProbeCompleted ? 'yes' : 'no'} | ${row.zhPopulationPct} | ${row.bModelBatchJsonOk}/${row.bModelBatchAttempts} | ${row.bModelLastErrorKind} | ${row.scriptDerivedHumanReviewItems} | ${row.notes} |`
+      `| ${row.sampleId} | ${path.basename(row.sourcePdf)} | ${row.documentMainType} | ${row.outputStrategy} | ${row.referenceCount} | ${row.segments} | ${row.earlyGatePages} | ${row.lowConfidencePages} | ${row.secondPassRequired ? 'yes' : 'no'} | ${row.aAssistProbeTriggered ? 'yes' : 'no'} | ${row.aAssistProbeCompleted ? 'yes' : 'no'} | ${row.translationProbeCompleted ? 'yes' : 'no'} | ${row.zhPopulationPct} | ${row.bModelBatchJsonOk}/${row.bModelBatchAttempts} | ${row.bModelLastErrorKind} | ${row.bModelFallbackUsed ? 'yes' : 'no'} | ${row.scriptDerivedHumanReviewItems} | ${row.notes} |`
     );
   }
 

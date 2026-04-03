@@ -28,6 +28,8 @@ type SmokeRow = {
   bModelBatchAttempts: number;
   bModelBatchJsonOk: number;
   bModelLastErrorKind: string;
+  bModelFallbackUsed: boolean;
+  bModelActiveModel: string;
   pass: boolean;
   notes: string;
 };
@@ -35,11 +37,11 @@ type SmokeRow = {
 type SmokeMode = 'fast' | 'full';
 
 function defaultMaxSegmentsForMode(mode: SmokeMode) {
-  return mode === 'full' ? 40 : 60;
+  return mode === 'full' ? 40 : 40;
 }
 
 function defaultSampleTimeoutMs(mode: SmokeMode) {
-  return mode === 'full' ? 180_000 : 90_000;
+  return mode === 'full' ? 180_000 : 120_000;
 }
 
 function resolveRepoPath(input: string) {
@@ -94,10 +96,21 @@ async function loadDefaultSamples(mode: SmokeMode): Promise<SmokeSample[]> {
 function buildNotes(result: Awaited<ReturnType<RunPdfTranslationPipeline>>, zhPopulationPct: number) {
   const notes: string[] = [];
   notes.push(`coverage=${result.diagnostics.translationCoveragePct}%`);
+  if (typeof result.diagnostics.businessTranslationCoveragePct === 'number') {
+    notes.push(
+      `business=${result.diagnostics.translatedBusinessSegmentCount ?? 0}/${result.diagnostics.businessSegmentCount ?? 0} (${result.diagnostics.businessTranslationCoveragePct}%)`
+    );
+  }
   notes.push(`zh=${zhPopulationPct}%`);
   notes.push(`bJson=${result.diagnostics.bModelBatchJsonOk}/${result.diagnostics.bModelBatchAttempts}`);
   if (result.diagnostics.bModelLastErrorKind !== 'none') {
     notes.push(`lastError=${result.diagnostics.bModelLastErrorKind}`);
+  }
+  if (!result.diagnostics.isBusinessPreviewReady && result.diagnostics.previewSuppressedReason) {
+    notes.push(`preview=${result.diagnostics.previewSuppressedReason}`);
+  }
+  if (result.diagnostics.bModelFallbackUsed) {
+    notes.push(`fallback=${result.diagnostics.bModelActiveModel ?? 'yes'}`);
   }
   return notes.join(' · ');
 }
@@ -159,6 +172,8 @@ async function main() {
         bModelBatchAttempts: 0,
         bModelBatchJsonOk: 0,
         bModelLastErrorKind: 'missing_source',
+        bModelFallbackUsed: false,
+        bModelActiveModel: '',
         pass: false,
         notes: 'source pdf missing'
       });
@@ -194,6 +209,8 @@ async function main() {
         bModelBatchAttempts: 0,
         bModelBatchJsonOk: 0,
         bModelLastErrorKind: /^timeout:/.test(message) ? 'timeout' : 'http',
+        bModelFallbackUsed: false,
+        bModelActiveModel: '',
         pass: false,
         notes: message
       });
@@ -210,6 +227,7 @@ async function main() {
       result.diagnostics.bModelExecuted &&
       translatedSegmentCount >= minTranslatedSegments &&
       zhPopulationPct >= minZhPopulationPct &&
+      result.diagnostics.isBusinessPreviewReady &&
       result.diagnostics.bModelLastErrorKind !== 'parse';
 
     rows.push({
@@ -227,6 +245,8 @@ async function main() {
       bModelBatchAttempts: result.diagnostics.bModelBatchAttempts,
       bModelBatchJsonOk: result.diagnostics.bModelBatchJsonOk,
       bModelLastErrorKind: result.diagnostics.bModelLastErrorKind,
+      bModelFallbackUsed: result.diagnostics.bModelFallbackUsed ?? false,
+      bModelActiveModel: result.diagnostics.bModelActiveModel ?? '',
       pass,
       notes: buildNotes(result, zhPopulationPct)
     });

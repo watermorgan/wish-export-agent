@@ -122,8 +122,11 @@
   - 正式 PDF 下载接口不得仅因 task 目录里已存在旧 `annotated.pdf` 就直接复用；若当前 structuredData / renderer 已更新，必须重新渲染，避免业务看到历史旧稿
   - 正式 PDF 的重渲染必须基于冻结的 `translation_snapshot_v1`；渲染层不得再依赖旧 `sections` 结构，也不得通过重跑 A/B 来“顺带刷新内容”
   - 第一阶段收口后，B 模型稳定性必须有固定样本门槛：至少应通过 `npm run smoke:pdf` 这类冒烟检查，并显式记录 `translatedSegmentCount`、`zhPopulationPct`、`bModelBatchJsonOk/bModelBatchAttempts`、`bModelLastErrorKind`
+  - 若主 B 在当前环境整轮未产出中文，允许切一次有界备用 B；但必须显式记录 `bModelFallbackUsed` 与最终 `bModelActiveModel`，并在页面/报告中提示这是备用路径，不得伪装成主模型稳定通过
+  - 若主 A 在当前环境触发但未完成 OCR，允许切一次有界备用 A；但必须显式记录 `aModelFallbackUsed` 与最终 `aModelActiveModel`，并在页面/报告中提示这是备用路径
   - `npm run smoke:pdf` 默认为快速集；`npm run smoke:pdf:full` 用于较慢但更接近真实环境的全量集。默认开发回归不得直接依赖全量集，避免把在线配额波动误判成脚本不可用
   - `smoke:pdf:full` 的通过标准当前是“在有界时间内稳定产出中文且 B 解析稳定”，不等同于“业务最终覆盖率已足够高”；表格重样本和 mixed 样本仍需结合 `test02` / 人工稿继续评估
+  - `smoke:pdf` / `businessPreviewReady` 的通过判断不得只看所有 segment 的总中文覆盖率；必须额外按“未被 annotated suppress 的业务 segment”计算 `businessSegmentCount / translatedBusinessSegmentCount / businessTranslationCoveragePct`。仅当业务条目达标时，才可判定为可给业务预览
   - 当 `maxSegmentsForTranslation` 存在上限时，A 模型补强得到的 `vision` segments 不得被文本层长页完全挤掉；至少应保留一小部分 vision 配额进入 B 翻译
   - 在 vision 配额之外，允许再做一个小而有界的第二阶段 vision 补翻窗口，用于补译首轮预算未覆盖但业务价值高的 OCR 段；该阶段只能追加翻译，不得改写首轮已产出的 segment/zh 映射
   - 对 `mixed` 且最终走 annotated 输出的样本，B 选段时应优先保留一部分 `pageLayoutType=sketch` 的 segment 预算；否则 table/reference 页残片会系统性吞掉 sketch 批注预算
@@ -140,6 +143,11 @@
   - 当前 `data/test02` gate 口径：
     - `m422123`、`m445033` 应作为 sketch/comment pass 标杆
     - `m415013`、`m441083` 至少达到 `warn`，否则视为术语/拆句/噪音控制仍未收敛
+    - 阶段尾可给业务确认时，期望 sketch 四个代表样本达到：
+      - `m422123`: `pass`
+      - `m445033`: `pass`
+      - `m441083`: `pass` 或高位 `warn`
+      - `m415013`: `pass` 或至少 `referenceRecallPct >= 75` 且 `aiPrecisionPct >= 60`
     - `ata019-shell-jacket`、`hanna-lightweight-skirt`、`m4e002-soft-puffy-down-jkt` 至少达到 `warn`，否则不得宣称“全集通过”
     - `ata001-smock-jacket` 当前仅做 smoke，不进入人工参考 match gate
   - 对 sketch/comment 样本，若通过“短标签归一 + 噪音降级 + 一对多 comparison”后仍有大面积 unmatched，才判定为识别/翻译硬缺陷；否则应优先继续收敛术语和样式，而不是先换模型
@@ -150,3 +158,11 @@
   - 对 `mixed` 样本，正式 annotated 与 comparison 候选都应优先保留：
     - 面料/里布/袋布/填充/拉链/按扣/版型/长度/结构改动
     - 应压掉 standalone `款号 / 成分 / 克重 / 幅宽 / 创建更新时间 / 版权 / Original Sample / 后视图` 等非人工稿主信息
+  - `PROTO #1 / PROTO #2 / OP1 / OP2` 这类方案标签若在页面上可见，不得默认当成低价值字段抑制；对 sketch/comment 样本，它们属于可追溯的业务标签，应允许进入 `segments` / snapshot / comparison 主链
+  - 对页级 vision OCR，请求端必须强制用当前目标页号重写模型回包中的 `pageNumber`，并生成本地稳定的 `regionId`；不得直接信任模型自填的 `pageNumber / regionId`，否则多页样本会出现批注挂错页，污染 comparison 和 page-level 选段
+  - 对同一页的多种 vision fallback 模式（`full / focused / business_crop`），不得复用同一个 `regionId` 前缀；否则不同 OCR 结果会在 id 层互相覆盖，污染 B 的 `segment -> zh` 映射和 comparison 候选。至少应把 `mode` 编进 `regionIdPrefix`
+  - 当 sketch/comment comparison 使用 AI 候选时，孤立 `颜色 / 面料` 与 `品牌 / 款名 / 客户 / 款号:` 这类标签或管理信息不得继续作为高价值候选参与匹配；否则会系统性拉低 precision，并掩盖真实业务短句是否已回到主链
+  - 相反，`尺寸 / 版型 / 前袋 / 双针 / OP1 / OP2 / 刺绣 / 码标` 等短业务句必须保留为高价值 comparison 候选；若被 `attachment sample`、页眉或 reference sample 规则误杀，则视为比较口径缺陷
+  - 对 sketch/comment comparison，`前身袋鼠兜，顶部缝合在身内`、`前袋缝在身内`、`双针加固` 这类同一业务点的相邻短句，允许通过 canonicalization 归到同一高价值候选；不得因为模型把“口袋位置”和“加固做法”写在同一句，就误判成未覆盖
+  - 对 `m415013` 这类已确认 page1/page2 OCR 可回主链的样本，若新增 `right/lower crop` 仅增加主标/成分/克重等噪音而没有显著抬高 recall，应停止继续堆 page 级裁切模式，优先回到 comparison 候选与术语对齐
+  - 对私网本地 vision fallback，请求超时不得简单伪装成“VPN 未连接”；需要区分 `AbortError/timeout` 与真实网络不可达。对本地多模态模型，vision timeout 也不得与线上模型共用过低默认值，否则会把“慢但可用”的 OCR 请求误判为失败

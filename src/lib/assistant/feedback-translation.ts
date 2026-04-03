@@ -924,6 +924,24 @@ async function buildPipelineFallbackReply(
 
   const pendingConfirmations = buildPipelinePendingItems(pipelineResult);
   const coverageText = `已译 ${pipelineResult.diagnostics.translatedSegmentCount}/${pipelineResult.segments.length} 段（覆盖率 ${pipelineResult.diagnostics.translationCoveragePct}%）`;
+  const pipelineModelName =
+    pipelineResult.diagnostics.bModelActiveModel ??
+    request.translationModelOverride ??
+    request.modelOverride ??
+    process.env.TRANSLATION_MODEL ??
+    'translation-model';
+  const pipelineFallbackHints = [
+    ...(reply.metadata?.pipelineFallbackHints ?? []),
+    ...(pipelineResult.diagnostics.aModelFallbackUsed
+      ? [`主 A 未稳定产出 OCR，当前任务已切换备用 A：${pipelineResult.diagnostics.aModelActiveModel ?? 'fallback-a'}`]
+      : []),
+    ...(pipelineResult.diagnostics.bModelFallbackUsed
+      ? [`主 B 未稳定产出中文，当前任务已切换备用 B：${pipelineModelName}`]
+      : []),
+    ...(pipelineResult.diagnostics.bModelLastErrorKind !== 'none'
+      ? [`最近一次 B 错误：${pipelineResult.diagnostics.bModelLastErrorKind}`]
+      : [])
+  ];
   const nextSummary = pipelineResult.diagnostics.translatedSegmentCount > 0
     ? mode === 'primary'
       ? `已完成 ${pipelineResult.diagnostics.translatedSegmentCount} 个识别块的原文保留式双语翻译。`
@@ -993,19 +1011,13 @@ async function buildPipelineFallbackReply(
       providerHits: [...(reply.metadata?.providerHits ?? []), 'pdf-pipeline'],
       modelHits: [
         ...(reply.metadata?.modelHits ?? []),
-        request.translationModelOverride ??
-          request.modelOverride ??
-          process.env.TRANSLATION_MODEL ??
-          'translation-model'
+        pipelineModelName
       ],
       activeProvider: 'pdf-pipeline',
-      activeModel:
-        request.translationModelOverride ??
-        request.modelOverride ??
-        process.env.TRANSLATION_MODEL ??
-        'translation-model',
+      activeModel: pipelineModelName,
       translationMode: 'real',
       pdfArtifactLinks,
+      pipelineFallbackHints,
       translationTiming: {
         totalMs: Date.now() - startedAt,
         sourceBuildMs,

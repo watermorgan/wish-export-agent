@@ -20,6 +20,7 @@ type QwenChatInput = {
   temperature?: number;
   maxTokens?: number;
   modelOverride?: string;
+  runtimeConfigOverride?: ModelRuntimeConfig;
 };
 
 type QwenChatResult = {
@@ -36,7 +37,7 @@ const DEBUG_MODEL = process.env.ASSISTANT_DEBUG_MODEL === '1';
 const DEFAULT_TIMEOUT_MS = Number(process.env.MODEL_API_TIMEOUT_MS ?? '30000');
 type ModelRole = 'vision' | 'translation';
 
-type ModelRuntimeConfig = {
+export type ModelRuntimeConfig = {
   model: string;
   baseUrl: string;
   apiKey: string;
@@ -178,13 +179,31 @@ function logModelDebug(event: string, payload: Record<string, unknown>) {
   console.log(`[assistant:model] ${event} ${JSON.stringify(payload)}`);
 }
 
-function getRoleTimeoutMs(role: ModelRole) {
-  if (role === 'vision') {
-    return Number(process.env.VISION_MODEL_API_TIMEOUT_MS ?? process.env.MODEL_API_TIMEOUT_MS ?? '30000');
-  }
-  return Number(
-    process.env.TRANSLATION_MODEL_API_TIMEOUT_MS ?? process.env.MODEL_API_TIMEOUT_MS ?? '30000'
+function isAbortError(error: unknown) {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'name' in error &&
+    (error as { name?: string }).name === 'AbortError'
   );
+}
+
+function getRoleTimeoutMs(role: ModelRole) {
+  const requested =
+    role === 'vision'
+      ? Number(process.env.VISION_MODEL_API_TIMEOUT_MS ?? process.env.MODEL_API_TIMEOUT_MS ?? '30000')
+      : Number(
+    process.env.TRANSLATION_MODEL_API_TIMEOUT_MS ?? process.env.MODEL_API_TIMEOUT_MS ?? '30000'
+        );
+  return Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_TIMEOUT_MS;
+}
+
+function resolveRequestTimeoutMs(role: ModelRole, config: ModelRuntimeConfig) {
+  const timeoutMs = getRoleTimeoutMs(role);
+  if (role === 'vision' && isPrivateHostSafe(config.baseUrl)) {
+    return Math.max(timeoutMs, Number(process.env.VISION_LOCAL_MIN_TIMEOUT_MS ?? '20000'));
+  }
+  return timeoutMs;
 }
 
 function firstNonEmpty(...values: Array<string | undefined>) {
@@ -204,6 +223,97 @@ function pickApiKey(
     return '';
   }
   return firstNonEmpty(...fallbackCandidates);
+}
+
+function isRuntimeConfigUsable(config: ModelRuntimeConfig | null) {
+  if (!config) {
+    return false;
+  }
+  return Boolean(config.baseUrl && (config.apiKey || isApiKeyOptional(config.baseUrl)));
+}
+
+function hasLocalFallbackTransport() {
+  return Boolean(
+    firstNonEmpty(process.env.LOCAL_OPENAI_API_URL, process.env.LOCAL_MODEL_API_URL) &&
+      (firstNonEmpty(process.env.LOCAL_OPENAI_API_KEY, process.env.LOCAL_MODEL_API_KEY) ||
+        isApiKeyOptional(firstNonEmpty(process.env.LOCAL_OPENAI_API_URL, process.env.LOCAL_MODEL_API_URL)!))
+  );
+}
+
+function getDefaultLocalFallbackModel() {
+  return firstNonEmpty(
+    process.env.LOCAL_OPENAI_MODEL_NAME,
+    process.env.LOCAL_MODEL_NAME,
+    'Qwen3.5-9B-Q8_0.gguf'
+  );
+}
+
+export function getTranslationFallbackRuntimeConfig(): ModelRuntimeConfig | null {
+  const model = firstNonEmpty(
+    process.env.B_MODEL_FALLBACK_NAME,
+    process.env.TRANSLATION_MODEL_FALLBACK,
+    hasLocalFallbackTransport() ? getDefaultLocalFallbackModel() : ''
+  );
+  const baseUrl = firstNonEmpty(
+    process.env.B_MODEL_FALLBACK_API_URL,
+    process.env.TRANSLATION_FALLBACK_API_URL,
+    process.env.LOCAL_OPENAI_API_URL,
+    process.env.LOCAL_MODEL_API_URL
+  );
+  if (!model || !baseUrl) {
+    return null;
+  }
+  const config: ModelRuntimeConfig = {
+    model,
+    baseUrl,
+    apiKey: pickApiKey(
+      baseUrl,
+      [
+        process.env.B_MODEL_FALLBACK_API_KEY,
+        process.env.TRANSLATION_FALLBACK_API_KEY,
+        process.env.LOCAL_OPENAI_API_KEY,
+        process.env.LOCAL_MODEL_API_KEY
+      ],
+      [process.env.OPENAI_API_KEY]
+    ),
+    label: 'B-model-fallback'
+  };
+  return isRuntimeConfigUsable(config) ? config : null;
+}
+
+export function getVisionFallbackRuntimeConfig(): ModelRuntimeConfig | null {
+  const model = firstNonEmpty(
+    process.env.A_MODEL_FALLBACK_NAME,
+    process.env.VISION_FALLBACK_MODEL,
+    process.env.LOCAL_OPENAI_VISION_MODEL,
+    process.env.LOCAL_MODEL_VISION_NAME,
+    hasLocalFallbackTransport() ? getDefaultLocalFallbackModel() : ''
+  );
+  const baseUrl = firstNonEmpty(
+    process.env.A_MODEL_FALLBACK_API_URL,
+    process.env.VISION_FALLBACK_API_URL,
+    process.env.LOCAL_OPENAI_API_URL,
+    process.env.LOCAL_MODEL_API_URL
+  );
+  if (!model || !baseUrl) {
+    return null;
+  }
+  const config: ModelRuntimeConfig = {
+    model,
+    baseUrl,
+    apiKey: pickApiKey(
+      baseUrl,
+      [
+        process.env.A_MODEL_FALLBACK_API_KEY,
+        process.env.VISION_FALLBACK_API_KEY,
+        process.env.LOCAL_OPENAI_API_KEY,
+        process.env.LOCAL_MODEL_API_KEY
+      ],
+      [process.env.OPENAI_API_KEY]
+    ),
+    label: 'A-model-fallback'
+  };
+  return isRuntimeConfigUsable(config) ? config : null;
 }
 
 function getTranslationOverrideConfig(modelOverride?: string): ModelRuntimeConfig | null {
@@ -431,7 +541,7 @@ function buildResponsesUrl(baseUrlOrEndpoint: string) {
 
 function isRoleConfigured(role: ModelRole, modelOverride?: string) {
   const config = getRoleConfig(role, modelOverride);
-  const configured = Boolean(config.baseUrl && (config.apiKey || isApiKeyOptional(config.baseUrl)));
+  const configured = isRuntimeConfigUsable(config);
   logModelDebug('config.check', {
     role,
     configured,
@@ -444,7 +554,7 @@ function isRoleConfigured(role: ModelRole, modelOverride?: string) {
 }
 
 async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<QwenChatResult> {
-  const config = getRoleConfig(role, input.modelOverride);
+  const config = input.runtimeConfigOverride ?? getRoleConfig(role, input.modelOverride);
   const useResponsesApi = shouldUseResponsesApi(config);
   const endpointUrl = useResponsesApi
     ? buildResponsesUrl(config.baseUrl)
@@ -456,7 +566,7 @@ async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<Qwen
   }
   const requestId = `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const startedAt = Date.now();
-  const timeoutMs = getRoleTimeoutMs(role);
+  const timeoutMs = resolveRequestTimeoutMs(role, config);
   logModelDebug('request.start', {
     requestId,
     role,
@@ -495,6 +605,9 @@ async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<Qwen
       )
     });
   } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     if (isVpnHintTarget(config.baseUrl)) {
       throw new Error(
         `无法连接本地模型服务 ${config.baseUrl}。请先连接 VPN，并确认 ${config.model} 服务可用后重试。`
@@ -520,7 +633,12 @@ async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<Qwen
       elapsedMs: Date.now() - startedAt,
       rawPreview: raw.slice(0, 240)
     });
-    throw new Error(`${config.label} request failed: ${response.status} ${response.statusText}`);
+    const rawPreview = raw.replace(/\s+/g, ' ').trim().slice(0, 240);
+    throw new Error(
+      `${config.label} request failed: ${response.status} ${response.statusText}${
+        rawPreview ? ` :: ${rawPreview}` : ''
+      }`
+    );
   }
 
   const data = (await response.json()) as {
@@ -586,8 +704,8 @@ export async function callTranslationModelChat(input: QwenChatInput): Promise<Qw
   return callRoleChat('translation', input);
 }
 
-export function getVisionModelName() {
-  return getRoleConfig('vision').model;
+export function getVisionModelName(runtimeConfigOverride?: ModelRuntimeConfig) {
+  return (runtimeConfigOverride ?? getRoleConfig('vision')).model;
 }
 
 export function getTranslationModelName(modelOverride?: string) {

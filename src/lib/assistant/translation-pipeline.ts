@@ -9,8 +9,11 @@ import { buildFeedbackSourceReferenceWithDiagnostics } from '@/lib/assistant/fee
 import { extractPdfText } from '@/lib/assistant/file-extractor';
 import {
   callTranslationModelChat,
+  getTranslationFallbackRuntimeConfig,
+  getTranslationModelName,
   isTranslationModelConfigured
 } from '@/lib/assistant/qwen-client';
+import type { ModelRuntimeConfig } from '@/lib/assistant/qwen-client';
 import {
   createQwenVisionProvider,
   extractWithVisionFallback,
@@ -71,6 +74,17 @@ export type PipelineResult = {
     secondPassExecuted: boolean;
     aModelTriggered: boolean;
     aModelExecuted: boolean;
+    aModelFallbackUsed?: boolean;
+    aModelActiveModel?: string;
+    visionTargetPages?: number[];
+    visionPageBlockCounts?: Array<{ pageNumber: number; blockCount: number }>;
+    visionPageRawBlockCounts?: Array<{ pageNumber: number; blockCount: number }>;
+    visionPageErrors?: Array<{
+      pageNumber: number;
+      stage: 'primary' | 'fallback';
+      mode: 'full' | 'focused' | 'business_crop';
+      error: string;
+    }>;
     bModelExecuted: boolean;
     /** B 模型：是否读到 API 配置（不暴露密钥） */
     bModelApiConfigured: boolean;
@@ -86,11 +100,21 @@ export type PipelineResult = {
       | 'http'
       | 'rate_limited'
       | 'parse';
+    /** B 模型：是否命中过备用模型 */
+    bModelFallbackUsed?: boolean;
+    /** B 模型：最终实际产出所用模型名 */
+    bModelActiveModel?: string;
     translatedSegmentCount: number;
     translationCoveragePct: number;
+    businessSegmentCount?: number;
+    translatedBusinessSegmentCount?: number;
+    businessTranslationCoveragePct?: number;
     businessPreviewThresholdPct: number;
     isBusinessPreviewReady: boolean;
-    previewSuppressedReason?: 'coverage_too_low' | 'no_translations';
+    previewSuppressedReason?:
+      | 'coverage_too_low'
+      | 'no_translations'
+      | 'no_business_translations';
   };
   segments: Array<{
     id: string;
@@ -163,9 +187,15 @@ type TranslationCoverageStats = {
   totalSegments: number;
   translatedSegmentCount: number;
   translationCoveragePct: number;
+  businessSegmentCount: number;
+  translatedBusinessSegmentCount: number;
+  businessTranslationCoveragePct: number;
   businessPreviewThresholdPct: number;
   isBusinessPreviewReady: boolean;
-  previewSuppressedReason?: 'coverage_too_low' | 'no_translations';
+  previewSuppressedReason?:
+    | 'coverage_too_low'
+    | 'no_translations'
+    | 'no_business_translations';
 };
 
 let resolvedPdfCjkFontPath: string | null | undefined;
@@ -180,25 +210,42 @@ function resolvePdfCjkFontPath() {
 }
 
 function summarizeTranslationCoverage(
-  segments: Array<{ zh?: string }>
+  segments: PipelineResult['segments'],
+  documentMainType: DocumentMainType
 ): TranslationCoverageStats {
   const translatedSegmentCount = segments.filter((segment) => Boolean(segment.zh?.trim())).length;
   const totalSegments = segments.length;
   const translationCoveragePct = segments.length
     ? Math.round((translatedSegmentCount / segments.length) * 100)
     : 0;
+  const businessSegments = segments.filter(
+    (segment) => !shouldSuppressAnnotatedZh(segment, documentMainType)
+  );
+  const businessSegmentCount = businessSegments.length;
+  const translatedBusinessSegmentCount = businessSegments.filter((segment) =>
+    Boolean(segment.zh?.trim())
+  ).length;
+  const businessTranslationCoveragePct = businessSegmentCount
+    ? Math.round((translatedBusinessSegmentCount / businessSegmentCount) * 100)
+    : 0;
   const isBusinessPreviewReady =
-    translatedSegmentCount > 0 && translationCoveragePct >= BUSINESS_PREVIEW_THRESHOLD_PCT;
+    translatedBusinessSegmentCount > 0 &&
+    businessTranslationCoveragePct >= BUSINESS_PREVIEW_THRESHOLD_PCT;
 
   return {
     totalSegments,
     translatedSegmentCount,
     translationCoveragePct,
+    businessSegmentCount,
+    translatedBusinessSegmentCount,
+    businessTranslationCoveragePct,
     businessPreviewThresholdPct: BUSINESS_PREVIEW_THRESHOLD_PCT,
     isBusinessPreviewReady,
     previewSuppressedReason:
       translatedSegmentCount === 0
         ? 'no_translations'
+        : translatedBusinessSegmentCount === 0
+          ? 'no_business_translations'
         : isBusinessPreviewReady
           ? undefined
           : 'coverage_too_low'
@@ -218,6 +265,9 @@ function buildCoverageNotice(
   }
   if (coverage.previewSuppressedReason === 'no_translations') {
     return `${base}，本轮未生成任何中文，当前产物仅用于技术诊断，不建议给业务确认。`;
+  }
+  if (coverage.previewSuppressedReason === 'no_business_translations') {
+    return `${base}，当前译出内容仅覆盖页眉/管理元信息，尚无可用业务翻译，不建议给业务确认。`;
   }
   return `${base}，低于业务预览阈值 ${coverage.businessPreviewThresholdPct}%；当前仅展示已译出条目，不建议视为完整翻译稿。`;
 }
@@ -519,6 +569,21 @@ function selectVisionTargetPages(
   }
 ) {
   const targets = new Set<number>([...diagnostics.earlyGatePages, ...diagnostics.lowConfidencePages]);
+  function looksLikeOriginalSamplePicturePage(page: (typeof extracted.pages)[number]) {
+    const raw = page.lines.join(' ').replace(/\s+/g, ' ').trim();
+    if (!raw) {
+      return false;
+    }
+    const hasOriginalSampleHeader = /original sample pictures?/i.test(raw);
+    if (!hasOriginalSampleHeader) {
+      return false;
+    }
+    const hasActionableSketchNotes =
+      /\b(zip|zipper|snap|button|velcro|tape|pocket|placket|cuff|hem|waist|waistband|collar|hood|dart|pleat|lining|embroidery|logo|label|fabric)\b/i.test(
+        raw
+      );
+    return !hasActionableSketchNotes;
+  }
   const pageLayoutByPage = new Map<number, string>();
   for (const section of sections) {
     const pageNumber = section.segments[0]?.pageNumber;
@@ -530,8 +595,12 @@ function selectVisionTargetPages(
   if (documentMainType !== 'sketch_comment') {
     if (documentMainType === 'mixed') {
       for (const page of extracted.pages) {
+        if (looksLikeOriginalSamplePicturePage(page)) {
+          targets.delete(page.pageNumber);
+          continue;
+        }
         const layoutType = pageLayoutByPage.get(page.pageNumber);
-        if (layoutType !== 'sketch') {
+        if (layoutType === 'table') {
           continue;
         }
         const pageSections = sections.filter((section) =>
@@ -554,6 +623,10 @@ function selectVisionTargetPages(
   }
 
   for (const page of extracted.pages) {
+    if (looksLikeOriginalSamplePicturePage(page)) {
+      targets.delete(page.pageNumber);
+      continue;
+    }
     const nonEmptyLineCount = page.lines.filter((line) => line.trim()).length;
     const pageSections = sections.filter((section) =>
       section.segments.some((segment) => segment.pageNumber === page.pageNumber)
@@ -1382,8 +1455,7 @@ function shouldSuppressAnnotatedZh(
     /^m\d{5,}\s+graphiste$/i.test(source) ||
     /^(client|style no\.?|erp|qty|price|sales|date)\s*:/i.test(source) ||
     /\bsize\b.*\bbase\b.*\bm\d{5,}\b/i.test(source) ||
-    /^\s*common designated size\s*$/i.test(source) ||
-    /^\s*proto\s*#\d+\s*$/i.test(source);
+    /^\s*common designated size\s*$/i.test(source);
 
   if (baseSuppressed) {
     return true;
@@ -1435,6 +1507,9 @@ type BModelBatchStats = {
   batchJsonOk: number;
   lastErrorKind: 'none' | 'not_configured' | 'timeout' | 'http' | 'rate_limited' | 'parse';
   providerHits: string[];
+  fallbackConfigured: boolean;
+  fallbackUsed: boolean;
+  activeModel: string;
   retranslatePasses: number;
   retranslatedSegmentCount: number;
   visionSecondStagePasses: number;
@@ -1451,7 +1526,11 @@ function classifyBModelError(
     return 'parse';
   }
   const message = error instanceof Error ? error.message : String(error);
-  if (/429|Too Many Requests|quota exceeded/i.test(message)) {
+  if (
+    /429|Too Many Requests|quota exceeded|AllocationQuota\.FreeTierOnly|free tier.*exhausted|disable the "use free tier only"/i.test(
+      message
+    )
+  ) {
     return 'rate_limited';
   }
   if (/JSON|parse|Unexpected token/i.test(message)) {
@@ -1608,6 +1687,14 @@ function normalizeFashionTranslation(source: string, zh: string) {
     return '67#咖色';
   }
 
+  if (/^65\s+donuts\b/i.test(normalizedSource)) {
+    return '65#咖色';
+  }
+
+  if (/^11\s+ecru\b/i.test(normalizedSource)) {
+    return '11#米白';
+  }
+
   if (/^\d+\s+noir$/i.test(source)) {
     return text.replace(/^\d+\s*/, '').trim() || '黑色';
   }
@@ -1647,6 +1734,18 @@ function normalizeFashionTranslation(source: string, zh: string) {
 
   if (/^73518$/i.test(normalizedSource)) {
     return '尺码标';
+  }
+
+  if (/^new logo label\b/i.test(normalizedSource)) {
+    return '新主标';
+  }
+
+  if (/^matching color with (?:outshell|shell) fabric(?: color)?$/i.test(normalizedSource)) {
+    return '顺色';
+  }
+
+  if (/^cuff\s*\+\s*belt\s*\+\s*collar fabric$/i.test(normalizedSource)) {
+    return '袖口、底摆、领材料';
   }
 
   if (/^ø\s*15$/i.test(normalizedSource)) {
@@ -1831,6 +1930,30 @@ function normalizeFashionTranslation(source: string, zh: string) {
     return `${size}mm塑料门襟扣`;
   }
 
+  if (/^17\s*plastic snap\s*-\s*extra flat\s*-\s*black color$/i.test(normalizedSource)) {
+    return '17mm塑料四合扣黑色';
+  }
+
+  if (/^top front fly button$/i.test(normalizedSource)) {
+    return '门襟用';
+  }
+
+  if (/^#cnd250214$/i.test(normalizedSource)) {
+    return '面料1';
+  }
+
+  if (/^#dys-ws237230$/i.test(normalizedSource)) {
+    return '面料2';
+  }
+
+  if (/^brushed cotton poly twill$/i.test(normalizedSource)) {
+    return '袋布：涤棉磨毛斜纹';
+  }
+
+  if (/^col\s*:?\s*matching color with outshell fabric$/i.test(normalizedSource)) {
+    return '配色';
+  }
+
   const baseStyleMatch = source.match(/\bbase\s+(m\d{5,})\b/i);
   if (baseStyleMatch) {
     return `版型基于${baseStyleMatch[1].toUpperCase()}`;
@@ -1857,7 +1980,7 @@ function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/^inside neckline patched jersey band$/i.test(normalizedSource)) {
-    return '领圈有针织带';
+    return '领圈针织带';
   }
 
   if (/drop-?in side pockets/i.test(normalizedSource)) {
@@ -1968,16 +2091,52 @@ function normalizeFashionTranslation(source: string, zh: string) {
     return '防止短裤上滑';
   }
 
-  if (/same back construction/i.test(source) && /attachment/i.test(source)) {
-    return '后背结构与附件相同';
+  if (/same back construction/i.test(source) && /(attachment|attachement)/i.test(source)) {
+    return '后背结构同参考样衣';
   }
 
-  if (/same front workmanship/i.test(source) && /attachment/i.test(source)) {
+  if (/same front workmanship/i.test(source) && /(attachment|attachement)/i.test(source)) {
     return '与参考样品相同的正面工艺';
   }
 
+  if (/same size and shape/i.test(source) && /(reference|attachment)/i.test(source)) {
+    return '尺寸和版型同参考样衣';
+  }
+
+  if (/^as your attachment sample$/i.test(normalizedSource)) {
+    return '尺寸和版型同参考样衣';
+  }
+
+  if (/same cotton fabric but no polar fleece on backside/i.test(source)) {
+    return '相同棉质，但反面无羊羔毛';
+  }
+
+  if (/^\s*proto\s*#?\s*1\s*$/i.test(normalizedSource)) {
+    return 'OP1';
+  }
+
+  if (/^\s*proto\s*#?\s*2\s*$/i.test(normalizedSource)) {
+    return 'OP2';
+  }
+
+  if (/same cotton face look but shaved polar fleece to be thinner/i.test(source)) {
+    return '比主身摇粒绒面料更薄一些';
+  }
+
+  if (/same.*embroidery/i.test(source) && /color/i.test(source)) {
+    return '刺绣颜色顺面料';
+  }
+
+  if (/^\s*embroidery\s*$/i.test(normalizedSource)) {
+    return '刺绣';
+  }
+
+  if (/^2cm height collar$/i.test(normalizedSource)) {
+    return '2CM领高与主身面料';
+  }
+
   if (/tunnel pocket on front/i.test(source) && /top stitch/i.test(normalizedSource)) {
-    return '前身袋鼠兜，顶部缝合在身内';
+    return '前身袋鼠兜，顶部缝合在身内，双针加固';
   }
 
   if (/side seam is deported on back body/i.test(normalizedSource)) {
@@ -2065,7 +2224,7 @@ function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/5\.?5\s*cm\s*height cuffs/i.test(normalizedSource) && /no polar fleece/i.test(normalizedSource)) {
-    return '5.5cm高袖口和底摆与主身面料相同，棉质，但反面无羊羔毛';
+    return '袖口、底摆双层面料，反面无羊羔毛';
   }
 
   if (/2\s*cm\s*height collar/i.test(normalizedSource) && /no polar fleece/i.test(normalizedSource)) {
@@ -2155,12 +2314,17 @@ async function translateSegmentsWithModelB(
 ): Promise<{ map: Map<string, string>; stats: BModelBatchStats }> {
   const translated = new Map<string, string>();
   const configured = isTranslationModelConfigured(translationModelOverride);
+  const fallbackConfig = getTranslationFallbackRuntimeConfig();
+  const activeModel = getTranslationModelName(translationModelOverride);
   const stats: BModelBatchStats = {
     configured,
     batchAttempts: 0,
     batchJsonOk: 0,
     lastErrorKind: 'none',
     providerHits: [],
+    fallbackConfigured: Boolean(fallbackConfig),
+    fallbackUsed: false,
+    activeModel,
     retranslatePasses: 0,
     retranslatedSegmentCount: 0,
     visionSecondStagePasses: 0,
@@ -2202,53 +2366,45 @@ async function translateSegmentsWithModelB(
   const visionSecondStageMaxTokens = Number(
     process.env.B_MODEL_VISION_SECOND_STAGE_MAX_TOKENS ?? String(retranslateMaxTokens)
   );
-  let stopDueRateLimit = false;
   const scopedSegmentIds = new Set(scopedSegments.map((segment) => segment.id));
+  async function executeTranslationStrategy(strategy: {
+    modelOverride?: string;
+    runtimeConfigOverride?: ModelRuntimeConfig;
+    providerPrefix: string;
+  }) {
+    stats.activeModel =
+      strategy.runtimeConfigOverride?.model ??
+      strategy.modelOverride ??
+      stats.activeModel;
+    let stopDueRateLimit = false;
 
-  async function runPass(
-    passSegments: PipelineResult['segments'],
-    options: {
-      batchSize: number;
-      delayMs: number;
-      maxTokens: number;
-      promptMode: 'default' | 'retranslate' | 'vision_recover';
-    }
-  ) {
-    for (let i = 0; i < passSegments.length; i += options.batchSize) {
-      if (stopDueRateLimit) break;
-      if (options.delayMs > 0 && i > 0) {
-        await delay(options.delayMs);
+    async function runPass(
+      passSegments: PipelineResult['segments'],
+      options: {
+        batchSize: number;
+        delayMs: number;
+        maxTokens: number;
+        promptMode: 'default' | 'retranslate' | 'vision_recover';
       }
-      const batch = passSegments.slice(i, i + options.batchSize);
-      const prompt =
-        options.promptMode === 'retranslate'
-          ? [
-              '你是服装工艺单补翻模型(B-retry)。下面是上轮未成功翻译的片段，请只补翻这些片段。',
-              '只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
-              '不要解释，不要补充备注，不要遗漏 id。',
-              '如果只有 1 个片段，也必须返回 translations 数组。',
-              '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
-              '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
-              '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
-              '',
-              '未译片段：',
-              JSON.stringify(
-                batch.map((s) => ({
-                  id: s.id,
-                  text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
-                }))
-              )
-            ].join('\n')
-          : options.promptMode === 'vision_recover'
+    ) {
+      for (let i = 0; i < passSegments.length; i += options.batchSize) {
+        if (stopDueRateLimit) break;
+        if (options.delayMs > 0 && i > 0) {
+          await delay(options.delayMs);
+        }
+        const batch = passSegments.slice(i, i + options.batchSize);
+        const prompt =
+          options.promptMode === 'retranslate'
             ? [
-                '你是服装工艺单视觉补翻模型(B-vision-recover)。下面片段来自 OCR/视觉补强，但尚未进入首轮翻译结果。',
-                '请只补翻这些片段，只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+                '你是服装工艺单补翻模型(B-retry)。下面是上轮未成功翻译的片段，请只补翻这些片段。',
+                '只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
                 '不要解释，不要补充备注，不要遗漏 id。',
+                '如果只有 1 个片段，也必须返回 translations 数组。',
                 '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
                 '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
                 '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
                 '',
-                '视觉补强片段：',
+                '未译片段：',
                 JSON.stringify(
                   batch.map((s) => ({
                     id: s.id,
@@ -2256,162 +2412,225 @@ async function translateSegmentsWithModelB(
                   }))
                 )
               ].join('\n')
-          : [
-              '你是服装工艺单翻译模型(B)。仅翻译结构化片段，不做结构识别，不做内容合并。',
-              '输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
-              '请保留每个 id，不要新增或删除。',
-              '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
-              '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
-              '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
-              '',
-              '片段：',
-              JSON.stringify(
-                batch.map((s) => ({
-                  id: s.id,
-                  text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
-                }))
-              )
-            ].join('\n');
+            : options.promptMode === 'vision_recover'
+              ? [
+                  '你是服装工艺单视觉补翻模型(B-vision-recover)。下面片段来自 OCR/视觉补强，但尚未进入首轮翻译结果。',
+                  '请只补翻这些片段，只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+                  '不要解释，不要补充备注，不要遗漏 id。',
+                  '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+                  '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+                  '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+                  '',
+                  '视觉补强片段：',
+                  JSON.stringify(
+                    batch.map((s) => ({
+                      id: s.id,
+                      text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
+                    }))
+                  )
+                ].join('\n')
+              : [
+                  '你是服装工艺单翻译模型(B)。仅翻译结构化片段，不做结构识别，不做内容合并。',
+                  '输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+                  '请保留每个 id，不要新增或删除。',
+                  '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+                  '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+                  '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+                  '',
+                  '片段：',
+                  JSON.stringify(
+                    batch.map((s) => ({
+                      id: s.id,
+                      text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
+                    }))
+                  )
+                ].join('\n');
 
-      let transportRetriesUsed = 0;
-      let rateLimitRetriesUsed = 0;
-      while (true) {
-        stats.batchAttempts += 1;
-        try {
-          const result = await callTranslationModelChat({
-            messages: [
-              {
-                role: 'system',
-                content:
-                  options.promptMode === 'retranslate'
-                    ? 'You are a precise retry translation model for untranslated segments.'
-                    : options.promptMode === 'vision_recover'
-                      ? 'You are a precise recovery translation model for OCR/vision supplement segments.'
-                    : 'You are a precise segment translation model.'
-              },
-              { role: 'user', content: prompt }
-            ],
-            temperature: 0.1,
-            modelOverride: translationModelOverride,
-            maxTokens:
-              transportRetriesUsed === 0
-                ? options.maxTokens
-                : Math.max(220, Math.floor(options.maxTokens * 0.7))
-          });
-          const parsed = safeParseTranslationResponse(result.text);
-          stats.batchJsonOk += 1;
-          stats.providerHits.push(
-            options.promptMode === 'retranslate'
-              ? 'translation-model:retranslate'
-              : options.promptMode === 'vision_recover'
-                ? 'translation-model:vision-recover'
-                : 'translation-model'
-          );
-          const sourceById = new Map(batch.map((segment) => [segment.id, segment.text]));
-          for (const item of parsed) {
-            if (item.id && item.zh) {
-              translated.set(
-                item.id,
-                normalizeFashionTranslation(sourceById.get(item.id) ?? '', item.zh)
-              );
+        let transportRetriesUsed = 0;
+        let rateLimitRetriesUsed = 0;
+        while (true) {
+          stats.batchAttempts += 1;
+          try {
+            const result = await callTranslationModelChat({
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    options.promptMode === 'retranslate'
+                      ? 'You are a precise retry translation model for untranslated segments.'
+                      : options.promptMode === 'vision_recover'
+                        ? 'You are a precise recovery translation model for OCR/vision supplement segments.'
+                        : 'You are a precise segment translation model.'
+                },
+                { role: 'user', content: prompt }
+              ],
+              temperature: 0.1,
+              modelOverride: strategy.modelOverride,
+              runtimeConfigOverride: strategy.runtimeConfigOverride,
+              maxTokens:
+                transportRetriesUsed === 0
+                  ? options.maxTokens
+                  : Math.max(220, Math.floor(options.maxTokens * 0.7))
+            });
+            const parsed = safeParseTranslationResponse(result.text);
+            stats.batchJsonOk += 1;
+            stats.lastErrorKind = 'none';
+            stats.activeModel = result.model || strategy.runtimeConfigOverride?.model || stats.activeModel;
+            stats.providerHits.push(
+              options.promptMode === 'retranslate'
+                ? `${strategy.providerPrefix}:retranslate`
+                : options.promptMode === 'vision_recover'
+                  ? `${strategy.providerPrefix}:vision-recover`
+                  : strategy.providerPrefix
+            );
+            const sourceById = new Map(batch.map((segment) => [segment.id, segment.text]));
+            for (const item of parsed) {
+              if (item.id && item.zh) {
+                translated.set(
+                  item.id,
+                  normalizeFashionTranslation(sourceById.get(item.id) ?? '', item.zh)
+                );
+              }
             }
-          }
-          break;
-        } catch (error) {
-          const kind = classifyBModelError(error);
-          stats.lastErrorKind = kind;
-          logPipelineDebug('pipeline.b_model_batch_error', {
-            batchIndex: stats.batchAttempts,
-            kind,
-            promptMode: options.promptMode,
-            retry:
-              kind === 'rate_limited'
-                ? `rate-limit-${rateLimitRetriesUsed + 1}`
-                : transportRetriesUsed === 0
-                  ? 'first'
-                  : 'second'
-          });
-          if (kind === 'rate_limited') {
-            if (rateLimitRetriesUsed < rateLimitRetryLimit) {
-              const backoffMs = rateLimitBackoffMs * Math.max(1, 2 ** rateLimitRetriesUsed);
-              rateLimitRetriesUsed += 1;
-              await delay(backoffMs);
-              continue;
-            }
-            stopDueRateLimit = true;
             break;
+          } catch (error) {
+            const kind = classifyBModelError(error);
+            stats.lastErrorKind = kind;
+            logPipelineDebug('pipeline.b_model_batch_error', {
+              batchIndex: stats.batchAttempts,
+              kind,
+              promptMode: options.promptMode,
+              providerPrefix: strategy.providerPrefix,
+              retry:
+                kind === 'rate_limited'
+                  ? `rate-limit-${rateLimitRetriesUsed + 1}`
+                  : transportRetriesUsed === 0
+                    ? 'first'
+                    : 'second'
+            });
+            if (kind === 'rate_limited') {
+              if (rateLimitRetriesUsed < rateLimitRetryLimit) {
+                const backoffMs = rateLimitBackoffMs * Math.max(1, 2 ** rateLimitRetriesUsed);
+                rateLimitRetriesUsed += 1;
+                await delay(backoffMs);
+                continue;
+              }
+              stopDueRateLimit = true;
+              break;
+            }
+            if (kind !== 'timeout' && kind !== 'http') break;
+            if (transportRetriesUsed >= transportRetryLimit) break;
+            transportRetriesUsed += 1;
           }
-          if (kind !== 'timeout' && kind !== 'http') break;
-          if (transportRetriesUsed >= transportRetryLimit) break;
-          transportRetriesUsed += 1;
         }
       }
     }
+
+    await runPass(scopedSegments, {
+      batchSize,
+      delayMs: batchDelayMs,
+      maxTokens: baseMaxTokens,
+      promptMode: 'default'
+    });
+
+    const primaryExhaustedWithoutOutput =
+      stats.batchAttempts > 0 && stats.batchJsonOk === 0 && stats.lastErrorKind !== 'none';
+    if (primaryExhaustedWithoutOutput) {
+      logPipelineDebug('pipeline.b_model_primary_exhausted', {
+        providerPrefix: strategy.providerPrefix,
+        batchAttempts: stats.batchAttempts,
+        lastErrorKind: stats.lastErrorKind,
+        translatedSegments: translated.size
+      });
+      return { stopDueRateLimit: stats.lastErrorKind === 'rate_limited' };
+    }
+
+    if (retranslateEnabled && !stopDueRateLimit) {
+      for (let pass = 1; pass <= retranslateMaxPasses; pass += 1) {
+        const untranslatedSegments = scopedSegments.filter((segment) => !translated.has(segment.id));
+        if (untranslatedSegments.length === 0) {
+          break;
+        }
+        stats.retranslatePasses += 1;
+        await runPass(untranslatedSegments, {
+          batchSize: 1,
+          delayMs: retranslateBatchDelayMs,
+          maxTokens: retranslateMaxTokens,
+          promptMode: 'retranslate'
+        });
+        const remaining = untranslatedSegments.filter((segment) => !translated.has(segment.id)).length;
+        stats.retranslatedSegmentCount = translated.size;
+        logPipelineDebug('pipeline.b_model_retranslate_pass', {
+          pass,
+          providerPrefix: strategy.providerPrefix,
+          attemptedSegments: untranslatedSegments.length,
+          remainingSegments: remaining
+        });
+        if (remaining === 0 || stopDueRateLimit) {
+          break;
+        }
+      }
+    }
+
+    if (
+      visionSecondStageEnabled &&
+      !stopDueRateLimit &&
+      typeof maxSegmentsForTranslation === 'number' &&
+      maxSegmentsForTranslation > 0 &&
+      segments.length > scopedSegments.length
+    ) {
+      const recoverySegments = selectVisionRecoverySegments(
+        segments,
+        scopedSegmentIds,
+        translated,
+        visionSecondStageMaxSegments,
+        documentMainType
+      );
+      if (recoverySegments.length > 0) {
+        stats.visionSecondStagePasses += 1;
+        await runPass(recoverySegments, {
+          batchSize: 1,
+          delayMs: visionSecondStageDelayMs,
+          maxTokens: visionSecondStageMaxTokens,
+          promptMode: 'vision_recover'
+        });
+        stats.visionSecondStageSegmentCount += recoverySegments.filter((segment) =>
+          translated.has(segment.id)
+        ).length;
+        logPipelineDebug('pipeline.b_model_vision_second_stage', {
+          providerPrefix: strategy.providerPrefix,
+          attemptedSegments: recoverySegments.length,
+          translatedSegments: recoverySegments.filter((segment) => translated.has(segment.id)).length
+        });
+      }
+    }
+
+    return { stopDueRateLimit };
   }
 
-  await runPass(scopedSegments, {
-    batchSize,
-    delayMs: batchDelayMs,
-    maxTokens: baseMaxTokens,
-    promptMode: 'default'
+  const primary = await executeTranslationStrategy({
+    modelOverride: translationModelOverride,
+    providerPrefix: 'translation-model'
   });
 
-  if (retranslateEnabled && !stopDueRateLimit) {
-    for (let pass = 1; pass <= retranslateMaxPasses; pass += 1) {
-      const untranslatedSegments = scopedSegments.filter((segment) => !translated.has(segment.id));
-      if (untranslatedSegments.length === 0) {
-        break;
-      }
-      stats.retranslatePasses += 1;
-      await runPass(untranslatedSegments, {
-        batchSize: 1,
-        delayMs: retranslateBatchDelayMs,
-        maxTokens: retranslateMaxTokens,
-        promptMode: 'retranslate'
-      });
-      const remaining = untranslatedSegments.filter((segment) => !translated.has(segment.id)).length;
-      stats.retranslatedSegmentCount = translated.size;
-      logPipelineDebug('pipeline.b_model_retranslate_pass', {
-        pass,
-        attemptedSegments: untranslatedSegments.length,
-        remainingSegments: remaining
-      });
-      if (remaining === 0 || stopDueRateLimit) {
-        break;
-      }
-    }
-  }
+  const shouldTryFallback =
+    Boolean(fallbackConfig) &&
+    translated.size === 0 &&
+    (stats.batchAttempts === 0 || stats.batchJsonOk === 0 || stats.lastErrorKind !== 'none');
 
-  if (
-    visionSecondStageEnabled &&
-    !stopDueRateLimit &&
-    typeof maxSegmentsForTranslation === 'number' &&
-    maxSegmentsForTranslation > 0 &&
-    segments.length > scopedSegments.length
-  ) {
-    const recoverySegments = selectVisionRecoverySegments(
-      segments,
-      scopedSegmentIds,
-      translated,
-      visionSecondStageMaxSegments,
-      documentMainType
-    );
-    if (recoverySegments.length > 0) {
-      stats.visionSecondStagePasses += 1;
-      await runPass(recoverySegments, {
-        batchSize: 1,
-        delayMs: visionSecondStageDelayMs,
-        maxTokens: visionSecondStageMaxTokens,
-        promptMode: 'vision_recover'
-      });
-      stats.visionSecondStageSegmentCount += recoverySegments.filter((segment) =>
-        translated.has(segment.id)
-      ).length;
-      logPipelineDebug('pipeline.b_model_vision_second_stage', {
-        attemptedSegments: recoverySegments.length,
-        translatedSegments: recoverySegments.filter((segment) => translated.has(segment.id)).length
-      });
-    }
+  if (fallbackConfig && shouldTryFallback) {
+    stats.fallbackUsed = true;
+    logPipelineDebug('pipeline.b_model_fallback_start', {
+      primaryModel: activeModel,
+      fallbackModel: fallbackConfig.model,
+      lastErrorKind: stats.lastErrorKind,
+      primaryStoppedByRateLimit: primary.stopDueRateLimit
+    });
+    await executeTranslationStrategy({
+      modelOverride: fallbackConfig.model,
+      runtimeConfigOverride: fallbackConfig,
+      providerPrefix: 'translation-model:fallback'
+    });
   }
   return { map: translated, stats };
 }
@@ -2442,11 +2661,19 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
         secondPassExecuted: false,
         aModelTriggered: false,
         aModelExecuted: false,
+        aModelFallbackUsed: false,
+        aModelActiveModel: undefined,
+        visionTargetPages: [],
+        visionPageBlockCounts: [],
+        visionPageRawBlockCounts: [],
+        visionPageErrors: [],
         bModelExecuted: false,
         bModelApiConfigured: isTranslationModelConfigured(),
         bModelBatchAttempts: 0,
         bModelBatchJsonOk: 0,
         bModelLastErrorKind: 'none',
+        bModelFallbackUsed: false,
+        bModelActiveModel: getTranslationModelName(input.translationModelOverride),
         translatedSegmentCount: 0,
         translationCoveragePct: 0,
         businessPreviewThresholdPct: BUSINESS_PREVIEW_THRESHOLD_PCT,
@@ -2518,6 +2745,11 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
   const aModelTriggered = visionTargetPages.length > 0 || textLayerBlocks.length > 0;
   let visionBlocks: ExtractedBlock[] = [];
   let aModelExecuted = false;
+  let aModelFallbackUsed = false;
+  let aModelActiveModel: string | undefined;
+  let visionPageBlockCounts: Array<{ pageNumber: number; blockCount: number }> = [];
+  let visionPageRawBlockCounts: Array<{ pageNumber: number; blockCount: number }> = [];
+  let visionPageErrors: NonNullable<PipelineResult['diagnostics']['visionPageErrors']> = [];
   try {
     const aResult = await extractWithVisionFallback(
       {
@@ -2528,13 +2760,20 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
       },
       aModelTriggered ? createQwenVisionProvider() : undefined
     );
-    aModelExecuted = aModelTriggered && !aResult.fallbackUsed;
+    aModelExecuted = aModelTriggered && Boolean(aResult.modelExecuted);
+    aModelFallbackUsed = Boolean(aResult.fallbackProviderUsed);
+    aModelActiveModel = aResult.provider;
+    visionPageBlockCounts = aResult.pageBlockCounts ?? [];
+    visionPageRawBlockCounts = aResult.pageRawBlockCounts ?? [];
+    visionPageErrors = aResult.pageErrors ?? [];
     visionBlocks = aResult.blocks;
     logPipelineDebug('pipeline.a_model_result', {
       pipelineId,
       fileName: input.fileName,
       aModelTriggered,
       aModelExecuted,
+      aModelFallbackUsed,
+      aModelActiveModel,
       fallbackUsed: aResult.fallbackUsed,
       provider: aResult.provider ?? 'none',
       targetPages: visionTargetPages,
@@ -2542,6 +2781,11 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     });
   } catch {
     aModelExecuted = false;
+    aModelFallbackUsed = false;
+    aModelActiveModel = undefined;
+    visionPageBlockCounts = [];
+    visionPageRawBlockCounts = [];
+    visionPageErrors = [];
     logPipelineDebug('pipeline.a_model_error', {
       pipelineId,
       fileName: input.fileName,
@@ -2573,7 +2817,7 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     const zh = translatedMap.get(segment.id);
     if (zh) segment.zh = zh;
   }
-  const coverage = summarizeTranslationCoverage(segments);
+  const coverage = summarizeTranslationCoverage(segments, documentMainType);
   logPipelineDebug('pipeline.b_model_result', {
     pipelineId,
     fileName: input.fileName,
@@ -2660,13 +2904,24 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
       secondPassExecuted: built.diagnostics.secondPassExecuted,
       aModelTriggered,
       aModelExecuted,
+      aModelFallbackUsed,
+      aModelActiveModel,
+      visionTargetPages,
+      visionPageBlockCounts,
+      visionPageRawBlockCounts,
+      visionPageErrors,
       bModelExecuted: translatedMap.size > 0,
       bModelApiConfigured: bModelStats.configured,
       bModelBatchAttempts: bModelStats.batchAttempts,
       bModelBatchJsonOk: bModelStats.batchJsonOk,
       bModelLastErrorKind: bModelStats.lastErrorKind,
+      bModelFallbackUsed: bModelStats.fallbackUsed,
+      bModelActiveModel: bModelStats.activeModel,
       translatedSegmentCount: coverage.translatedSegmentCount,
       translationCoveragePct: coverage.translationCoveragePct,
+      businessSegmentCount: coverage.businessSegmentCount,
+      translatedBusinessSegmentCount: coverage.translatedBusinessSegmentCount,
+      businessTranslationCoveragePct: coverage.businessTranslationCoveragePct,
       businessPreviewThresholdPct: coverage.businessPreviewThresholdPct,
       isBusinessPreviewReady: coverage.isBusinessPreviewReady,
       previewSuppressedReason: coverage.previewSuppressedReason

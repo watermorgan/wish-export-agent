@@ -385,6 +385,10 @@ export function normalizeAiComparisonItems(pipeline: PipelineResult) {
           locationLabel: `P${item.pageNumber ?? '?'} · ${item.regionId ?? 'region'}`
         }));
 
+  if (pipeline.documentMainType === 'sketch_comment') {
+    return expandSketchComparisonItems(baseItems);
+  }
+
   if (pipeline.documentMainType !== 'mixed') {
     return baseItems;
   }
@@ -472,6 +476,65 @@ export function normalizeAiComparisonItems(pipeline: PipelineResult) {
   return expanded;
 }
 
+function expandSketchComparisonItems(items: AiComparisonItem[]) {
+  const expanded = [...items];
+  const groups = new Map<number, AiComparisonItem[]>();
+  for (const item of items) {
+    const page = item.pageNumber ?? -1;
+    const bucket = groups.get(page) ?? [];
+    bucket.push(item);
+    groups.set(page, bucket);
+  }
+
+  function shouldCombine(left: AiComparisonItem, right: AiComparisonItem) {
+    if (!left.textZh.trim() || !right.textZh.trim()) return false;
+    if (looksLikeLowValueMeta(left.textZh) || looksLikeLowValueMeta(right.textZh)) return false;
+    const allowColorMerge =
+      /^颜色$/u.test(left.textZh) &&
+      /(?:\d+\s*#?\s*)?(?:黑色|咖色|米白|海军蓝|蓝色|绿色|白色)/u.test(right.textZh);
+    const allowMaterialPhraseMerge =
+      (/更薄/u.test(left.textZh) && /顺色/u.test(right.textZh)) ||
+      (/袖口|底摆|领材料/u.test(left.textZh) && /更薄/u.test(right.textZh)) ||
+      (/袖口|底摆|领材料/u.test(left.textZh) && /顺色/u.test(right.textZh));
+    if (
+      !allowColorMerge &&
+      !allowMaterialPhraseMerge &&
+      (/新主标|领圈|顺主身面料|顺色|参考样衣|结构|数量|价格|销售|日期/u.test(left.textZh) ||
+        /新主标|领圈|顺主身面料|顺色|参考样衣|结构|数量|价格|销售|日期/u.test(right.textZh))
+    ) {
+      return false;
+    }
+    const joined = `${left.textZh}${right.textZh}`;
+    return (
+      joined.length <= 32 &&
+      (allowColorMerge ||
+        /门襟|四合扣|按扣|拉链|袋布|配色|面料|版型|颜色/u.test(joined) ||
+        /门襟|snap|zipper|pocketing|fabric|base/i.test(`${left.textEn} ${right.textEn}`))
+    );
+  }
+
+  for (const pageItems of groups.values()) {
+    for (let index = 0; index < pageItems.length - 1; index += 1) {
+      const left = pageItems[index];
+      const right = pageItems[index + 1];
+      if (!shouldCombine(left, right)) {
+        continue;
+      }
+      expanded.push({
+        index: expanded.length + 1,
+        source: left.source,
+        pageNumber: left.pageNumber,
+        regionId: `${left.regionId ?? 'group'}+${right.regionId ?? 'group'}`,
+        textEn: [left.textEn, right.textEn].filter(Boolean).join(' | '),
+        textZh: [left.textZh, right.textZh].filter(Boolean).join(''),
+        locationLabel: `${left.locationLabel} + ${right.locationLabel}`
+      });
+    }
+  }
+
+  return expanded;
+}
+
 function hasCjk(text: string) {
   return /[\u3400-\u9fff]/u.test(text);
 }
@@ -481,12 +544,32 @@ function looksLikeLowValueMeta(text: string) {
   if (!normalized) {
     return true;
   }
+  if (/^(?:颜色|面料)$/u.test(normalized)) {
+    return true;
+  }
 
   return (
     /\b(hiver|ete|spring|summer|autumn|winter)\b/i.test(normalized) ||
+    /\b(graphiste|styliste|negoce|mod[eé]liste|acheteur|buyer|client|catalogue|brand|product name)\b/i.test(
+      normalized
+    ) ||
     /\b(dossier style|en attente|artwork|description)\b/i.test(normalized) ||
     /\b(style sheet|designer|graphic designer|model maker|purchaser|oversea)\b/i.test(normalized) ||
+    /^(?:品牌|款名|客户|设计师|买手|品名|款号)[:：]/u.test(normalized) ||
     /\b(all rights reserved|edited on)\b/i.test(normalized) ||
+    /\b(original sample pictures|original sample|attachment sample|reference sample)\b/i.test(
+      normalized
+    ) ||
+    /\b(qty|quantity|price|sales|date)\b/i.test(normalized) ||
+    /^数量[:：]?\s*\d+/i.test(normalized) ||
+    /^价格[:：]?\s*[$€]?\s*\d+(?:\.\d+)?/i.test(normalized) ||
+    /^销售(?:部门)?[:：]/i.test(normalized) ||
+    /^日期[:：]?\s*\d{4}[/-]\d{1,2}[/-]\d{1,2}/i.test(normalized) ||
+    /\b(style no\.?|erp|season|collection|l&m)\b/i.test(normalized) ||
+    /^hiver\s*\d{2}\s*\(\s*\d{2}h\s*\)$/i.test(normalized) ||
+    /^\d+\s*[$€]\s*\/\s*m$/i.test(normalized) ||
+    /^nm\s*\d+$/i.test(normalized) ||
+    /^\d+(?:[.,]\d+)?\s*pts?\s*\/\s*1cm$/i.test(normalized) ||
     /^(quality|details|references|front|back|colours|trims|men|women(?:swear)?|option\s*\d+)$/i.test(
       normalized
     ) ||
@@ -530,19 +613,24 @@ function canonicalizeBusinessTerms(text: string) {
     .replace(/面料(?:选项|方案)?\s*#?\s*1/gi, '面料1')
     .replace(/面料(?:选项|方案)?\s*#?\s*2/gi, '面料2')
     .replace(/02\s*#?\s*黑色|02\s*noir/gi, '02黑色')
+    .replace(/65\s*donuts\s*18-1409tcx|65\s*#?\s*咖色/gi, '65咖色')
+    .replace(/11\s*ecru|11\s*米白/gi, '11米白')
     .replace(/48\s*#?\s*海军蓝|48\s*marine/gi, '48海军蓝')
     .replace(/尺码标|码标/gi, '尺码标')
     .replace(/尺码标\s*73518|码标\s*73518|73518(?:\s*尺码标|\s*码标)?/gi, '尺码标73518')
     .replace(/里布|身里|body lining/gi, '里布')
+    .replace(/春亚纺(?:黑色)?里布|哑光尼龙(?:里布|衬)?(?:黑色)?|dull nylon lining/gi, '黑色里布')
     .replace(/哑光尼龙(?:里布|衬)?|dull nylon lining/gi, '哑光尼龙里')
     .replace(/60grs|60g/gi, '60g')
     .replace(/40grs|40g/gi, '40g')
     .replace(/衣身|身部|body/gi, '大身')
     .replace(/袖子|sleeves/gi, '袖子')
     .replace(/袖口\+?腰带\+?领子?面料|袖口[，,]底摆[，,]领材料|袖口底摆领材料/gi, '袖口底摆领材料')
+    .replace(/袖口\s*\+\s*腰带\s*\+\s*领面|袖口\s*\+\s*腰带\s*\+\s*领材料/gi, '袖口底摆领材料')
     .replace(/外观同棉质|棉质感材料|相同棉制|same cotton fabric|same cotton face look/gi, '棉质')
     .replace(/剃毛抓绒|背面不做羊羔毛|反面无羊羔毛|反面无羊羔|no polar fleece|shaved polar fleece/gi, '反面无羊羔')
     .replace(/更薄一些|to be thinner|更薄/gi, '更薄')
+    .replace(/颜色顺主身面料|同主身面料|外层面料配色|外层面料同色|配色同面布|同面布|同色|顺大身色|顺色/gi, '顺色')
     .replace(/炭灰色|深灰色|anthracite/gi, '深灰色')
     .replace(/反光转印线条|反光面胶|reflective transfer print line|reflective line/gi, '反光')
     .replace(/1\/1|1x1/gi, '1x1')
@@ -581,21 +669,43 @@ function canonicalizeBusinessTerms(text: string) {
     .replace(/门襟\s*\+\s*侧袋|门襟侧袋|middle front opening\s*\+\s*front pockets? opening/gi, '门襟侧袋')
     .replace(/样板按照原样品但是后中长做到?\s*74\s*cm|后中长做到?\s*74\s*cm|but middle back length\s*74\s*cm/gi, '后中长74cm')
     .replace(/袋布[:：]?\s*经编起毛布(?:颜色)?|pocketing fabric/gi, '袋布')
+    .replace(/经编起毛布\s*黑色|经编起毛布\s*黑|袋布.*黑色|袋布.*black color/gi, '袋布黑色')
     .replace(/顺主身面料|同主身面料色|matching color with shell fabric color/gi, '同主身面料')
     .replace(/ikks(?:\s*logo)?\s*puller/gi, 'ikks拉头')
     .replace(/顺大身色|同面布|matching color(?: with outshell fabric)?/gi, '同色')
+    .replace(/门拉链[，,]?袋拉链顺(?:大身)?色/gi, '门拉链袋拉链顺色')
+    .replace(/袖口1x1尼龙罗纹[，,]?\s*配色|袖口1\/1尼龙罗纹[，,]?\s*配色/gi, '袖口罗纹顺色')
+    .replace(/深灰色反光(?:面胶)?|反光面胶/gi, '后背反光')
+    .replace(/帽后反光(?:面胶)?|后领下有反光(?:面胶)?/gi, '后背反光')
+    .replace(/^(?:填充|填充物)$/gi, '填充')
+    .replace(/填充(?:物)?[:：]?\s*/gi, '')
     .replace(/票袋|metro pass pocket/gi, '票袋')
+    .replace(/所有缝份儿有压胶条|内缝需加贴胶条|所有(?:做工|工艺)需防水.*贴胶条/gi, '内缝压胶条')
     .replace(/front pocket|inside pocket|pocket bag/gi, '袋')
     .replace(/中背长|middle back length/gi, '后中长')
     .replace(/总袖长|spread sleeves length/gi, '总袖长')
     .replace(/attachment sample|参考样衣|附件样衣/gi, '参考样衣')
+    .replace(/same size and shape.*(?:reference|attachment).*sample|尺寸和版型同参考样衣/gi, '尺寸版型同参考样衣')
+    .replace(/后片结构同附件\s*sple|后片结构同附件|后背结构同附件/gi, '后背结构相同')
+    .replace(/前片工艺同参考样衣|与参考样品相同的正面工艺/gi, '前片工艺相同')
+    .replace(/同前[，,]?背面无抓绒|面料[:：]?同前[；;]?后片[：:]?无抓绒/gi, '后背无抓绒')
+    .replace(/相同棉制[，,]?但反面无羊羔(?:毛)?|同前[，,]?背面无抓绒|后背无抓绒/gi, '棉质反面无羊羔')
+    .replace(/棉面效果[，,]?背面抓绒剃薄|外观同棉面[，,]?但极薄抓绒需剃薄/gi, '棉质反面无羊羔')
+    .replace(/外观同棉面但极薄抓毛需剃薄|外观同棉面，但极薄抓绒需剃薄/gi, '棉质反面无羊羔更薄')
+    .replace(/面料同前[；;]?后片[：:]?无抓毛|面料同前[，,]?但背面无抓绒/gi, '棉质反面无羊羔')
+    .replace(/双层正反面毛圈布|dble face jersey/gi, '双层面料')
+    .replace(/2cm领高与主身面料|领高[:：]?\s*2cm/gi, '2cm领高')
     .replace(/inside neckline patched jersey band|领圈有针织带|领口内侧贴罗纹带/gi, '领圈针织带')
-    .replace(/same back construction.*attachment|后背结构与附件相同/gi, '后背结构相同')
+    .replace(/same back construction.*attachment|后背结构与附件相同|后背结构同参考样衣/gi, '后背结构相同')
     .replace(/same front workmanship.*attachment|与参考样品相同的正面工艺/gi, '前片工艺相同')
+    .replace(/op1[-:：]?(?:平面为正)?(?:做)?有口袋的?/gi, 'op1')
+    .replace(/op2[-:：]?(?:毛面为正)?(?:做)?无口袋的?/gi, 'op2')
+    .replace(/刺绣颜色顺面料|刺绣.*顺色|embroidery color.*matching/gi, '刺绣顺色')
     .replace(/后背结构同附件sple|后背结构同附件/gi, '后背结构相同')
     .replace(/tunnel pocket on front.*inside body|前身袋鼠兜顶部缝合在身内/gi, '前袋缝在身内')
     .replace(/前身袋鼠兜|隧道袋|tunnel pocket on front/gi, '前袋')
     .replace(/顶部缝合在身内|top[- ]?stitch.*inside body/gi, '顶缝在身内')
+    .replace(/明线缝合以固定于(?:衣身|大身)内部|top[- ]?stitch.*(?:fix|fox).*(?:inside|body)/gi, '双针加固顶缝在身内')
     .replace(/窄盖机双针保证牢固度|双针保证牢固度/gi, '双针加固')
     .replace(/帽上隐形磁吸朝向与my42033相同|帽门襟暗磁扣.*my42033|hidden magnets.*my42033/gi, '帽磁吸my42033')
     .replace(/门贴内有拉链|middle front placket.*zipped opening/gi, '门贴拉链')
@@ -716,8 +826,14 @@ function toAiCandidate(item: AiComparisonItem): ComparisonCandidate | null {
   if (!item.textZh.trim()) {
     return null;
   }
+  if (/^(?:颜色|面料)$/u.test(item.textZh.trim())) {
+    return null;
+  }
+  if (/^(?:品牌|款名|客户|设计师|买手|品名|款号)[:：]/u.test(item.textZh.trim())) {
+    return null;
+  }
   const highValueZh =
-    /版型基于|四合扣|拉链|袋布|面料\d|后腰|侧袋|单开线口袋|嵌线袋|省|黑色|新主标|尺码标|刺绣|后中长|里布|领/u.test(
+    /尺寸|版型|参考样衣|参考样品|前片工艺|正面工艺|后背结构|版型基于|四合扣|拉链|袋布|面料\d?|双层面料|后腰|侧袋|前袋|单开线口袋|嵌线袋|省|颜色|黑色|咖色|米白|顺色|更薄|棉质|新主标|尺码标|码标|刺绣|双针|后中长|里布|领|op1|op2/iu.test(
       item.textZh
     );
   if (!highValueZh && (looksLikeLowValueMeta(item.textEn) || looksLikeLowValueMeta(item.textZh))) {
@@ -741,13 +857,18 @@ function toReferenceCandidate(item: ReferenceItem): ComparisonCandidate | null {
     return null;
   }
 
+  const normalizedText = normalizeForComparison(item.text);
+  if (!normalizedText) {
+    return null;
+  }
+
   return {
     index: item.index,
     pageNumber: item.pageNumber,
     lineNumber: item.lineNumber,
     locationLabel: item.locationLabel,
     text: item.text.trim(),
-    normalizedText: normalizeForComparison(item.text)
+    normalizedText
   };
 }
 
@@ -791,6 +912,64 @@ function mergeMixedReferenceCandidates(referenceCandidates: ComparisonCandidate[
   return merged;
 }
 
+function mergeSketchReferenceCandidates(referenceCandidates: ComparisonCandidate[]) {
+  const merged: ComparisonCandidate[] = [];
+  let pending: ComparisonCandidate | null = null;
+
+  function flushPending() {
+    if (!pending) return;
+    merged.push(pending);
+    pending = null;
+  }
+
+  function shouldMerge(previous: ComparisonCandidate, current: ComparisonCandidate) {
+    if (previous.pageNumber !== current.pageNumber) return false;
+    if (
+      typeof previous.lineNumber !== 'number' ||
+      typeof current.lineNumber !== 'number' ||
+      current.lineNumber - previous.lineNumber > 1
+    ) {
+      return false;
+    }
+
+    const prev = previous.text.replace(/\s+/g, ' ').trim();
+    const curr = current.text.replace(/\s+/g, ' ').trim();
+    if (!prev || !curr) return false;
+
+    return (
+      (/^填充(?:物)?$/u.test(prev) && /(60g|40g|sorona)/iu.test(curr)) ||
+      (/反光/u.test(prev) && /^面胶$/u.test(curr)) ||
+      (/袖口.*罗纹/u.test(prev) && /^[，,]?\s*配色$/u.test(curr)) ||
+      (/经编起毛布.*黑$/u.test(prev) && /^色$/u.test(curr)) ||
+      (/5#.*拉链.*ikks拉头/u.test(prev) && /门拉链|袋拉链/u.test(curr)) ||
+      (/3#.*拉链.*黑色/u.test(prev) && /票袋|隐形拉链|配色/u.test(curr))
+    );
+  }
+
+  for (const current of referenceCandidates) {
+    if (!pending) {
+      pending = { ...current };
+      continue;
+    }
+
+    if (!shouldMerge(pending, current)) {
+      flushPending();
+      pending = { ...current };
+      continue;
+    }
+
+    pending = {
+      ...pending,
+      lineNumber: current.lineNumber,
+      text: `${pending.text}${current.text}`,
+      normalizedText: normalizeForComparison(`${pending.text}${current.text}`)
+    };
+  }
+
+  flushPending();
+  return merged;
+}
+
 function filterMixedAiCandidates(aiCandidates: ComparisonCandidate[]) {
   return aiCandidates.filter((item) => {
     const text = item.text.replace(/\s+/g, ' ').trim();
@@ -814,6 +993,10 @@ function filterMixedAiCandidates(aiCandidates: ComparisonCandidate[]) {
       /^底边可调节腰带$/.test(text) ||
       /^面料[:：]起皱轻尼龙$/.test(text) ||
       /^前中第二开口 ?\+ ?领口 ?\+ ?护颈$/.test(text)
+      || /^11右片裁剪$/.test(text)
+      || /^面料[:：]?shellfabric$/i.test(text)
+      || /^正面100%棉反面100%涤纶$/.test(text)
+      || /^克重约?\d+g幅宽\d+cm$/.test(text)
     );
   });
 }
@@ -832,6 +1015,8 @@ function buildComparisonMetrics(
   const referenceCandidates =
     documentMainType === 'mixed'
       ? mergeMixedReferenceCandidates(rawReferenceCandidates)
+      : documentMainType === 'sketch_comment'
+        ? mergeSketchReferenceCandidates(rawReferenceCandidates)
       : rawReferenceCandidates;
 
   if (referenceCandidates.length === 0) {

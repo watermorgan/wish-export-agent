@@ -47,6 +47,150 @@
   - 在 2026-03-30 这轮在线环境中，`m415013`、`m422123` 已出现 `coverage=0%`
   - 这说明当时的在线 B 模型没有稳定产出中文，问题不在 comparison 规则本身
   - 因此这类 run 的 `fail / 0%` 不能继续拿来讨论 sketch harness 粒度，必须先恢复一个稳定的 B 环境，或切回本地/更稳的线上 B 再重跑
+- **2026-03-30 补充**：
+  - 代码侧已补“主 B 整轮 0 产出时，再切一次备用 B”的最小 fallback，并把 `bModelFallbackUsed / bModelActiveModel` 暴露到 diagnostics、smoke 和页面 metadata
+  - 但当日定向验证里，本地备用 B 端点返回“请先连接 VPN”，因此 fallback 成功态暂未在该环境完成端到端实证
+  - 同日 `smoke:pdf` 也出现 90s timeout；这进一步说明当前 blocker 仍是模型/网络环境稳定性，而不是 snapshot / comparison 逻辑
+  - 随后又验证了两个备用 B 目标：
+    - 本地 `Qwen3.5-9B-Q8_0.gguf`：`curl --max-time 8` 到 `172.16.71.201:8001` 仍超时
+    - 线上 `qwen3.5-flash`：fallback 已真实触发，`bModelFallbackUsed=true`、`bModelActiveModel=qwen3.5-flash`，但当前 key/endpoint 返回 `403 Forbidden`
+  - 结论：当前代码侧 fallback 已接通，运行态 blocker 是“没有一个当前环境可用的备用 B 目标”
+  - 随后本地模型服务恢复可达，结论更新为：
+    - 本地 B 单条结构化翻译可用
+    - `M422123` 在“主 B 故障 + 本地 B fallback”下，`smoke:pdf` 恢复到 `10/10`、`coverage=100%`
+    - `M422123` 在“主 A 故障 + 主 B 故障 + 本地 A/B fallback”下，`smoke:pdf` 恢复到 `28/33`、`coverage=85%`
+    - `test02` 定向回归：
+      - `m422123`：`translatedSegmentCount=28/37`，`referenceRecallPct=67`，`aiPrecisionPct=30`
+      - `m445033`：`translatedSegmentCount=28/51`，`referenceRecallPct=39`，`aiPrecisionPct=73`
+    - 这说明主链已从“模型不可用导致 0 覆盖率”回到“识别召回与 comparison/术语对齐仍有差距”的正常优化阶段
+  - 同日继续优化后：
+    - 主 B 若首轮 `batchJsonOk=0` 且连续报 `http / rate_limited`，现在会提前结束主策略并尽快切本地 fallback，不再把 `retranslate` / `vision second stage` 也一并跑满
+    - `M422123` 在当前默认环境下已可恢复到 `translatedSegmentCount=35/35`、`coverage=100%`、`bModelFallbackUsed=true`
+    - `m441083` 在 mixed sparse 页放宽 vision 补强后，已从 `fail` 拉到 `warn`：`referenceRecallPct=67`、`aiPrecisionPct=60`
+    - `m415013` 的主要问题也已从“环境不可用”缩到“page 1 业务句召回不够稳”：
+      - 放宽 mixed sparse 页 vision 后，A 已能稳定抽到 `02#黑色`、棉/涤双层面料、袖口/腰带/领面、顺色、抓绒剃薄等业务句
+      - 再补 comparison 术语归一后，`m415013` 从 `referenceRecallPct=24 / aiPrecisionPct=25` 提升到 `36 / 31`
+      - 随后把 `same front workmanship` / `same back construction` / `same size and shape` 这类句子压成更短的人工稿式表达后，`m415013` 的正文输出更接近参考稿，但 comparison 仍主要受 page 顺序与候选对齐影响，不能再用单一 Recall 数字判断好坏
+      - 进一步补页级诊断后确认：`m415013` 的 `visionTargetPages=[1,2,3]`，但 `visionPageBlockCounts` 只有 `page 2 -> 10`；说明 page 1 已被送进 A，只是当前 fallback A 没稳定返回有效业务块
+  - 结论：`m415013` 当前更值得继续盯 page 1 的 A 识别稳定性与 provider 运行态，而不是继续把时间耗在 comparison 对齐上
+  - 同日晚些时候又补了两项 A 侧诊断/纠偏：
+    - `vision-extraction.ts` 现已把 `visionPageErrors` 透传到 `pipeline-result.diagnostics`，可以直接区分主 A 的 `401 Unauthorized`、fallback 的 `no parsable blocks`、以及本地服务不可达
+    - `safeParseQwenBlocks` 已确认支持本地多模态返回的顶层 JSON array；此前 `m415013` page 1 存在“模型有返回但 parser 丢弃”的真实问题
+  - 对 `M415013` page 1 的单页直连调试结论：
+    - 当本地 `Qwen3.5-9B-Q8_0.gguf` 服务可达时，使用**不带 text-layer hints 的简短业务 OCR prompt**，可直接返回 `02 NOIR`、`65 DONUTS 18-1409TCX`、双层面料说明、`SAME COTTON FACE LOOK BUT SHAVED POLAR FLEECE TO BE THINNER` 等有效 JSON blocks
+    - 这说明 page 1 的问题并不只是“模型看不到”，还包括 fallback prompt 形态和运行态稳定性
+  - 当前新的 blocker 更明确：
+    - 主 A 仍持续 `401 Unauthorized`
+    - 本地 fallback A 在同一轮回归里存在波动：page 1/3 可能出现 `no parsable blocks`，而服务本身也会间歇性超时/不可达
+    - 因此后续若要继续提升 `m415013`，优先级应是：先稳定 A provider 可用性，再用最简本地 fallback prompt 重打 page 1，而不是继续优先改 comparison
+  - 2026-03-31 进一步确认了一个更具体的根因：
+    - 本地 fallback A 对 `M415013` page 1 的直连调用可稳定返回顶层 JSON array，包含 `02 NOIR`、`65 DONUTS 18-1409TCX`、双层面料说明、`SAME COTTON FACE LOOK BUT SHAVED POLAR FLEECE TO BE THINNER` 等业务块
+    - 主管线之前仍报 `vision page 1 returned no parsable blocks`，根因是 `safeParseQwenBlocks` 在 **顶层 JSON array 被截断** 时，恢复逻辑仍只会搜索 `"blocks":[...]` 形态，导致 page 1 结果被整体丢弃
+    - 修复为“顶层 array 也走平衡对象恢复”后，`m415013` 新 run `20260331-m415013-arrayrecover-v1` 已恢复到：
+      - `visionPageRawBlockCounts: page1=15, page2=11`
+      - `visionPageBlockCounts: page1=13, page2=10`
+      - `translatedSegmentCount=39/39`
+      - `referenceRecallPct=48`
+      - `aiPrecisionPct=38`
+    - 这说明 page 1 的主矛盾已经从“完全没回块”变成“细项召回和术语/粒度仍有差距”
+  - 同日继续把 page 1 术语往人工稿靠：
+    - `65 DONUTS 18-1409TCX -> 65#咖色`
+    - `11 Ecru -> 11#米白`
+    - `MATCHING COLOR WITH OUTSHELL FABRIC -> 顺色`
+    - `CUFF + BELT + COLLAR FABRIC -> 袖口、底摆、领材料`
+    - `SAME COTTON FACE LOOK BUT SHAVED POLAR FLEECE TO BE THINNER -> 比主身摇粒绒更薄`
+    - 这轮 style-align 后，`m415013` 的 `aiPrecisionPct` 提到 `43`，但由于 A 运行态与 comparison 粒度仍有波动，`referenceRecallPct` 仍不稳定，说明下一步仍应优先看 page 级细项召回，而不是只盯术语分数
+  - 同日晚些时候把 parser 修复后的 sketch 标杆组一起回归（`20260331-sketch-batch-arrayrecover-v1`）：
+    - `m422123`: `pass`，`referenceRecallPct=80`，`aiPrecisionPct=72`
+    - `m441083`: `warn`，`referenceRecallPct=57`，`aiPrecisionPct=74`
+    - `m445033`: `pass`，`referenceRecallPct=85`，`aiPrecisionPct=85`
+    - `m415013`: 仍是 `fail`，但主矛盾已收缩到 page 1 细项（`码标 / OP1 / OP2 / 刺绣 / 更薄+顺色`）召回不足，而不是整页 OCR 缺失
+  - 这说明顶层 array 截断容错修复不只是单样本收益，而是对 sketch/comment 路线整体有效；当前 sketch 组的剩余 gap 已经从“主链不稳”收缩到“细项召回 + 术语/粒度对齐”
+  - 2026-04-01 继续收 `m415013` 时，还确认了一个更细的规则问题：
+    - `PROTO #1 / PROTO #2` 这类方案标签之前被当成低价值字段过滤掉，导致它们虽然在页面上可见，却没有进入 `PipelineResult.segments` / `comparison` 主链
+    - 这类标签对 `m415013` 的 reference 对齐是有意义的，不能再默认吞掉；后续如继续追 `m415013`，应先确认 `PROTO` 标签是否已回到主链，再看 `OP1 / OP2 / 刺绣` 等细项是否仍缺
+    - 当前本地多模态端点对极窄竖排裁切仍然超时，说明这次问题的主要风险已不是规则，而是 A 端可用性与响应延迟；因此这类细项更适合在代码里保留而不是在回归里靠临时裁切硬跑
+  - 2026-04-02 再补了一层时延收口：
+    - `ORIGINAL SAMPLE PICTURES` 这类样衣实拍页不再自动进入整页 vision 触发，避免明显低价值页面拖慢 sketch/comment 单样本回归
+    - 同时把 A 侧 `401/403/Unauthorized/Forbidden/本地模型不可达` 视为非重试错误，避免无效页级重试继续烧时间
+    - 但即便在 `VISION_PAGE_RETRY_LIMIT=0`、更低模型 timeout 和更小 `maxSegmentsForTranslation` 下，`M415013` 的单样本 smoke 仍然会整体 timeout，说明当前阻塞已不只是 page 3 或主 A 授权问题，而是当前运行环境下整条 A/B 链的可用时延仍不稳定
+  - 2026-04-02 继续收 `m415013` 时，又确认了两条 durable 结论：
+    - 主 B 的 `403 AllocationQuota.FreeTierOnly` 必须在首个失败 batch 就早停并切备用 B；否则会把整轮 smoke / eval 时间无意义拖长。当前已通过在错误消息里透传原始 body，并把这类错误明确归为 `rate_limited`，把 `bModelBatchAttempts` 从早前的数十次空耗压到了 `1 + fallback batches`
+    - `smoke:pdf` / `businessPreviewReady` 不能再按“所有 segment 的中文覆盖率”判断。像 `M415013` 这类样本，即使只翻出了页眉元信息，也可能显示 `coverage=100%`；当前已改为按“未被 annotated suppress 的业务 segment”单独计算 `businessSegmentCount / translatedBusinessSegmentCount / businessTranslationCoveragePct`。只有业务条目达标，smoke 才算通过
+    - 本地 fallback A 对多模态页的实际耗时常落在 `14s+`，之前用统一 `12s` 超时会把“慢但可用”的请求误打成失败；当前本地 vision 已改为更长的最小时延预算
+    - page 级 vision 结果必须强制覆盖当前目标页号和 `regionId` 前缀，不能信任模型回包里的 `pageNumber/regionId`。否则像 `m415013` 这类多页样本会把第 2 页的批注错误挂到第 1 页，进一步污染 comparison 和后续 page-level 选择
+    - 在这组修复后，`m415013` 的本地 A/B fallback 路径已恢复到：
+      - `visionPageBlockCounts: page1=15, page2=10`
+      - `translatedSegmentCount=40/40`
+      - `businessSegmentCount=22`, `translatedBusinessSegmentCount=22`
+      - `referenceRecallPct=32`, `aiPrecisionPct=40`
+    - 这说明当前 `m415013` 的主矛盾已经从“page1 没回块 / smoke 假阳性”收敛为“comparison 候选口径 + 细项术语对齐”
+  - `20260402-m415013-idfix-v1`
+    - 同页不同 OCR fallback plan 之前共用 `vision_p${pageNumber}` 前缀，造成 `regionId` 冲突；不同英文块会写到同一个 id 上，进而污染 B 映射和 comparison。
+    - 修正后改成按 `mode` 生成稳定前缀，例如 `vision_p1_full_* / vision_p1_focused_* / vision_p1_business_crop_*`。
+    - 仅重跑 `m415013` 后，结果提升到：
+      - `translatedSegmentCount=47/47`
+      - `businessPreviewReady=true`
+      - `comparisonStatus=warn`
+      - `referenceRecallPct=60`
+      - `aiPrecisionPct=56`
+    - 这说明当前 `m415013` 已从“A 页级块回不来”进一步收敛为“page1/page2 细项召回 + comparison 候选噪音控制”。
+  - `20260402-m415013-detailcrop-v1`
+    - page1/page2 下半区仍缺 `OP2 / 刺绣 / 尺寸版型` 等短句时，新增了一个更偏右下业务区的 `detail_crop` OCR 模式。
+    - 该模式本身没有继续抬高主链 recall，但补回了 `尺寸和版型同参考样衣` 这类下半区短句。
+    - comparison 侧再补一层候选过滤与高价值判定后：
+      - 孤立 `颜色 / 面料` 与 `品牌 / 款名 / 客户 / 款号:` 不再进入 AI 候选
+      - `尺寸 / 版型 / 前袋 / 双针` 被提升为高价值候选
+      - `m415013` 提升到 `comparisonStatus=warn`、`referenceRecallPct=64`、`aiPrecisionPct=57`
+    - 当前剩余差距主要收缩为 `码标 / OP2 / 刺绣 / 双针 / 前袋可做` 等细项，而不是 page1/page2 OCR 整体缺失。
+    - 随后继续仅重算 comparison（不重跑 pipeline），再把 `前片工艺 / 参考样衣 / 后背结构 / 前袋 / 双针 / 尺寸版型` 这类短句提升为高价值候选后，`m415013` 进一步到：
+      - `comparisonStatus=warn`
+      - `referenceRecallPct=68`
+      - `aiPrecisionPct=59`
+    - 这说明当前 `m415013` 的收益主要仍来自 comparison 候选对齐，而不是主链需要再次大改。
+
+## 阶段尾收口（2026-04-03）
+
+- 对 `m415013` 新增 `right_panel_crop / lower_panel_crop` 后，主链回归 `20260403-m415013-rightlower-v1` 只把 `m415013` 提到：
+  - `comparisonStatus=warn`
+  - `referenceRecallPct=64`
+  - `aiPrecisionPct=58`
+- 这说明继续往 page 级 OCR plan 里堆裁切模式，收益已经明显变小；新增裁切更多带来了 `NEW LOGO LABEL`、`11 右片裁剪`、面料成分残片等噪音，而没有真正补回 `OP2 / 码标 / 刺绣`。
+- 随后只重算同一 run 的 comparison，并继续收紧候选：
+  - 允许 `参考样品 / 正面工艺 / 前袋 / 双针 / 尺码标` 这类短句稳定进入高价值匹配
+  - 压掉 `11右片裁剪`、`面料:SHELL FABRIC`、成分/克重/幅宽残片等明显低价值候选
+  - 把 `前身袋鼠兜，顶部缝合在身内` 与 `双针加固` 视为同一条高价值业务句的可接受表述
+- 在不重跑 pipeline 的前提下，`m415013` 变成：
+  - `comparisonStatus=pass`
+  - `referenceRecallPct=76`
+  - `aiPrecisionPct=63`
+- 当前结论：
+  - `m415013` 已从“主链 page1/page2 OCR 回不来”收敛为“少量细项仍与人工稿不完全同句式”。
+  - 对 `m415013` 而言，继续扩 OCR 裁切模式已接近边际收益；下一阶段应优先把精力放回 sketch 标杆组整体回归和业务确认包整理，而不是再单点加 OCR plan。
+
+- 随后对已有 sketch 组 run `20260331-sketch-batch-arrayrecover-v1` 仅重算 comparison，结果保持稳定：
+  - `m422123`: `pass`，`referenceRecallPct=80`，`aiPrecisionPct=81`
+  - `m445033`: `pass`，`referenceRecallPct=85`，`aiPrecisionPct=85`
+  - `m441083`: `warn`，`referenceRecallPct=57`，`aiPrecisionPct=74`
+  - `m415013`: 在旧 pipeline 结果上仍为 `warn`，`referenceRecallPct=64`，`aiPrecisionPct=58`
+- 这说明本轮 comparison 候选收口没有破坏既有 sketch 标杆，当前剩余压力主要集中在：
+  - `m415013` 的少量 page1/page2 细项
+  - `m441083` 的 recall 继续抬升
+
+## Sketch 阶段尾状态（2026-04-03）
+
+- 继续收紧 sketch/comment comparison 后，旧 run `20260331-sketch-batch-arrayrecover-v1` 重新计算为：
+  - `m422123`: `pass`，`referenceRecallPct=80`，`aiPrecisionPct=75`
+  - `m441083`: `pass`，`referenceRecallPct=73`，`aiPrecisionPct=82`
+  - `m445033`: `pass`，`referenceRecallPct=85`，`aiPrecisionPct=85`
+  - `m415013`: 旧 run 仍为 `warn`，`referenceRecallPct=64`，`aiPrecisionPct=58`
+- 与此同时，`m415013` 在更新后的 run `20260403-m415013-rightlower-v1` 上已经达到：
+  - `comparisonStatus=pass`
+  - `referenceRecallPct=76`
+  - `aiPrecisionPct=63`
+- 当前阶段尾判断：
+  - sketch 四个代表样本已经达到“可给业务看方向与阶段结果”的门槛。
+  - 仍不应宣称“可全面替代人工终稿”，但已经可以进入业务确认包整理，而不必继续卡在主链结构层。
 
 ---
 
