@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-03-29T11:47:09.527Z",
+  "minZhPopulationPct": 15,
+  "minTranslatedSegments": 1,
+  "maxSegmentsForTranslation": 30,
+  "pass": true,
+  "rows": [
+    {
+      "sampleId": "M422123",
+      "sourcePdf": "/Users/weitao/Documents/buildworld/aigc/export-agent/data/test02/M422123.pdf",
+      "success": true,
+      "documentMainType": "sketch_comment",
+      "outputStrategy": "annotated_pdf",
+      "translatedSegmentCount": 29,
+      "totalSegments": 33,
+      "zhPopulationPct": 88,
+      "translationCoveragePct": 88,
+      "aModelExecuted": true,
+      "bModelExecuted": true,
+      "bModelBatchAttempts": 29,
+      "bModelBatchJsonOk": 29,
+      "bModelLastErrorKind": "none",
+      "pass": true,
+      "notes": "coverage=88% · zh=88% · bJson=29/29"
+    }
+  ]
+}

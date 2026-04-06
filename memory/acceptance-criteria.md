@@ -28,3 +28,8 @@
 - 当前目录已成为独立 Git 仓库
 - 已有首个可提交的初始化基线
 
+## 6. PDF 翻译链：本地多模态页图（2026-04-04）
+- 默认线上行为不因本地调优而被动改变：`LOCAL_MULTIMODAL_RUNTIME` / `VISION_USE_LOCAL_RENDER_SIZE` 为**显式**开关；未设置时仍用 `VISION_MAX_RENDER_SIZE`（默认 2048）。
+- 可选多模态 A 辅助由 `VISION_MULTIMODAL_ENABLED=1` 控制；未启用时不调用 `pdftoppm`、不发送页图。
+- 本地 gemma / llama.cpp 等弱于线上时，应通过更小 `VISION_LOCAL_MAX_RENDER_SIZE` 与合理 `VISION_MODEL_API_TIMEOUT_MS` 追求有界时延，而不是默认全局降采样影响生产。
+

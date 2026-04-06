@@ -1,0 +1,40 @@
+{
+  "dataset_date": "2026-03-24-local",
+  "description": "业务反馈专项回归样本（本地临时路径，不入库）。",
+  "samples": [
+    {
+      "sample_id": "macade-tp-cici-rain-jacket-w",
+      "layout_type": "tp_table_heavy",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": ".tmp/task-uploads/1774270051928-a0ctnd-Macade-TP-Cici-Rain-Jacket-W.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": ".tmp/task-artifacts/task_1774270350707_kdakra/Macade TP Cici Rain Jacket W.annotated.pdf",
+          "coverage": "business_feedback_reference"
+        }
+      ]
+    },
+    {
+      "sample_id": "cici-rain-jacket-sketch",
+      "layout_type": "sketch_comment",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": ".tmp/task-uploads/1774257267654-vbjwys-Cici-Rain-Jacket---sketch.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": ".tmp/task-artifacts/task_1774255658694_2b1id3/Cici Rain Jacket - sketch.annotated.pdf",
+          "coverage": "business_feedback_reference"
+        }
+      ]
+    }
+  ]
+}

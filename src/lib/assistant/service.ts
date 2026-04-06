@@ -49,9 +49,20 @@ export async function runAssistant(
     },
     finalArtifact: JSON.stringify(
       pipelineResults.map((item) => ({
+        artifactLinks: {
+          bilingualXlsx:
+            item.outputs.bilingualTableBundle?.downloadable?.relativePath
+              ? `/api/assistant/artifacts?path=${encodeURIComponent(item.outputs.bilingualTableBundle.downloadable.relativePath)}`
+              : null,
+          annotatedPreview:
+            item.outputs.annotatedPdf?.downloadable?.relativePath
+              ? `/api/assistant/artifacts?path=${encodeURIComponent(item.outputs.annotatedPdf.downloadable.relativePath)}`
+              : null
+        },
         fileName: item.fileName,
         documentMainType: item.documentMainType,
         outputStrategy: item.outputStrategy,
+        downloadable: item.outputs.bilingualTableBundle?.downloadable ?? null,
         diagnostics: item.diagnostics,
         segments: item.segments,
         outputs: item.outputs

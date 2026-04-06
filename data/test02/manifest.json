@@ -1,0 +1,122 @@
+{
+  "dataset_date": "test02-20260326",
+  "dataset_name": "business-regression-restored",
+  "notes": "Restored business-grade regression dataset. Keep under stable source control paths; do not move back to .tmp.",
+  "samples": [
+    {
+      "sample_id": "ata001-smock-jacket",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/ATA001 MEN'S SMOCK JACKET头样工艺单.pdf"
+        }
+      ],
+      "references": []
+    },
+    {
+      "sample_id": "ata019-shell-jacket",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/ATA019 MEN'S WP 3.5L SHELL JACKET TECHPACK.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_xlsx",
+          "path": "data/test02/ATACAMA ATA019 3.5L WP SHELL JACKET翻译.xlsx"
+        }
+      ]
+    },
+    {
+      "sample_id": "hanna-lightweight-skirt",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/Hanna Lightweight Skirt.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/test02/Hanna Lightweight Skirt（工艺单翻译）.pdf"
+        }
+      ]
+    },
+    {
+      "sample_id": "m415013",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/M415013.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/test02/M415013翻译.pdf"
+        }
+      ]
+    },
+    {
+      "sample_id": "m422123",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/M422123.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/test02/M422123翻译.pdf"
+        }
+      ]
+    },
+    {
+      "sample_id": "m441083",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/M441083.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/test02/M441083翻译.pdf"
+        }
+      ]
+    },
+    {
+      "sample_id": "m445033",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/M445033.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/test02/M445033翻译.pdf"
+        }
+      ]
+    },
+    {
+      "sample_id": "m4e002-soft-puffy-down-jkt",
+      "source": [
+        {
+          "role": "source_pdf",
+          "path": "data/test02/M4E002 soft puffy down jkt.pdf"
+        }
+      ],
+      "references": [
+        {
+          "role": "reference_pdf",
+          "path": "data/test02/M4E002 soft puffy down jkt(翻译).pdf"
+        }
+      ]
+    }
+  ]
+}

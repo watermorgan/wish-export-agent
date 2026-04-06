@@ -9,13 +9,16 @@
     "lint": "eslint .",
     "extract:test": "npx tsx scripts/test-extraction.ts",
     "extract:eval": "npx tsx scripts/eval-extraction-dataset.ts data/20260315 data/20260324",
-    "eval:fullchain": "npx tsx scripts/eval-fullchain.ts data/20260315/manifest.json data/20260324/manifest.json"
+    "eval:fullchain": "npx tsx scripts/eval-fullchain.ts data/20260315/manifest.json data/20260324/manifest.json",
+    "translate:smoke": "npx tsx scripts/pdf-translation-smoke.ts",
+    "translate:smoke:m422123": "npx tsx scripts/pdf-translation-smoke.ts data/test02/M422123.pdf"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
     "next": "^15.5.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {

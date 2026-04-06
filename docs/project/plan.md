@@ -13,10 +13,11 @@
 当前主结论：
 
 - 现有问题主要仍在抽取/分段，不是翻译模型本身
-- 当前 Phase 1 只是 `vision-assisted extraction skeleton`
+- 当前已进入 `vision-assisted extraction` 的可运行主链阶段，但 second pass 仍是占位/弱实现
 - 当前主链仍是 `pdftotext -layout -> feedback-source -> 翻译模型`
-- `vision-extraction.ts` 还未接入主链，只是预留接口
+- `vision-extraction.ts` 已作为 A 模型辅助识别入口接入主链
 - 输出策略需分流：不能再只用一套结果形态覆盖所有资料
+- 正式 annotated PDF 自 2026-03-29 起必须基于冻结的 `translation_snapshot_v1` 渲染；架构约束见 `translation-design.md`
 - 当前至少要区分：
   - `sketch/comment`
   - `tp/bom/table-heavy pdf`
@@ -170,6 +171,34 @@
   - 当前主链不是整份 PDF 直接多模态翻译
   - 多模态应作为低置信度区域补强层
 
+6. 结果产物与下载/预览闭环
+- 已新增真实结果产物：
+  - `tp/bom/table-heavy -> bilingual_xlsx`
+  - `sketch/comment -> annotated_html_preview`
+- 已新增统一下载/预览接口：
+  - `/api/assistant/artifacts?path=<relativePath>`
+- 已在主链结果中透传：
+  - `artifactLinks.bilingualXlsx`
+  - `artifactLinks.annotatedPreview`
+
+## 当前追踪状态
+
+### 已到位
+
+1. `tp/bom/table-heavy`
+- 已不再只是结构层 `rows`
+- 已能真实产出 `.xlsx`
+- 已有下载接口可消费
+
+2. `sketch/comment`
+- 已不再只是 `annotatedPdf` 内存结构
+- 已能真实产出 `.annotated-preview.html`
+- 已有预览接口可消费
+
+3. 专项回归
+- `data/local/manifest.json` 已加入默认 `eval:fullchain`
+- `Macade` / `Cici` 已纳入专项自动回归
+
 ## 当前验证结论
 
 ### 已验证通过
@@ -204,9 +233,9 @@
 - `feedback-source.ts` 已从“每页单 region”升级到“按列/间隔切分多 region”
 - 重点样本中可见每页 region 数 > 1（如 ATA001/ATA019 第7页）
 
-4. `vision-extraction.ts` 未接入主链
-- 当前只是独立骨架
-- 不能算“视觉辅助抽取已投入使用”
+4. `vision-extraction.ts` 已接入主链，但真实增益仍有限
+- 当前已作为 A 模型辅助识别入口参与 pipeline
+- second pass 真实纠偏融合仍未完成
 
 5. `extractionMeta` 部分透传
 - 已进入 `FeedbackSourceReference` 且在评测输出中可见（sourceType / low-confidence 统计）
@@ -215,7 +244,7 @@
 6. 当前离线与业务主链接入状态（本轮更新）
 - `service.ts` 已接入 `translation-pipeline.ts`，上传 PDF 会进入真实主链执行（不再仅 mock）。
 - `eval-fullchain.ts` 已复用同一主链实现，不再绕过 `vision-extraction.ts` 直接探测。
-- 当前验证环境中 A/B 仍显示 fallback，说明运行时变量未在进程中生效；链路已接通但模型执行率待环境侧确认。
+ - A/B fallback 的**可读原因**（脱敏）：`metadata.pipelineFallbackHints` 与 pipeline `diagnostics` 中的 `bModelApiConfigured`、`bModelBatchAttempts`、`bModelBatchJsonOk`、`bModelLastErrorKind`；常见原因包括未配置 API、HTTP 错误（含 `HTTP 429 / rate_limited` 配额超限）、JSON 解析失败；**不等于**生产环境已稳定跑满模型。
 
 7. 文档主类型与输出策略分流（本轮新增）
 - `sketch/comment`：默认走 `annotated PDF` 路线（编号 + 中文批注 + 页面对位）。
@@ -223,8 +252,32 @@
 - 结果结构已可按策略输出：
   - `annotatedPdf`（原位双语优先，长文本回退 footnote）
   - `bilingualTableBundle`（表格行输出，保留抽取元数据）
+- `tp_bom_table_heavy` 已新增可下载产物：
+  - `bilingual_xlsx` 文件写入 `.tmp/exports/`
+  - 下载路径通过 `outputs.bilingualTableBundle.downloadable.relativePath` 返回
+  - 下载接口：`/api/assistant/artifacts?path=<relativePath>`
+- `sketch/comment` 已新增可查看预览产物：
+  - `annotated_html_preview` 文件写入 `.tmp/exports/`
+  - 由 `annotatedPdf.inline_bilingual_preferred` + `footnotes` 真实渲染生成
+  - 预览接口同上（`.html` 使用 inline 返回）
 - `reference/colour/material`：默认走轻量标签翻译与补充说明，不强行套用重编号批注。
 - `structured xlsx`：默认走 bilingual xlsx，不进入 PDF OCR 主链。
+
+8. 本轮已部分收口（仍非业务全链路终态）
+- 工作台 `workspace.tsx` 已消费 `metadata.pdfArtifactLinks`：表格类展示「下载双语 Excel」，线稿/批注类展示「打开翻译预览」，主按钮由 `primary` 字段区分；同屏展示 `pipelineFallbackHints`（脱敏）。
+- `documentMainType` 判型已改为**按页**聚合版式（不再按 region 误累计），且「表格段占比」需与「表格页占比」联合判断，避免线稿 PDF 因局部表格块段占比高被误判为 TP；专项样本 `Macade` 已稳定为 `tp_bom_table_heavy`（在本地源文件存在时的 `eval:fullchain` 中可复现）。
+- `bilingualTableBundle` 已新增可下载 `table-style pdf`（基于 `bilingualTableBundle.rows` 的表格排版），作为第二产物提供业务确认。
+- 本轮表格排版继续打磨：缩小外边距/紧化行高，并改进中文无空格换行（tokenization + 动态限制最大行数），减少跨页断点跳动（仍为最小可用排版）。
+- 本轮“业务样本产物生成”（以便先看效果、再给业务确认）：
+  - 样本源：`data/test/Cici Rain Jacket - sketch.pdf`、`data/test/Macade TP Cici Rain Jacket W.pdf`（不依赖 `.tmp/task-uploads`）。
+  - 产物（落盘于 `.tmp/exports/`）：
+    - `Cici` 预览：`.tmp/exports/Cici_Rain_Jacket_-_sketch.pdf.9e6334545f.annotated-preview.html`
+    - `Macade` Excel：`.tmp/exports/Macade_TP_Cici_Rain_Jacket_W.pdf.17ae78172b.bilingual.xlsx`
+    - `Macade` 表格 PDF：`.tmp/exports/Macade_TP_Cici_Rain_Jacket_W.pdf.c9d40d53e4.table-style.pdf`
+  - 真实翻译命中（本轮参数：`EVAL_FULLCHAIN_MAX_SEGMENTS=1 B_MODEL_MAX_TOKENS=180 B_MODEL_SEG_TEXT_MAX_CHARS=400`）：
+    - `fullchain-eval-report.md`：Macade `zhPopulationPct=2`、Cici `zhPopulationPct=1`；`B` 批次解析 `1/1` 成功（仍不等于全文完成）。
+    - 抽检：Macade xlsx `Chinese_non_empty=1/66`；Cici 预览存在 `zh-inline`，但大量段落仍为 `待人工补译`（需在配额更稳时继续提高覆盖率）。
+- 仍待：抽取层对「表格块 vs 线稿页」的版式分类进一步校准、`mixed` 类文档的产品口径。
 
 ## 后续任务
 
@@ -350,7 +403,32 @@
 
 ## 本轮之后最建议的下一步
 
-1. 校准 table/reference 判定阈值，降低 `table` 过判
-2. 为 `mixed` 增加更稳的区块类型二次判定（避免整页偏向 reference/table）
-3. 把 `extractionMeta` 透传到翻译/PDF 链
-4. 最后再接真实 OCR / 轻量多模态 provider
+1. 前端正式消费 `artifactLinks`
+- `tp/bom/table-heavy`：显示“下载双语 Excel”
+- `sketch/comment`：显示“打开翻译预览”
+
+2. 校准 `documentMainType` 判型
+- 优先修 `Macade TP Cici Rain Jacket W` 误判
+- 继续降低 `table` 过判/漏判
+
+3. 查清模型 fallback
+- 当前评测显示 A/B 大面积回退
+- 需区分配置问题、网络问题、超时问题、provider 行为问题
+
+4. 补 `table-style pdf`
+- 让 `tp/bom` 从单产物（xlsx）升级为双产物（xlsx + pdf）
+
+5. 将 `data/local/manifest.json` 中仍指向 `.tmp/...` 的样本迁移到稳定数据目录
+- 避免清理临时文件后专项回归失效
+
+## 当前业务样本状态（2026-03-26）
+
+- `Cici Rain Jacket - sketch.pdf`
+  - 已修正：低覆盖率时的 preview 不再堆满“待人工补译”，而是只展示已译条目并明确告知覆盖率不足。
+  - 当前现实：能作为“方向/样式/定位方式”预览，不适合作为翻译完成稿。
+- `Macade TP Cici Rain Jacket W.pdf`
+  - 已修正：`table-style pdf` 中文不再乱码；`xlsx` 增加 `Summary` + `TranslatedOnly`，避免直接打开就是大面积空白。
+  - 当前现实：可用于确认表格结构与少量真实译文，不适合作为全文翻译完成稿。
+- 共同阻塞：
+  - 真实翻译覆盖率仍低，主要受 `HTTP 429 / rate_limited` 约束。
+  - 当前应优先把“业务预览是否达标”和“真实翻译是否跑满”明确分开，不再让低覆盖率产物伪装成完整业务成品。

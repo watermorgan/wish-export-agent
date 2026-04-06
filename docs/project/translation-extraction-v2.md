@@ -20,6 +20,24 @@
 
 结论：当前风险主要来自抽取与分段，不是模型能力本身。
 
+## 本轮验证结论（2026-03-27）
+
+`M422123.pdf` 的最新排查证明了两件事：
+
+1. Page 1 的颜色/面料/工艺等内容并不是 A 模型没识别到
+- 原始视觉响应已经包含：
+  - `02 NOIR`
+  - `SHELL FABRIC OPTION #1/#2`
+  - `POCKETING`
+  - `TREATMENT`
+  - `STITCHINGS`
+  - 右侧两条五金/拉链说明
+
+2. 旧问题出在“视觉 JSON 截断后整页丢失”
+- A 模型曾出现 `finish_reason=length`
+- 若直接 `JSON.parse` 失败，会导致整页 OCR 结果被清空
+- 因此 V2 必须支持“部分闭合 block 回收”
+
 ## 当前问题地图
 
 ### 1. 文本层抽取得到的是“布局近似文本”，不是页面语义结构
@@ -114,6 +132,11 @@ V2 不是继续堆 if/else，而是把抽取层升级为：
 - 标题/标签占比
 - 是否存在明显表格行列节奏
 - 文本平均长度
+
+补充强规则：
+
+- 对 `sketch_comment` 且文本层稀疏的页面，必须强制触发整页视觉识别
+- 不能因为抽到少量 header / 页脚文本就判断“无需 OCR”
 
 ### B. 页面区域切分层
 
@@ -214,6 +237,31 @@ type SegmentConfidence = {
 - 页面上显式标注“可能切段不准”
 - 自动加入待确认项
 - 如有必要再进入多模态补识别
+
+### F. 截断容错与位置透传
+
+V2 当前新增的必要能力：
+
+1. 截断容错
+- 当视觉模型返回 JSON 被截断时，允许提取前半段已闭合的 block
+- 不能因为尾部损坏而丢掉整页结果
+
+2. 位置透传
+- `bbox` 必须从 OCR 层一路传到：
+  - segment
+  - structuredData
+  - PDF renderer
+- 否则 OCR 找到的新批注只能变成 `Unassigned Notes`
+
+3. 低价值块控制
+- 限制 OCR 返回数量
+- 优先业务价值块
+- 过滤：
+  - logo
+  - 页码
+  - 版权
+  - 编辑日期
+  - 重复页头
 
 ## 多模态的定位
 
@@ -403,6 +451,29 @@ flowchart TD
 3. 页面上显示“低置信度段落”
 4. 真实 Qwen API 环境下完成 A/B 调用验证并沉淀人工+AI评估结论
 5. 第二轮融合从占位升级为真实纠偏合并（当前仅触发与记录）
+
+## 导出产物现状（本轮后）
+
+- `tp/bom/table-heavy`
+  - 输出策略：`bilingual_table_bundle`
+  - 当前已具备可下载成品：
+    - `bilingual_xlsx`：`outputs.bilingualTableBundle.downloadable.relativePath`（默认落地 `.tmp/exports/`）
+    - `table-style pdf`：`outputs.bilingualTableBundle.downloadableTableStylePdf.relativePath`（最小可用表格排版）
+  - 本轮表格 PDF 进一步优化了换行（支持中文无空格 tokenization）、行高密度与跨页断点稳定性，但仍不宣称最终视觉定稿。
+- `sketch/comment` 与 `mixed`（输出仍为 `annotated_pdf` 时）
+  - 输出策略：`annotated_pdf`
+  - 已消费 `inline_bilingual_preferred`：
+    - 短文本优先 `inline`
+    - 长文本回退 `footnote`
+  - 已新增 `annotated_html_preview` 产物（`.tmp/exports/*.annotated-preview.html`）
+  - 可通过 `/api/assistant/artifacts?path=<relativePath>` 直接预览（inline）
+- 工作台：`AssistantReply.metadata.pdfArtifactLinks` 提供与 `finalArtifact` 一致的相对 URL，主按钮按 `primary` 区分 Excel vs 预览（**最小接入**，非完整产品级排版）
+- 模型 fallback：`diagnostics` 含 B 批处理次数/成功解析次数/最近错误类型；`metadata.pipelineFallbackHints` 为脱敏说明（不含密钥）
+
+### `documentMainType` 判型（实现要点）
+
+- 版式计数按**页**聚合（每页一种 `pageLayoutType`），避免按 region 重复计数导致表格页占比虚高。
+- 「表格段占全部 segment 比例」需与「表格页占全部页比例」联合使用，减轻线稿 PDF 中表格块拉高段占比的误判。
 
 ### P2
 

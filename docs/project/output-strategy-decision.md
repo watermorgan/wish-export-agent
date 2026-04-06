@@ -21,7 +21,9 @@
 1. `sketch/comment` 文档
 - 主输出策略：`annotated PDF`
 - 优化重点：长说明合并、短标签拆分、对位稳定、漏译和截断控制
-- 下一阶段方向：优先“原位双语”，空间不足时再回退编号/侧注
+- 当前基线：优先“页内蓝色中文贴近原文”，空间不足时再回退编号/侧注
+- 正式 PDF 默认不附加 `Unassigned Notes`
+- 款号、SKU、style code 不作为中文标注重复输出
 
 2. `TP/BOM/table-heavy` 文档
 - 主输出策略：`bilingual table / bilingual xlsx / table-style pdf`
@@ -92,6 +94,47 @@
 
 未完成项：
 
-- TP/BOM 的完整 bilingual xlsx/table-pdf 导出还未落地，仅完成策略分配与预留出口。
 - reference / colour / material 的轻量原位标签渲染仍未落地。
 - structured xlsx 的直通双语输出仍未落地。
+
+## 本轮更新（可下载产物）
+
+- `tp_bom_table_heavy -> bilingual_table_bundle` 已新增可下载产物：
+  - `bilingual_xlsx` 文件会在主链执行后落盘到 `.tmp/exports/`
+  - 结果结构通过 `outputs.bilingualTableBundle.downloadable.relativePath` 返回下载路径
+  - 下载接口：`/api/assistant/artifacts?path=<relativePath>`
+- 该能力保持行级映射与元数据透传：
+  - `SegmentId / PageNumber / RegionId / SourceType / LayoutConfidence / MergeConfidence / English / Chinese`
+- 说明：
+  - 当前已从“结构层输出 rows”推进到“业务可下载 xlsx 成品”
+  - table-style PDF 已新增最小可用导出（基于 `bilingualTableBundle.rows` 的表格排版）
+  - 本轮进一步优化了列内换行/行高密度与跨页表头可读性，但仍为可确认阶段的最小排版
+
+## 本轮更新（sketch 可视消费）
+
+- `sketch/comment -> annotated_pdf` 已新增导出消费：
+  - 由 `inline_bilingual_preferred + footnotes` 生成 `annotated_html_preview`
+  - 路径通过 `outputs.annotatedPdf.downloadable.relativePath` 返回
+  - 可通过 `/api/assistant/artifacts?path=<relativePath>` 直接预览
+- 说明：
+  - 这一步已不再只是结构字段；已有真实可查看产物
+  - 当前已从“右侧整栏说明”推进到“稀疏页页内蓝色标注优先”
+  - 但 OCR 新块的稳定定位与完整召回仍在继续优化
+
+## 本轮新增结论（2026-03-27）
+
+1. `M422123.pdf` 一类问题的主矛盾是识别召回
+- 许多“漏翻”并不是模型不会翻，而是该块没有进入 segment
+
+2. Page-level OCR 需要截断容错
+- A 模型即使识别到了很多业务块，也可能因 `finish_reason=length` 截断 JSON
+- 因此视觉抽取层必须允许“部分闭合 JSON block”被回收，而不是整页丢弃
+
+3. 正式 PDF 与诊断 PDF 要分离
+- `Unassigned Notes` 适合开发诊断
+- 不适合默认暴露给业务用户
+
+## 本轮更新（工作台入口与 fallback 说明）
+
+- 上传 PDF 并跑通主链后，工作台结果区会展示 `metadata.pdfArtifactLinks`（与 `finalArtifact` 内 `artifactLinks` 同源），避免业务只在 JSON 里找路径。
+- `metadata.pipelineFallbackHints` 用自然语言说明 A/B 可能 fallback 的原因（脱敏）；具体字段见 pipeline `diagnostics`（`bModelApiConfigured`、`bModelBatchAttempts`、`bModelBatchJsonOk`、`bModelLastErrorKind` 等）。**不**将「评测或本地未配置环境下的 fallback」表述为生产已稳定可用。

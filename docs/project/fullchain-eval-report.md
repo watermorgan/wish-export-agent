@@ -1,17 +1,19 @@
 # Offline Evaluation Harness Report
 
-Generated at: 2026-03-24T07:13:09.031Z
+Generated at: 2026-03-25T16:18:35.521Z
 
-| Sample | Source PDF | DocType | OutputStrategy | Refs | Segments | EarlyGate | LowConfPages | 2ndPassReq | aAssistProbeTriggered | aAssistProbeCompleted | translationProbeCompleted | structuredResponseCompleteness | translationProbeCoverage | scriptDerivedHumanReviewItems | Notes |
-| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | ---: | ---: | ---: | --- |
-| hanna-lightweight-skirt | Hanna Lightweight Skirt.pdf | sketch_comment | annotated_pdf | 1 | 96 | 0 | 0 | no | no | no | no | 0 | 0 | 1 | 真实主链执行完成，但模型调用回退到占位。 |
-| ata001-smock-jacket | ATA001 MEN'S SMOCK JACKET头样工艺单.pdf | tp_bom_table_heavy | bilingual_table_bundle | 0 | 350 | 0 | 7 | yes | yes | no | no | 0 | 0 | 3 | 真实主链执行完成，但模型调用回退到占位。 |
-| ata019-shell-jacket | ATA019 MEN'S WP 3.5L SHELL JACKET TECHPACK.pdf | tp_bom_table_heavy | bilingual_table_bundle | 1 | 397 | 0 | 6 | yes | yes | no | no | 0 | 0 | 2 | 真实主链执行完成，但模型调用回退到占位。 |
-| m415013 | M415013.pdf | sketch_comment | annotated_pdf | 1 | 18 | 0 | 0 | no | no | no | no | 0 | 0 | 1 | 真实主链执行完成，但模型调用回退到占位。 |
-| m422123 | M422123.pdf | sketch_comment | annotated_pdf | 1 | 10 | 0 | 0 | no | no | no | no | 0 | 0 | 1 | 真实主链执行完成，但模型调用回退到占位。 |
-| m441083 | M441083.pdf | sketch_comment | annotated_pdf | 1 | 20 | 0 | 0 | no | no | no | no | 0 | 0 | 1 | 真实主链执行完成，但模型调用回退到占位。 |
-| m445033 | M445033.pdf | sketch_comment | annotated_pdf | 1 | 24 | 0 | 0 | no | no | no | no | 0 | 0 | 1 | 真实主链执行完成，但模型调用回退到占位。 |
-| m4e002-soft-puffy-down-jkt | M4E002 soft puffy down jkt.pdf | sketch_comment | annotated_pdf | 1 | 81 | 1 | 3 | yes | yes | no | no | 0 | 0 | 3 | 真实主链执行完成，但模型调用回退到占位。 |
+## Dataset Coverage Note
+
+- 以下 manifest 目录缺失，因此本次报告仅覆盖已存在的清单（例如 local 专项）：data/20260315/manifest.json, data/20260324/manifest.json
+
+| Sample | Source PDF | DocType | OutputStrategy | Refs | Segments | EarlyGate | LowConfPages | 2ndPassReq | aAssistProbeTriggered | aAssistProbeCompleted | translationProbeCompleted | zhPopulationPct | scriptDerivedHumanReviewItems | Notes |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | ---: | ---: | --- |
+| macade-tp-cici-rain-jacket-w | Macade TP Cici Rain Jacket W.pdf | tp_bom_table_heavy | bilingual_table_bundle | 0 | 66 | 0 | 1 | yes | yes | no | yes | 2 | 3 | 抽取与导出链路完成；A:已触发但未完成(回退/失败)；B:批次解析全部成功(1/1)。 |
+| cici-rain-jacket-sketch | Cici Rain Jacket - sketch.pdf | mixed | annotated_pdf | 0 | 87 | 0 | 1 | yes | yes | no | yes | 1 | 3 | 抽取与导出链路完成；A:已触发但未完成(回退/失败)；B:批次解析全部成功(1/1)。 |
+
+## Metric notes
+
+- `zhPopulationPct`：结构化 segment 中带非空译文字段的比例（百分比）；受 `EVAL_FULLCHAIN_MAX_SEGMENTS` 等批处理上限影响，不等于“全文人工作业完成度”。
 
 ## Human Review Checklist
 

@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-04-02T03:37:11.646Z",
+  "mode": "fast",
+  "minZhPopulationPct": 15,
+  "minTranslatedSegments": 1,
+  "maxSegmentsForTranslation": 40,
+  "sampleTimeoutMs": 90000,
+  "pass": true,
+  "rows": [
+    {
+      "sampleId": "M415013",
+      "sourcePdf": "/Users/weitao/Documents/buildworld/aigc/export-agent/data/test02/M415013.pdf",
+      "success": true,
+      "documentMainType": "sketch_comment",
+      "outputStrategy": "annotated_pdf",
+      "translatedSegmentCount": 27,
+      "totalSegments": 27,
+      "zhPopulationPct": 100,
+      "translationCoveragePct": 100,
+      "aModelExecuted": true,
+      "bModelExecuted": true,
+      "bModelBatchAttempts": 28,
+      "bModelBatchJsonOk": 27,
+      "bModelLastErrorKind": "none",
+      "bModelFallbackUsed": true,
+      "bModelActiveModel": "Qwen3.5-9B-Q8_0.gguf",
+      "pass": true,
+      "notes": "coverage=100% · business=9/9 (100%) · zh=100% · bJson=27/28 · fallback=Qwen3.5-9B-Q8_0.gguf"
+    }
+  ]
+}

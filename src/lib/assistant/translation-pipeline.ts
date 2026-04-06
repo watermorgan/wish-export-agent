@@ -1,4 +1,7 @@
 import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import * as XLSX from 'xlsx';
 
 import { buildFeedbackSourceReferenceWithDiagnostics } from '@/lib/assistant/feedback-source';
 import { extractPdfText } from '@/lib/assistant/file-extractor';
@@ -56,6 +59,10 @@ export type PipelineResult = {
   outputs: {
     annotatedPdf?: {
       mode: 'inline_bilingual_preferred';
+      downloadable?: {
+        kind: 'annotated_html_preview';
+        relativePath: string;
+      };
       items: Array<{
         id: string;
         pageNumber: number;
@@ -68,6 +75,10 @@ export type PipelineResult = {
     };
     bilingualTableBundle?: {
       format: 'table_bundle_v1';
+      downloadable?: {
+        kind: 'bilingual_xlsx';
+        relativePath: string;
+      };
       rows: Array<{
         id: string;
         pageNumber: number;
@@ -82,6 +93,8 @@ export type PipelineResult = {
   };
   error?: string;
 };
+
+const EXPORT_ROOT = process.env.ASSISTANT_EXPORT_DIR ?? path.join('.tmp', 'exports');
 
 function inferDocumentMainType(
   layoutCounts: Record<string, number>,
@@ -120,6 +133,124 @@ function buildBilingualTableBundle(segments: PipelineResult['segments']) {
       zh: segment.zh
     }))
   };
+}
+
+async function materializeBilingualXlsx(
+  fileName: string,
+  bundle: ReturnType<typeof buildBilingualTableBundle>
+) {
+  await mkdir(EXPORT_ROOT, { recursive: true });
+  const safeBase = fileName.replace(/[^\w.-]+/g, '_');
+  const fingerprint = createHash('sha1')
+    .update(`${fileName}:${Date.now()}:${bundle.rows.length}`)
+    .digest('hex')
+    .slice(0, 10);
+  const outputName = `${safeBase}.${fingerprint}.bilingual.xlsx`;
+  const absolutePath = path.join(EXPORT_ROOT, outputName);
+  const relativePath = path.relative(process.cwd(), absolutePath);
+  const rows = bundle.rows.map((row, index) => ({
+    RowNo: index + 1,
+    SegmentId: row.id,
+    PageNumber: row.pageNumber,
+    RegionId: row.regionId,
+    SourceType: row.sourceType,
+    LayoutConfidence: row.layoutConfidence,
+    MergeConfidence: row.mergeConfidence,
+    English: row.en,
+    Chinese: row.zh ?? ''
+  }));
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Bilingual');
+  const binary = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' }) as Buffer;
+  await writeFile(absolutePath, binary);
+  return {
+    kind: 'bilingual_xlsx' as const,
+    relativePath
+  };
+}
+
+async function materializeAnnotatedHtmlPreview(
+  fileName: string,
+  annotated: ReturnType<typeof buildAnnotatedPdfOutput>
+) {
+  await mkdir(EXPORT_ROOT, { recursive: true });
+  const safeBase = fileName.replace(/[^\w.-]+/g, '_');
+  const fingerprint = createHash('sha1')
+    .update(`${fileName}:${Date.now()}:${annotated.items.length}`)
+    .digest('hex')
+    .slice(0, 10);
+  const outputName = `${safeBase}.${fingerprint}.annotated-preview.html`;
+  const absolutePath = path.join(EXPORT_ROOT, outputName);
+  const relativePath = path.relative(process.cwd(), absolutePath);
+  const footnoteMap = new Map(annotated.footnotes.map((it) => [it.id, it.index]));
+  const rows = annotated.items
+    .map((item) => {
+      const footnoteIndex = footnoteMap.get(item.id);
+      const pageRegion = `P${item.pageNumber} / ${item.regionId}`;
+      const zh =
+        item.renderMode === 'inline'
+          ? `<div class="zh-inline">${escapeHtml(item.zh ?? '')}</div>`
+          : footnoteIndex
+            ? `<div class="zh-footnote-ref">见脚注 [${footnoteIndex}]</div>`
+            : '<div class="zh-footnote-ref">待人工补译</div>';
+      return `
+      <article class="item">
+        <div class="meta">${escapeHtml(pageRegion)}</div>
+        <div class="en">${escapeHtml(item.en)}</div>
+        ${zh}
+      </article>`;
+    })
+    .join('\n');
+  const footnotes = annotated.footnotes
+    .map(
+      (it) =>
+        `<li><strong>[${it.index}]</strong> <span>${escapeHtml(it.zh)}</span></li>`
+    )
+    .join('\n');
+  const html = `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Annotated Preview - ${escapeHtml(fileName)}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 24px; line-height: 1.6; color: #111827; background: #f8fafc; }
+    h1 { margin: 0 0 12px; font-size: 20px; }
+    .sub { margin: 0 0 20px; color: #4b5563; font-size: 13px; }
+    .item { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+    .meta { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+    .en { color: #111827; }
+    .zh-inline { margin-top: 6px; color: #0f766e; background: #ecfeff; border-left: 3px solid #14b8a6; padding: 6px 10px; border-radius: 6px; }
+    .zh-footnote-ref { margin-top: 6px; color: #92400e; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 6px 10px; border-radius: 6px; }
+    .footnotes { margin-top: 24px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 16px; }
+    .footnotes h2 { font-size: 15px; margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(fileName)} - 双语预览</h1>
+  <p class="sub">模式：inline bilingual 优先；超长文本回退脚注。</p>
+  ${rows || '<p>无可渲染条目。</p>'}
+  <section class="footnotes">
+    <h2>脚注</h2>
+    <ol>${footnotes || '<li>无脚注</li>'}</ol>
+  </section>
+</body>
+</html>`;
+  await writeFile(absolutePath, html, 'utf8');
+  return {
+    kind: 'annotated_html_preview' as const,
+    relativePath
+  };
+}
+
+function escapeHtml(input: string) {
+  return input
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function buildAnnotatedPdfOutput(segments: PipelineResult['segments']) {
@@ -340,14 +471,32 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     totalSegments: segments.length,
     limitedByMaxSegments: typeof input.maxSegmentsForTranslation === 'number'
   });
-  const outputs =
+  const tableBundle = buildBilingualTableBundle(segments);
+  const annotatedPdf = buildAnnotatedPdfOutput(segments);
+  const outputs: PipelineResult['outputs'] =
     outputStrategy === 'bilingual_table_bundle'
-      ? {
-          bilingualTableBundle: buildBilingualTableBundle(segments)
-        }
-      : {
-          annotatedPdf: buildAnnotatedPdfOutput(segments)
-        };
+      ? { bilingualTableBundle: tableBundle }
+      : { annotatedPdf };
+  if (outputs.bilingualTableBundle) {
+    try {
+      outputs.bilingualTableBundle.downloadable = await materializeBilingualXlsx(
+        path.basename(input.fileName),
+        tableBundle
+      );
+    } catch {
+      // keep structure available even when file write fails
+    }
+  }
+  if (outputs.annotatedPdf) {
+    try {
+      outputs.annotatedPdf.downloadable = await materializeAnnotatedHtmlPreview(
+        path.basename(input.fileName),
+        annotatedPdf
+      );
+    } catch {
+      // keep structure available even when file write fails
+    }
+  }
 
   return {
     fileName: path.basename(input.fileName),
