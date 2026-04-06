@@ -44,3 +44,9 @@ data/**/*.csv
 data/**/*.tsv
 !data/README.md
 !data/**/manifest.json
+
+# Internal test harness / exports (runs, text dumps — do not ship PDFs or raw test blobs)
+data/test02/runs/
+data/test02/**/*.txt
+data/local/**
+!data/local/manifest.json
