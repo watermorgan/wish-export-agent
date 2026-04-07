@@ -135,10 +135,13 @@
   - 对 `mixed` 文档，当前允许主输出仍为 annotated，但必须额外提供一份 `table/reference` 页补充 bundle（xlsx / table-style pdf）；否则业务会在“正式稿干净”和“表格信息可追溯”之间二选一
   - 页内蓝色中文标注不得覆盖或压住原始英文；若原文附近放不下，必须外移或降级到补充区域
   - 对服装款式图、结构示意图、尺寸框等易误导区域，正式 PDF 默认不得再用浮动蓝字直接覆写原页；应优先使用小号 marker + 页外说明栏 / review 页
+  - 正式 annotated 的 marker 锚点不得机械固定在 `bbox.x0` 左侧；对宽文本块应优先放在框上方居中，对竖向长条 callout 应优先贴近条带中部，避免出现 marker 明显脱离原始英文位置
+  - 当单页 business note 数量已明显拥挤时，正式 annotated 应自动切到 dense 分组模式：同一业务框里的连续 OCR 行应尽量合并成区间标号，并通过 review 页承接详情；不得继续把 `7,8,9,10,11...` 这样的长串小号直接堆在原页上
   - `FITTING / VOLUME`、`SIZE ... BASE ...`、`common designated size` 这类尺码/版型框若只是原稿信息展示，不得当作中文翻译标注输出
   - B 模型结果允许先经过术语/风格归一后再进入正式 PDF；目标是稳定贴近服装工艺单人工稿表达，而不是完全保留模型自由发挥
   - 款号、SKU、style code、纯代码型文本不应作为中文翻译标注重复输出
   - 正式 annotated 输出不得把 `graphiste / styliste / buyer / ERP / price / sales / date / page header` 等管理元信息当作业务翻译候选；若进入页内蓝字或 comparison 候选，视为未通过
+  - 同理，人员姓名、职能头衔、样式单页眉等非业务元信息不得继续占用 marker 编号；若会显著抬高单页标号密度，应优先 suppress
   - `data/test02` 的 AI vs 人工评测不得只按索引顺序并排比较；必须允许“一条 AI 批注对应多条人工短句”或“多条 AI 批注汇总对应一条人工短句”，否则会系统性低估真实业务覆盖率
   - 当前 `data/test02` gate 口径：
     - `m422123`、`m445033` 应作为 sketch/comment pass 标杆

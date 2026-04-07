@@ -25,6 +25,7 @@ BOX_GAP = 10
 MARKER_COLOR = colors.HexColor("#ef4444")
 COLUMN_GAP = 8
 DENSE_PAGE_NOTE_THRESHOLD = 18
+DENSE_PAGE_CROWDED_THRESHOLD = 14
 DENSE_ROW_TOLERANCE = 8.0
 DENSE_ROW_MAX_ITEMS = 3
 DENSE_ROW_MAX_SOURCE_CHARS = 100
@@ -91,6 +92,19 @@ def should_skip_render(source: str, translation: str) -> bool:
         return True
     if re.search(r"^\s*common designated size\s*$", normalized_source):
         return True
+    if normalized_source == "style sheet":
+        return True
+    if re.search(
+        r"\b(styliste|designer|graphic designer|graphiste|model maker|modéliste|purchaser|acheteur|n[ée]goce|oversea)\b",
+        normalized_source,
+    ):
+        return True
+    if (
+        not re.search(r"\b(logo|label|fabric|zip|zipper|pocket|snap|button|lining|embroidery|color|colour|proto|sample)\b", normalized_source)
+        and not re.search(r"\d", source)
+        and re.fullmatch(r"[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'\- ]{5,}", (source or "").strip())
+    ):
+        return True
     compact_source = normalize_compact(source)
     compact_translation = normalize_compact(translation)
     if compact_source and compact_source == compact_translation:
@@ -100,18 +114,58 @@ def should_skip_render(source: str, translation: str) -> bool:
     return False
 
 
-def draw_note_marker(pdf: canvas.Canvas, x: float, y: float, label: str) -> None:
+def marker_box_dimensions(label: str) -> tuple[float, float]:
     padding_x = 3
     padding_y = 2
     text_width = pdfmetrics.stringWidth(label, "Helvetica-Bold", MARKER_FONT_SIZE)
     box_width = text_width + padding_x * 2
     box_height = MARKER_FONT_SIZE + padding_y * 2
+    return box_width, box_height
+
+
+def draw_note_marker(pdf: canvas.Canvas, x: float, y: float, label: str) -> None:
+    padding_x = 3
+    padding_y = 2
+    box_width, box_height = marker_box_dimensions(label)
     pdf.setFillColor(colors.white)
     pdf.setStrokeColor(colors.HexColor("#fca5a5"))
-    pdf.roundRect(x, y - 2, box_width, box_height, 4, fill=1, stroke=1)
+    pdf.roundRect(x, y, box_width, box_height, 4, fill=1, stroke=1)
     pdf.setFillColor(MARKER_COLOR)
     pdf.setFont("Helvetica-Bold", MARKER_FONT_SIZE)
-    pdf.drawString(x + padding_x, y + padding_y, label)
+    pdf.drawString(x + padding_x, y + padding_y + 2, label)
+
+
+def clamp(value: float, minimum: float, maximum: float) -> float:
+    return max(minimum, min(value, maximum))
+
+
+def compute_marker_position(page_width: float, page_height: float, bbox: dict, label: str) -> tuple[float, float]:
+    box_width, box_height = marker_box_dimensions(label)
+    bbox_width = max(0.0, bbox["x1"] - bbox["x0"])
+    bbox_height = max(0.0, bbox["bottom"] - bbox["top"])
+    center_x = (bbox["x0"] + bbox["x1"]) / 2
+    center_y = (bbox["top"] + bbox["bottom"]) / 2
+    max_x = max(6.0, page_width - box_width - 6.0)
+    max_y = max(6.0, page_height - box_height - 6.0)
+
+    # Wide labels read better when centered above the referenced area instead of hanging from the left edge.
+    if bbox_width >= 140:
+        x = clamp(center_x - box_width / 2, 6.0, max_x)
+        y = clamp(page_height - bbox["top"] + 4.0, 6.0, max_y)
+        return x, y
+
+    # Tall vertical callouts should keep the marker near the middle of the strip.
+    if bbox_height >= 120 and bbox_width <= 90:
+        if center_x <= page_width * 0.5:
+            x = clamp(bbox["x0"] - box_width - 6.0, 6.0, max_x)
+        else:
+            x = clamp(bbox["x1"] + 6.0, 6.0, max_x)
+        y = clamp(page_height - center_y - box_height / 2, 6.0, max_y)
+        return x, y
+
+    x = clamp(bbox["x0"] - box_width - 6.0, 6.0, max_x)
+    y = clamp(page_height - bbox["top"] + 4.0, 6.0, max_y)
+    return x, y
 
 
 def load_structured_translation(response_path: Path) -> dict:
@@ -543,14 +597,22 @@ def format_note_label(note_numbers: list[int]) -> str:
     if len(sorted_numbers) == 1:
         return str(sorted_numbers[0])
 
-    contiguous = sorted_numbers[-1] - sorted_numbers[0] == len(sorted_numbers) - 1
-    if contiguous:
-        return f"{sorted_numbers[0]}-{sorted_numbers[-1]}"
+    ranges: list[tuple[int, int]] = []
+    start = sorted_numbers[0]
+    end = start
+    for number in sorted_numbers[1:]:
+        if number == end + 1:
+            end = number
+            continue
+        ranges.append((start, end))
+        start = end = number
+    ranges.append((start, end))
 
-    if len(sorted_numbers) <= 3:
-        return ",".join(str(number) for number in sorted_numbers)
-
-    return f"{sorted_numbers[0]}+{len(sorted_numbers) - 1}"
+    parts = [f"{start}-{end}" if start != end else str(start) for start, end in ranges]
+    label = ",".join(parts[:2])
+    if len(parts) > 2:
+        label += f"+{len(parts) - 2}"
+    return label
 
 
 def split_dense_row(row: list[dict]) -> list[list[dict]]:
@@ -586,6 +648,57 @@ def split_dense_row(row: list[dict]) -> list[list[dict]]:
         groups.append(current_group)
 
     return groups
+
+
+def dense_row_gap(a: dict, b: dict) -> float:
+    return max(0.0, b["bbox"]["top"] - a["bbox"]["bottom"])
+
+
+def dense_row_x_overlap(a: dict, b: dict) -> float:
+    overlap = max(0.0, min(a["bbox"]["x1"], b["bbox"]["x1"]) - max(a["bbox"]["x0"], b["bbox"]["x0"]))
+    width = min(a["bbox"]["x1"] - a["bbox"]["x0"], b["bbox"]["x1"] - b["bbox"]["x0"])
+    if width <= 0:
+        return 0.0
+    return overlap / width
+
+
+def can_merge_dense_rows(a: dict, b: dict) -> bool:
+    if dense_row_gap(a, b) > 28:
+        return False
+    if dense_row_x_overlap(a, b) < 0.55:
+        return False
+    combined_numbers = sorted(set((a.get("note_numbers") or []) + (b.get("note_numbers") or [])))
+    if len(combined_numbers) > 5:
+        return False
+    combined_source = " / ".join(filter(None, [a.get("source", ""), b.get("source", "")]))
+    return len(re.sub(r"\s+", " ", combined_source).strip()) <= 180
+
+
+def merge_dense_rows(rows: list[dict]) -> list[dict]:
+    if not rows:
+        return []
+
+    merged: list[dict] = []
+    current = clone_note(rows[0])
+    for row in rows[1:]:
+        if can_merge_dense_rows(current, row):
+            current["source"] = " / ".join(filter(None, [current.get("source", ""), row.get("source", "")]))
+            current["translation"] = "；".join(filter(None, [current.get("translation", ""), row.get("translation", "")]))
+            current["note_numbers"] = sorted(set((current.get("note_numbers") or []) + (row.get("note_numbers") or [])))
+            current["label"] = format_note_label(current["note_numbers"])
+            current["bbox"] = {
+                "x0": min(current["bbox"]["x0"], row["bbox"]["x0"]),
+                "x1": max(current["bbox"]["x1"], row["bbox"]["x1"]),
+                "top": min(current["bbox"]["top"], row["bbox"]["top"]),
+                "bottom": max(current["bbox"]["bottom"], row["bbox"]["bottom"]),
+            }
+            continue
+
+        merged.append(current)
+        current = clone_note(row)
+
+    merged.append(current)
+    return merged
 
 
 def is_header_like_row(row: list[dict]) -> bool:
@@ -628,7 +741,7 @@ def build_dense_page_rows(notes: list[dict]) -> list[dict]:
             translation_parts = [item["translation"] for item in group if item.get("translation")]
             rows.append(
                 {
-                    "label": str(min(note_numbers)),
+                    "label": format_note_label(note_numbers),
                     "source": " / ".join(source_parts),
                     "translation": "；".join(translation_parts),
                     "bbox": {
@@ -641,7 +754,18 @@ def build_dense_page_rows(notes: list[dict]) -> list[dict]:
                 }
             )
 
-    return rows
+    return merge_dense_rows(rows)
+
+
+def should_use_dense_layout(notes: list[dict]) -> bool:
+    visible_notes = [note for note in notes if note.get("bbox")]
+    if len(visible_notes) > DENSE_PAGE_NOTE_THRESHOLD:
+        return True
+    if len(visible_notes) < DENSE_PAGE_CROWDED_THRESHOLD:
+        return False
+
+    dense_rows = build_dense_page_rows(visible_notes)
+    return len(dense_rows) >= 6
 
 
 def create_dense_marker_overlay(page_width: float, page_height: float, rows: list[dict]) -> PdfReader:
@@ -653,8 +777,7 @@ def create_dense_marker_overlay(page_width: float, page_height: float, rows: lis
         if not bbox:
             continue
 
-        marker_x = max(6, bbox["x0"] - 14)
-        marker_y = min(page_height - 16, page_height - bbox["top"] + 6)
+        marker_x, marker_y = compute_marker_position(page_width, page_height, bbox, row["label"])
         draw_note_marker(pdf, marker_x, marker_y, row["label"])
 
     pdf.save()
@@ -825,8 +948,7 @@ def create_dense_inline_overlay(
         if not bbox:
             continue
 
-        marker_x = max(6, bbox["x0"] - 14)
-        marker_y = min(page_height - 16, page_height - bbox["top"] + 6)
+        marker_x, marker_y = compute_marker_position(page_width, page_height, bbox, row["label"])
         draw_note_marker(pdf, marker_x, marker_y, row["label"])
 
     band_y = PAGE_PADDING - 6
@@ -898,8 +1020,7 @@ def create_overlay_page(page_width: float, page_height: float, page_number: int,
         if not bbox:
             continue
 
-        marker_x = max(6, bbox["x0"] - 14)
-        marker_y = min(page_height - 16, page_height - bbox["top"] + 6)
+        marker_x, marker_y = compute_marker_position(page_width, page_height, bbox, str(note["note_number"]))
         draw_note_marker(pdf, marker_x, marker_y, str(note["note_number"]))
 
     for note in fitted_notes:
@@ -1134,7 +1255,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
 
     for page_number, page in enumerate(reader.pages, start=1):
         notes_for_page = page_notes.get(page_number, [])
-        dense_page = len(notes_for_page) > DENSE_PAGE_NOTE_THRESHOLD
+        dense_page = should_use_dense_layout(notes_for_page)
 
         if dense_page:
             dense_rows = build_dense_page_rows(notes_for_page)

@@ -133,6 +133,10 @@ flowchart TB
     - sketch / 可视批注页：正式 annotated
     - table / reference 页：补充 xlsx + table-style pdf
   - 当前阶段不改变 `outputStrategy` 字段，只把 table/reference 产物作为 mixed 的附加下载物
+- 2026-04-03 对正式 annotated 的 marker 可读性又补了两条落地规则：
+  - marker 锚点不再一律挂在 `bbox` 左上角；对宽文本块改为“上方居中”，对竖向长条 callout 改为“贴近条带中部”，避免出现 `M445033` Page 4 里 `29/30` 这类明显偏离原始英文位置的标号
+  - 当单页 business note 数量已经拥挤时，会自动切到 dense 分组模式；同一业务框里的连续 OCR 行会先合并成区间标号，再把详细中英对照下沉到 review 页，避免 `M415013` Page 1 出现一长串小号 marker 挡视线
+- 同轮还继续把人员姓名、职能头衔、style sheet 页眉等元信息压出 marker 层，防止它们和真正业务批注抢编号预算
 - mixed 页级自动补强的当前边界：
   - 只对 mixed 文档中的 `sketch` 页做自动整页 vision 触发
   - `reference` / `mixed` 页仍主要由 early-gate / low-confidence 诊断驱动
