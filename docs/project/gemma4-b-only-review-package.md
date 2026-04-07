@@ -39,7 +39,7 @@
 - 阶段版：
   - [M422123.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/business-review-pdfs/M422123.annotated.pdf)
 - 本地 B-only refined：
-  - [M422123.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v3/M422123/M422123.pdf.annotated.pdf)
+  - [M422123.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v4/M422123/M422123.pdf.annotated.pdf)
 
 主要差异：
 
@@ -59,7 +59,7 @@
 - 阶段版：
   - [M441083.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/business-review-pdfs/M441083.annotated.pdf)
 - 本地 B-only refined：
-  - [M441083.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v3/M441083/M441083.pdf.annotated.pdf)
+  - [M441083.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v4/M441083/M441083.pdf.annotated.pdf)
 
 主要差异：
 
@@ -76,7 +76,7 @@
 - 阶段版：
   - [M445033.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/business-review-pdfs/M445033.annotated.pdf)
 - 本地 B-only refined：
-  - [M445033.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v3/M445033/M445033.pdf.annotated.pdf)
+  - [M445033.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v4/M445033/M445033.pdf.annotated.pdf)
 
 主要差异：
 
@@ -95,7 +95,7 @@
 - 阶段版：
   - [M415013.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/business-review-pdfs/M415013.annotated.pdf)
 - 本地 B-only refined：
-  - [M415013.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v3/M415013/M415013.pdf.annotated.pdf)
+  - [M415013.pdf.annotated.pdf](/Users/weitao/Documents/buildworld/aigc/export-agent/.tmp/gemma4-b-only-review-refined-v4/M415013/M415013.pdf.annotated.pdf)
 
 主要差异：
 
