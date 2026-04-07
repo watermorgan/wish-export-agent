@@ -137,6 +137,11 @@ flowchart TB
   - marker 锚点不再一律挂在 `bbox` 左上角；对宽文本块改为“上方居中”，对竖向长条 callout 改为“贴近条带中部”，避免出现 `M445033` Page 4 里 `29/30` 这类明显偏离原始英文位置的标号
   - 当单页 business note 数量已经拥挤时，会自动切到 dense 分组模式；同一业务框里的连续 OCR 行会先合并成区间标号，再把详细中英对照下沉到 review 页，避免 `M415013` Page 1 出现一长串小号 marker 挡视线
 - 同轮还继续把人员姓名、职能头衔、style sheet 页眉等元信息压出 marker 层，防止它们和真正业务批注抢编号预算
+- 2026-04-07 对本地 `gemma-4-31B-it-Q3_K_M.gguf` fallback 增加了独立页图尺寸入口：
+  - 线上 A 继续使用 `VISION_MAX_RENDER_SIZE`
+  - 本地 vision fallback 新增 `VISION_LOCAL_MAX_RENDER_SIZE`
+  - 目的不是改变线上识别效果，而是降低复杂 sketch/comment 页在私网模型上的请求体积和等待时间
+  - 当前已确认本地 `gemma4` 文本、流式、单图多模态可用，但复杂 PDF 主链仍受运行时稳定性影响，后续优先继续沿这条本地独立尺寸路径验证
 - mixed 页级自动补强的当前边界：
   - 只对 mixed 文档中的 `sketch` 页做自动整页 vision 触发
   - `reference` / `mixed` 页仍主要由 early-gate / low-confidence 诊断驱动

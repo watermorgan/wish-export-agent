@@ -1669,11 +1669,32 @@ function normalizeSourceText(value: string) {
   return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function normalizeFashionTranslation(source: string, zh: string) {
+export function normalizeFashionTranslation(source: string, zh: string) {
   const normalizedSource = normalizeSourceText(source);
   let text = zh.replace(/\s+/g, ' ').trim();
 
   if (!text) return text;
+
+  if (/^hiver 26 \(26h\)$/i.test(normalizedSource)) {
+    return '款号：HIVER 26 (26H)';
+  }
+
+  if (/^dossier style$/i.test(normalizedSource)) {
+    return '款式资料';
+  }
+
+  if (/^en attente(?:\s+.*)?$/i.test(normalizedSource)) {
+    const suffix = source.replace(/^en attente/i, '').trim().replace(/\s+/g, ' ');
+    return suffix ? `待处理 ${suffix}` : '待处理';
+  }
+
+  if (/^\s*m145023\s*$/i.test(normalizedSource)) {
+    return '版型同M145023';
+  }
+
+  if (/^m\d{6}$/i.test(normalizedSource)) {
+    return `款号：${normalizedSource.toUpperCase()}`;
+  }
 
   if (/^02\s+noir$/i.test(normalizedSource)) {
     return '02#黑色';
@@ -1697,6 +1718,14 @@ function normalizeFashionTranslation(source: string, zh: string) {
 
   if (/^\d+\s+noir$/i.test(source)) {
     return text.replace(/^\d+\s*/, '').trim() || '黑色';
+  }
+
+  if (/^proto\s*#?\s*1$/i.test(normalizedSource)) {
+    return 'OP1';
+  }
+
+  if (/^proto\s*#?\s*2$/i.test(normalizedSource)) {
+    return 'OP2';
   }
 
   const shellFabricMatch = source.match(/shell fabric option\s*#\s*(\d+)\s*:\s*(.*)$/i);
@@ -1744,16 +1773,16 @@ function normalizeFashionTranslation(source: string, zh: string) {
     return '顺色';
   }
 
+  if (/^shell fabric$/i.test(normalizedSource)) {
+    return '面料：SHELL FABRIC';
+  }
+
   if (/^cuff\s*\+\s*belt\s*\+\s*collar fabric$/i.test(normalizedSource)) {
     return '袖口、底摆、领材料';
   }
 
   if (/^ø\s*15$/i.test(normalizedSource)) {
     return '15mm';
-  }
-
-  if (/^\s*m145023\s*$/i.test(normalizedSource)) {
-    return '版型同M145023';
   }
 
   if (/invisible zipper/i.test(source) && /right arm/i.test(source)) {
@@ -1973,6 +2002,132 @@ function normalizeFashionTranslation(source: string, zh: string) {
 
   if (/^new logo label\b/i.test(normalizedSource) && /\b11\b/.test(normalizedSource)) {
     return '新主标 11#色';
+  }
+
+  if (/^nm 120 4,?5pts ?\/1cm t\/t$/i.test(normalizedSource)) {
+    return '款号：NM 120; 纱支：4.5pts/1cm; 付款方式：T/T';
+  }
+
+  if (/^84851 gun metal finishing$/i.test(normalizedSource)) {
+    return '款号：84851；颜色：枪灰色';
+  }
+
+  if (/^scuba$/i.test(normalizedSource)) {
+    return '面料：SCUBA';
+  }
+
+  if (/^cuff opening slit with 7mm top-?stitch$/i.test(normalizedSource)) {
+    return '袖口开衩，顶部明线7mm';
+  }
+
+  if (/^outshell fabric on back belt \+ cuffs$/i.test(normalizedSource)) {
+    return '外层面料：后腰带 + 袖口';
+  }
+
+  if (/^original idea for shape and collar shape$/i.test(normalizedSource)) {
+    return '版型和领型同原设计';
+  }
+
+  if (
+    /^no quilting - padding is a free roll inside front body \+ collar \+ cuffs$/i.test(
+      normalizedSource
+    )
+  ) {
+    return '无绗缝 - 填充物为自由卷，位于前衣身 + 领子 + 袖口内部';
+  }
+
+  if (/^#sl-115423-1-cp cotton top side$/i.test(normalizedSource)) {
+    return '款号：SL-115423-1-CP 面料：棉 部位：正面';
+  }
+
+  if (/^#sl-115423-1-cp polar fleece top side$/i.test(normalizedSource)) {
+    return '款号：SL-115423-1-CP；面料：极细抓绒；部位：正面';
+  }
+
+  if (/^face 100% cotton \/ backside 100% polyester$/i.test(normalizedSource)) {
+    return '正面：100% 棉 / 反面：100% 涤纶';
+  }
+
+  if (/^approx\.? 300gr \/ 150cm$/i.test(normalizedSource)) {
+    return '克重：约 300g；幅宽：150cm';
+  }
+
+  if (/^as your attache?ment sample$/i.test(normalizedSource)) {
+    return '尺寸和版型同参考样衣';
+  }
+
+  if (/^same back construction as your attache?ment sample$/i.test(normalizedSource)) {
+    return '后背结构同参考样衣';
+  }
+
+  if (/^same front workmanship \+ dart as you(?:r)? attache?ment sample$/i.test(normalizedSource)) {
+    return '与参考样品相同的正面工艺';
+  }
+
+  if (/^same size and fit as your attache?ment sample$/i.test(normalizedSource)) {
+    return '尺寸和版型同参考样衣';
+  }
+
+  if (/^mesnard emilie$/i.test(normalizedSource)) {
+    return '品牌：MESNARD EMILIE';
+  }
+
+  if (/^le lubois cl[ée]mence$/i.test(normalizedSource)) {
+    return '款名：LE LUBOIS CLÉMENCE';
+  }
+
+  if (
+    /^zipped removable hood in outshell fabric without padding$/i.test(normalizedSource)
+  ) {
+    return '外层面料可拆卸拉链兜帽，无填充';
+  }
+
+  if (/^elbow seam$/i.test(normalizedSource)) {
+    return '肘缝';
+  }
+
+  if (/^all workmanship must be waterproof with inside seam tapes$/i.test(normalizedSource)) {
+    return '车缝：所有做工需防水，内缝需加贴胶条';
+  }
+
+  if (/^flat collar \(no padding inside\)$/i.test(normalizedSource)) {
+    return '平领（领内无衬垫）';
+  }
+
+  if (/^chest pocket bag no top-?stitch$/i.test(normalizedSource)) {
+    return '胸袋袋布：无明线';
+  }
+
+  if (/^assembled cuff and belt height 5,?5cm$/i.test(normalizedSource)) {
+    return '袖口及腰带组装高度：5.5cm';
+  }
+
+  if (/^dble face jersey\/polar fleece soft fabric$/i.test(normalizedSource)) {
+    return '面料：双层正反面毛圈布/抓绒软布';
+  }
+
+  if (
+    /^tunnel pocket on front with top sack visible top-?stitch to fox it inside body$/i.test(
+      normalizedSource
+    )
+  ) {
+    return '前袋：隧道袋，袋口可见，袋口明线缝合以固定于衣身内部';
+  }
+
+  if (/^same cotton fabric but no$/i.test(normalizedSource)) {
+    return '面料：同棉布，但无';
+  }
+
+  if (/^polar fleece back side$/i.test(normalizedSource)) {
+    return '背面：极细绒布';
+  }
+
+  if (
+    /^5\.?5cm height cuffs & belt same cotton fabric but no polar fleece back side$/i.test(
+      normalizedSource
+    )
+  ) {
+    return '5.5cm高袖口和底摆与主身面料相同，棉质，但反面无羊羔毛';
   }
 
   if (/^fitting\s*\/\s*volume\b/i.test(normalizedSource) && /attachment sample/i.test(source)) {

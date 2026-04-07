@@ -192,6 +192,56 @@
   - sketch 四个代表样本已经达到“可给业务看方向与阶段结果”的门槛。
   - 仍不应宣称“可全面替代人工终稿”，但已经可以进入业务确认包整理，而不必继续卡在主链结构层。
 
+## Gemma4 本地混合路径补测（2026-04-07）
+
+- 本轮额外验证了一条新的对比路径：
+  - A：线上 `Qwen/Qwen3.5-35B-A3B`
+  - B：本地 `gemma-4-31B-it-Q3_K_M.gguf`
+- 目的不是替换当前阶段版，而是确认本地 `gemma4` 是否已具备作为本地 B 的对比价值。
+- 结果：
+  - `M422123`：`translatedSegmentCount=10/10`，business `6/6`，`businessPreviewReady=true`
+  - `M441083`：`translatedSegmentCount=20/20`，business `12/12`，`businessPreviewReady=true`
+  - `M445033`：`translatedSegmentCount=9/24`，business `0/15`，`businessPreviewReady=false`
+  - `M415013`：`translatedSegmentCount=18/18`，business `0/0`，`businessPreviewReady=false`
+- 当前结论：
+  - 本地 `gemma4` 已经不是“完全不可跑”，在 `M422123 / M441083` 上可以形成可读对比 PDF
+  - 但它仍不能替代当前 `.tmp/business-review-pdfs/` 里的线上阶段版
+  - 更准确的定位是：本地 `gemma4` 目前适合作为实验/成本优化路径，不适合作为复杂 sketch/comment 的默认 B
+- 详细对比已落在：
+  - `docs/project/gemma4-hybrid-comparison.md`
+
+## Gemma4 本地 B-only 固定 A 对比（2026-04-07）
+
+- 同日又补了一条更可信的对比路径：
+  - 不重跑当前失效的线上 A
+  - 直接复用已成功 run 的 `pipeline-result.json`
+  - 只把 B 重译为本地 `gemma-4-31B-it-Q3_K_M.gguf`
+  - 再重写 snapshot 并渲染正式 PDF
+- 结果：
+  - `M422123`: `24/24`，business `19/19`
+  - `M441083`: `46/46`，business `38/38`
+  - `M445033`: `60/60`，business `36/36`
+  - `M415013`: `48/48`，business `30/30`
+- 这说明当前应区分两件事：
+  1. 本地 `gemma4` 作为 **B**，在固定 A/segment 条件下已经能完整承接 sketch/comment 代表样本
+  2. 本地 `gemma4` 作为 **复杂样本的全本地 A/B 主链**，仍然不稳定
+- 因此后续若要比较“本地翻译风格是否可接受”，优先使用这组 B-only 结果，而不是继续被当前线上 A token 失效影响判断。
+- 同日晚些时候又补了一轮 refined 重跑：
+  - `scripts/retranslate-pipeline-with-local-b.ts` 现在会先过 `normalizeFashionTranslation()`，并保留阶段版原本已 suppress 的空白 `zh`
+  - refined 产物目录：`.tmp/gemma4-b-only-review-refined-v4/`
+  - refined 后，本地 B-only 与阶段版的有效已翻条数完全对齐：
+    - `M422123`: `19 / 24`
+    - `M441083`: `38 / 46`
+    - `M445033`: `36 / 60`
+    - `M415013`: `30 / 48`
+  - 因此当前差异已更明确收敛为“术语风格与短句压缩”，而不是 suppress 失控或条目漂移
+  - 当前 refined-v4 的剩余差异量级也已经压到：
+    - `M422123`: `5` 条
+    - `M441083`: `2` 条
+    - `M445033`: `4` 条
+    - `M415013`: `1` 条
+  - 结论：本地 `gemma4` 作为 B 的下一阶段价值，不再是“证明它能不能承接”，而是“是否要继续投入把少量术语和短句压到更像人工稿”
+
 ---
 
 ## 历史结论摘要（2026-03-24）

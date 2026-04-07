@@ -26,6 +26,10 @@ const VISION_MAX_RENDER_SIZE = Math.max(
   512,
   Number(process.env.VISION_MAX_RENDER_SIZE ?? '2000')
 );
+const VISION_LOCAL_MAX_RENDER_SIZE = Math.max(
+  512,
+  Number(process.env.VISION_LOCAL_MAX_RENDER_SIZE ?? String(VISION_MAX_RENDER_SIZE))
+);
 
 export type ExtractedBlockSourceType = 'text_layer' | 'vision' | 'merged';
 
@@ -278,7 +282,18 @@ function isLocalRuntimeConfig(config?: ModelRuntimeConfig) {
   }
 }
 
-async function renderPdfPageToDataUrl(filePath: string, pageNumber: number) {
+function resolveVisionRenderSize(runtimeConfigOverride?: ModelRuntimeConfig) {
+  if (runtimeConfigOverride && isLocalRuntimeConfig(runtimeConfigOverride)) {
+    return Math.min(VISION_MAX_RENDER_SIZE, VISION_LOCAL_MAX_RENDER_SIZE);
+  }
+  return VISION_MAX_RENDER_SIZE;
+}
+
+async function renderPdfPageToDataUrl(
+  filePath: string,
+  pageNumber: number,
+  renderSize = VISION_MAX_RENDER_SIZE
+) {
   const outputDir = path.join(process.cwd(), '.tmp', 'vision-pages');
   await mkdir(outputDir, { recursive: true });
   const token = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -295,7 +310,7 @@ async function renderPdfPageToDataUrl(filePath: string, pageNumber: number) {
         '-png',
         '-singlefile',
         '-scale-to',
-        String(VISION_MAX_RENDER_SIZE),
+        String(renderSize),
         '-f',
         String(pageNumber),
         '-l',
@@ -317,7 +332,8 @@ async function renderPdfPageToDataUrl(filePath: string, pageNumber: number) {
 async function renderPdfPageCropToDataUrl(
   filePath: string,
   pageNumber: number,
-  crop: { x: number; y: number; w: number; h: number }
+  crop: { x: number; y: number; w: number; h: number },
+  renderSize = VISION_MAX_RENDER_SIZE
 ) {
   const outputDir = path.join(process.cwd(), '.tmp', 'vision-pages');
   await mkdir(outputDir, { recursive: true });
@@ -336,7 +352,7 @@ async function renderPdfPageCropToDataUrl(
         '-png',
         '-singlefile',
         '-scale-to',
-        String(VISION_MAX_RENDER_SIZE),
+        String(renderSize),
         '-f',
         String(pageNumber),
         '-l',
@@ -760,6 +776,7 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
                 ? 'focused'
                 : 'full';
         const useLocalFallbackProfile = Boolean(runtimeConfigOverride && isLocalRuntimeConfig(runtimeConfigOverride));
+        const renderSize = resolveVisionRenderSize(runtimeConfigOverride);
         const promptText = useLocalFallbackProfile
           ? buildLocalFallbackVisionPrompt(pageNumber, pageBlocks, mode)
           : focused
@@ -772,29 +789,29 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
                 y: 0.12,
                 w: 0.88,
                 h: 0.8
-              })
+              }, renderSize)
             : cropMode === 'detail_crop'
               ? await renderPdfPageCropToDataUrl(input.filePath, pageNumber, {
                   x: 0.2,
                   y: 0.22,
                   w: 0.72,
                   h: 0.66
-                })
+                }, renderSize)
               : cropMode === 'right_panel_crop'
                 ? await renderPdfPageCropToDataUrl(input.filePath, pageNumber, {
                     x: 0.67,
                     y: 0.12,
                     w: 0.28,
                     h: 0.74
-                  })
+                  }, renderSize)
                 : cropMode === 'lower_panel_crop'
                   ? await renderPdfPageCropToDataUrl(input.filePath, pageNumber, {
                       x: 0.32,
                       y: 0.38,
                       w: 0.6,
                       h: 0.56
-                    })
-            : await renderPdfPageToDataUrl(input.filePath, pageNumber);
+                    }, renderSize)
+            : await renderPdfPageToDataUrl(input.filePath, pageNumber, renderSize);
         const result = await callVisionModelChat({
           runtimeConfigOverride,
           messages: [

@@ -169,3 +169,4 @@
   - 对 sketch/comment comparison，`前身袋鼠兜，顶部缝合在身内`、`前袋缝在身内`、`双针加固` 这类同一业务点的相邻短句，允许通过 canonicalization 归到同一高价值候选；不得因为模型把“口袋位置”和“加固做法”写在同一句，就误判成未覆盖
   - 对 `m415013` 这类已确认 page1/page2 OCR 可回主链的样本，若新增 `right/lower crop` 仅增加主标/成分/克重等噪音而没有显著抬高 recall，应停止继续堆 page 级裁切模式，优先回到 comparison 候选与术语对齐
   - 对私网本地 vision fallback，请求超时不得简单伪装成“VPN 未连接”；需要区分 `AbortError/timeout` 与真实网络不可达。对本地多模态模型，vision timeout 也不得与线上模型共用过低默认值，否则会把“慢但可用”的 OCR 请求误判为失败
+  - 对本地私有化多模态 fallback，允许单独使用更小的页图渲染尺寸；不得强制与线上 A 共用 `VISION_MAX_RENDER_SIZE`。若复杂 PDF 在本地模型上长时等待，应优先调小本地页图尺寸，而不是先牺牲线上识别分辨率
