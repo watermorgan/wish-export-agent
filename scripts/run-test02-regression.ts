@@ -25,6 +25,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 type RunPdfTranslationPipeline = typeof import('../src/lib/assistant/translation-pipeline').runPdfTranslationPipeline;
 let runPdfTranslationPipeline: RunPdfTranslationPipeline;
+type PipelineResult = Awaited<ReturnType<RunPdfTranslationPipeline>>;
 
 type SampleSummary = {
   sampleId: string;
@@ -82,6 +83,10 @@ async function writeComparisonArtifacts(
   return comparison;
 }
 
+function resolveGoldenPipelinePath(sampleId: string) {
+  return path.resolve(process.cwd(), 'data', 'test02', 'golden-pipeline', sampleId, 'pipeline-result.json');
+}
+
 async function main() {
   const manifestPath = resolveManifestPath(process.argv[2] ?? 'data/test02/manifest.json');
   const runId = process.argv[3] ?? nowRunId();
@@ -96,6 +101,8 @@ async function main() {
       .filter(Boolean)
   );
   const skipExisting = process.env.TEST02_SKIP_EXISTING === '1';
+  const useGoldenPipeline =
+    process.env.ASSISTANT_FORCE_GOLDEN === '1' || process.env.TEST02_FORCE_GOLDEN_PIPELINE === '1';
 
   process.env.ASSISTANT_EXPORT_DIR = toRepoRelative(dirs.exportsDir);
   ({ runPdfTranslationPipeline } = await import('../src/lib/assistant/translation-pipeline'));
@@ -191,18 +198,19 @@ async function main() {
       console.log(
         `[test02] ${sample.sample_id}: pipeline start (${path.basename(resolvedSource)})`
       );
-      const result =
-        skipExisting && existsSync(pipelineResultPath)
-          ? (JSON.parse(await readFile(pipelineResultPath, 'utf8')) as Awaited<
-              ReturnType<RunPdfTranslationPipeline>
-            >)
+      const result: PipelineResult = useGoldenPipeline
+        ? (JSON.parse(
+            await readFile(resolveGoldenPipelinePath(sample.sample_id), 'utf8')
+          ) as PipelineResult)
+        : skipExisting && existsSync(pipelineResultPath)
+          ? (JSON.parse(await readFile(pipelineResultPath, 'utf8')) as PipelineResult)
           : await runPdfTranslationPipeline({
               filePath: resolvedSource,
               fileName: path.basename(resolvedSource),
               maxSegmentsForTranslation
             });
 
-      if (!(skipExisting && existsSync(pipelineResultPath))) {
+      if (useGoldenPipeline || !(skipExisting && existsSync(pipelineResultPath))) {
         await writeJson(pipelineResultPath, result);
       }
       console.log(

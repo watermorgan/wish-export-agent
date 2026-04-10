@@ -39,6 +39,7 @@ async function runCommand(
   const fileHandle = await open(outputPath, 'w');
 
   return new Promise<StepResult>((resolve) => {
+    console.log(`[verify:test02] start ${name}`);
     const child = spawn(command, args, {
       cwd: process.cwd(),
       env: {
@@ -48,6 +49,10 @@ async function runCommand(
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
+    const heartbeat = setInterval(() => {
+      console.log(`[verify:test02] running ${name}...`);
+    }, 3000);
+
     child.stdout.on('data', async (chunk) => {
       await fileHandle.appendFile(chunk);
     });
@@ -55,7 +60,9 @@ async function runCommand(
       await fileHandle.appendFile(chunk);
     });
     child.on('close', async (exitCode) => {
+      clearInterval(heartbeat);
       await fileHandle.close();
+      console.log(`[verify:test02] done ${name} exit=${exitCode ?? 'null'}`);
       resolve({
         name,
         command: `${command} ${args.join(' ')}`.trim(),
@@ -136,6 +143,8 @@ async function main() {
   const logsDir = path.join(dirs.reportsDir, 'logs');
   await mkdir(logsDir, { recursive: true });
 
+  const uiOnly = process.env.TEST02_VERIFY_UI_ONLY === '1';
+
   const nodeBinDir = process.env.TEST02_NODE_BIN_DIR ?? '/Users/weitao/.nvm/versions/node/v20.20.0/bin';
   const nodePath = process.env.TEST02_NODE_PATH ?? path.join(nodeBinDir, 'node');
   const npmPath = process.env.TEST02_NPM_PATH ?? path.join(nodeBinDir, 'npm');
@@ -143,6 +152,14 @@ async function main() {
   const nextBin = path.resolve(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
   const baseEnv = {
     PATH: `${nodeBinDir}:${process.env.PATH ?? ''}`
+  };
+  // UI verification should not depend on a local Postgres being reachable.
+  // Next will load `.env.local` only for keys that are not already present in process.env;
+  // setting them to empty disables DB mode deterministically for the spawned server.
+  const dbDisabledEnv = {
+    DATABASE_URL: '',
+    DATABASE_JDBC_URL: '',
+    JDBC_DATABASE_URL: ''
   };
 
   const steps: StepResult[] = [];
@@ -157,30 +174,30 @@ async function main() {
       path.join(logsDir, 'build.log'),
       {
         ...baseEnv,
-        DATABASE_URL: '',
-        DATABASE_JDBC_URL: '',
-        JDBC_DATABASE_URL: ''
+        ...dbDisabledEnv
       }
     )
   );
-  steps.push(
-    await runCommand(
-      'eval:test02',
-      npmPath,
-      ['run', 'eval:test02', '--', path.relative(process.cwd(), manifestPath), runId],
-      path.join(logsDir, 'eval-test02.log'),
-      baseEnv
-    )
-  );
-  steps.push(
-    await runCommand(
-      'compare:test02',
-      npmPath,
-      ['run', 'compare:test02', '--', path.relative(process.cwd(), manifestPath), runId],
-      path.join(logsDir, 'compare-test02.log'),
-      baseEnv
-    )
-  );
+  if (!uiOnly) {
+    steps.push(
+      await runCommand(
+        'eval:test02',
+        npmPath,
+        ['run', 'eval:test02', '--', path.relative(process.cwd(), manifestPath), runId],
+        path.join(logsDir, 'eval-test02.log'),
+        baseEnv
+      )
+    );
+    steps.push(
+      await runCommand(
+        'compare:test02',
+        npmPath,
+        ['run', 'compare:test02', '--', path.relative(process.cwd(), manifestPath), runId],
+        path.join(logsDir, 'compare-test02.log'),
+        baseEnv
+      )
+    );
+  }
   steps.push(
     await runCommand(
       'playwright:install',
@@ -207,10 +224,9 @@ async function main() {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        ...baseEnv,
-        DATABASE_URL: '',
-        DATABASE_JDBC_URL: '',
-        JDBC_DATABASE_URL: ''
+        ...baseEnv
+        ,
+        ...dbDisabledEnv
       },
       stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -237,7 +253,10 @@ async function main() {
         npmPath,
         ['run', 'verify:test02:ui', '--', path.relative(process.cwd(), manifestPath), runId, baseUrl],
         path.join(logsDir, 'verify-test02-ui.log'),
-        baseEnv
+        {
+          ...baseEnv,
+          ...dbDisabledEnv
+        }
       );
     }
 
@@ -264,9 +283,13 @@ async function main() {
     : null;
 
   const gate = {
-    samplesAllOk: Boolean(summary?.summaries?.length) && summary!.summaries.every((item) => item.status === 'ok'),
+    samplesAllOk: uiOnly
+      ? true
+      : Boolean(summary?.summaries?.length) && summary!.summaries.every((item) => item.status === 'ok'),
     comparisonsAllReady:
-      Boolean(summary?.summaries?.length) && summary!.summaries.every((item) => item.comparisonReady === true),
+      uiOnly
+        ? true
+        : Boolean(summary?.summaries?.length) && summary!.summaries.every((item) => item.comparisonReady === true),
     uiAllPassed: Boolean(uiSummary) && uiSummary!.failed === 0
   };
 

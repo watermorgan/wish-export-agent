@@ -43,8 +43,22 @@ function parseArgs() {
     manifestPath: resolveManifestPath(process.argv[2] ?? 'data/test02/manifest.json'),
     runId: process.argv[3] ?? nowRunId(),
     baseUrl: process.argv[4] ?? process.env.TEST02_BASE_URL ?? 'http://localhost:3000',
-    modelLabel: process.env.TEST02_MODEL_LABEL ?? 'Qwen 3.5 397B'
+    modelLabel: process.env.TEST02_MODEL_LABEL ?? 'Gemma 4 31B Local'
   };
+}
+
+function getScenarioTitle(sampleId: string) {
+  const lower = sampleId.toLowerCase();
+  if (
+    lower.startsWith('m4') ||
+    lower.startsWith('m42') ||
+    lower.startsWith('m44') ||
+    lower.includes('sketch') ||
+    lower.includes('comment')
+  ) {
+    return 'feedback-merge';
+  }
+  return 'bom-fast';
 }
 
 function toMarkdown(baseUrl: string, results: UiSampleResult[]) {
@@ -82,11 +96,17 @@ async function main() {
   await mkdir(uiDir, { recursive: true });
 
   const manifest = await loadManifest(manifestPath);
+  const sampleFilter = process.env.TEST02_UI_SAMPLE_IDS?.split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const samples = sampleFilter && sampleFilter.length > 0
+    ? manifest.samples.filter((sample) => sampleFilter.includes(sample.sample_id))
+    : manifest.samples;
   const browser = await chromium.launch({ headless: true });
   const results: UiSampleResult[] = [];
 
   try {
-    for (const sample of manifest.samples) {
+    for (const sample of samples) {
       const sourcePdf = sample.source.find((item) => item.role === 'source_pdf')?.path ?? null;
       const sourcePath = sourcePdf ? resolveRepoPath(sourcePdf) : null;
       const sourceFileName = sourcePath ? path.basename(sourcePath) : null;
@@ -128,15 +148,25 @@ async function main() {
       let translationPdfStatus: number | null = null;
 
       try {
-        await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 60000 });
+        await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.getByRole('heading', { name: '外贸助手工作台' }).waitFor({
+          timeout: 30_000
+        });
         pageLoaded = true;
 
         if (await page.getByText('展开高级设置').isVisible().catch(() => false)) {
           await page.getByText('展开高级设置').click();
         }
 
-        await page.getByRole('button', { name: '意见翻译与归并' }).click();
-        await page.getByRole('button', { name: new RegExp(modelLabel) }).click();
+        const scenarioId = getScenarioTitle(sample.sample_id);
+        await page.getByTestId(`business-scenario-${scenarioId}`).click();
+        if (await page.getByText('展开高级设置').isVisible().catch(() => false)) {
+          await page.getByText('展开高级设置').click();
+        }
+        await page
+          .getByTestId('translation-model-options')
+          .getByRole('button', { name: new RegExp(modelLabel) })
+          .click();
 
         if (!sourcePath) {
           failureReasons.push('missing source pdf');
@@ -171,11 +201,11 @@ async function main() {
             if (requestError) {
               failureReasons.push(requestError);
             }
-          } else {
-            await page.locator('[data-testid="result-summary"]').waitFor({ timeout: 30000 });
-            const taskText = await page.locator('[data-testid="task-id"]').textContent();
-            const taskMatch = taskText?.match(/任务ID：([^\s·]+)/);
-            taskId = taskMatch?.[1] ?? null;
+        } else {
+          await page.locator('[data-testid="result-summary"]').waitFor({ timeout: 30000 });
+          const taskText = await page.locator('[data-testid="task-id"]').textContent();
+          const taskMatch = taskText?.match(/任务ID：([^\s·]+)/);
+          taskId = taskMatch?.[1] ?? null;
             if (!taskId) {
               failureReasons.push('task id not rendered');
             }
@@ -195,12 +225,14 @@ async function main() {
             failureReasons.push(`/api/tasks/${taskId} => ${taskStatus}`);
           }
 
-          const translationPdfResponse = await page.request.get(
-            `${baseUrl}/api/tasks/${taskId}/translation-pdf`
-          );
-          translationPdfStatus = translationPdfResponse.status();
-          if (!translationPdfResponse.ok()) {
-            failureReasons.push(`/translation-pdf => ${translationPdfStatus}`);
+          if (scenarioId === 'feedback-merge') {
+            const translationPdfResponse = await page.request.get(
+              `${baseUrl}/api/tasks/${taskId}/translation-pdf`
+            );
+            translationPdfStatus = translationPdfResponse.status();
+            if (!translationPdfResponse.ok()) {
+              failureReasons.push(`/translation-pdf => ${translationPdfStatus}`);
+            }
           }
         }
 
@@ -244,7 +276,7 @@ async function main() {
           Boolean(taskId) &&
           tasksStatus === 200 &&
           taskStatus === 200 &&
-          translationPdfStatus === 200 &&
+          (getScenarioTitle(sample.sample_id) === 'feedback-merge' ? translationPdfStatus === 200 : true) &&
           consoleErrors.length === 0 &&
           pageErrors.length === 0 &&
           requestFailures.length === 0,

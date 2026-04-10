@@ -370,6 +370,34 @@ function getTranslationOverrideConfig(modelOverride?: string): ModelRuntimeConfi
     };
   }
 
+  if (
+    normalized.includes('gemma-4-31b-it-q3_k_m.gguf') ||
+    normalized.startsWith('gemma-4-31b') ||
+    normalized.includes('gemma4')
+  ) {
+    const baseUrl = firstNonEmpty(
+      process.env.LOCAL_OPENAI_API_URL,
+      process.env.LOCAL_MODEL_API_URL,
+      process.env.B_MODEL_API_URL,
+      process.env.TRANSLATION_API_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE
+    );
+    return {
+      model: modelOverride!.trim(),
+      baseUrl,
+      apiKey: pickApiKey(baseUrl, [
+        process.env.LOCAL_OPENAI_API_KEY,
+        process.env.LOCAL_MODEL_API_KEY,
+        process.env.B_MODEL_API_KEY
+      ], [
+        process.env.TRANSLATION_API_KEY,
+        process.env.OPENAI_API_KEY
+      ]),
+      label: 'B-model'
+    };
+  }
+
   if (normalized === 'qwen3.5-flash' || normalized.startsWith('qwen3.5-flash')) {
     const baseUrl = firstNonEmpty(
       process.env.DASHSCOPE_API_URL,

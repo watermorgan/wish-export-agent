@@ -32,10 +32,11 @@ DENSE_ROW_MAX_SOURCE_CHARS = 100
 INLINE_NOTE_MAX_WIDTH = 188
 INLINE_NOTE_MIN_WIDTH = 76
 INLINE_NOTE_MAX_SHIFT = 120
+INLINE_NOTE_SCAN_STEP = 12
 INLINE_NOTE_WIDE_SOURCE_THRESHOLD = 150
 INLINE_NOTE_TALL_SOURCE_THRESHOLD = 48
 MARKER_FONT_SIZE = 10
-USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES") == "1"
+USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES", "1") != "0"
 USE_DENSE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_DENSE_INLINE_NOTES") == "1"
 
 
@@ -380,27 +381,79 @@ def choose_inline_note_width(page_width: float, bbox: dict, translation: str) ->
     return max(INLINE_NOTE_MIN_WIDTH, min(desired, page_width * 0.2))
 
 
-def choose_inline_note_candidate(page_width: float, bbox: dict, note_width: float) -> list[tuple[float, float]]:
+def iter_inline_scan_offsets(limit: int, step: int = INLINE_NOTE_SCAN_STEP) -> list[int]:
+    offsets = [0]
+    for delta in range(step, limit + step, step):
+        offsets.append(delta)
+        offsets.append(-delta)
+    return offsets
+
+
+def choose_inline_note_candidate(
+    page_width: float,
+    page_height: float,
+    bbox: dict,
+    note_width: float,
+    note_height: float,
+) -> list[tuple[float, float, float]]:
     wide_source = (bbox["x1"] - bbox["x0"]) >= 72
-    candidates: list[tuple[float, float]] = []
+    tall_source = (bbox["bottom"] - bbox["top"]) >= INLINE_NOTE_TALL_SOURCE_THRESHOLD
+    center_x = (bbox["x0"] + bbox["x1"]) / 2
+    center_y = (bbox["top"] + bbox["bottom"]) / 2
+    max_x = max(PAGE_PADDING, page_width - PAGE_PADDING - note_width)
+    max_top = max(PAGE_PADDING, page_height - PAGE_PADDING - note_height)
+
+    base_specs: list[tuple[float, float, float, list[int], list[int]]] = [
+        (bbox["x1"] + 8, center_y - note_height / 2, 0.0, [0], iter_inline_scan_offsets(60)),
+        (bbox["x0"] - note_width - 8, center_y - note_height / 2, 0.8, [0], iter_inline_scan_offsets(60)),
+        (center_x - note_width / 2, bbox["bottom"] + 8, 1.4, iter_inline_scan_offsets(48), [0, 12, 24]),
+        (center_x - note_width / 2, bbox["top"] - note_height - 8, 1.8, iter_inline_scan_offsets(48), [0, -12, -24]),
+    ]
 
     if wide_source:
-        candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x0"] + 10), bbox["bottom"] + 6))
-        candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x0"] + 24), max(PAGE_PADDING, bbox["top"] - 12)))
+        base_specs.extend(
+            [
+                (bbox["x0"] + 8, bbox["bottom"] + 6, 1.1, [0, 18, -18], [0, 10, 22]),
+                (bbox["x0"] + 18, bbox["top"] - note_height - 6, 1.6, [0, 18, -18], [0, -10, -22]),
+            ]
+        )
 
-    candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x1"] + 8), max(PAGE_PADDING, bbox["top"] - 2)))
-    candidates.append((max(PAGE_PADDING, bbox["x0"] - note_width - 8), max(PAGE_PADDING, bbox["top"] - 2)))
-    candidates.append((min(page_width - PAGE_PADDING - note_width, bbox["x0"] + 12), bbox["bottom"] + 10))
+    if tall_source:
+        base_specs.extend(
+            [
+                (bbox["x1"] + 10, bbox["top"] + 8, 0.6, [0, 12, -12], iter_inline_scan_offsets(72)),
+                (bbox["x0"] - note_width - 10, bbox["top"] + 8, 1.0, [0, 12, -12], iter_inline_scan_offsets(72)),
+            ]
+        )
 
-    deduped: list[tuple[float, float]] = []
+    candidates: list[tuple[float, float, float]] = []
+    for base_x, base_top, penalty, x_offsets, y_offsets in base_specs:
+        for x_offset in x_offsets:
+            for y_offset in y_offsets:
+                x = clamp(base_x + x_offset, PAGE_PADDING, max_x)
+                top = clamp(base_top + y_offset, PAGE_PADDING, max_top)
+                candidates.append((x, top, penalty))
+
+    deduped: list[tuple[float, float, float]] = []
     seen: set[tuple[int, int]] = set()
-    for x, top in candidates:
+    for x, top, penalty in candidates:
         key = (round(x), round(top))
         if key in seen:
             continue
         seen.add(key)
-        deduped.append((x, top))
+        deduped.append((x, top, penalty))
     return deduped
+
+
+def score_inline_note_rect(bbox: dict, rect: dict, penalty: float) -> float:
+    bbox_center_x = (bbox["x0"] + bbox["x1"]) / 2
+    bbox_center_y = (bbox["top"] + bbox["bottom"]) / 2
+    rect_center_x = (rect["x0"] + rect["x1"]) / 2
+    rect_center_y = (rect["top"] + rect["bottom"]) / 2
+    horizontal_gap = max(0.0, max(bbox["x0"] - rect["x1"], rect["x0"] - bbox["x1"]))
+    vertical_gap = max(0.0, max(bbox["top"] - rect["bottom"], rect["top"] - bbox["bottom"]))
+    center_distance = abs(rect_center_x - bbox_center_x) + abs(rect_center_y - bbox_center_y)
+    return penalty * 1000 + center_distance + horizontal_gap * 2.4 + vertical_gap * 2.1
 
 
 def choose_inline_note_chars(note_width: float, bbox: dict) -> int:
@@ -443,30 +496,31 @@ def build_inline_note_layout(
         _, note_height = para.wrap(note_width, 1000)
         note_height += 2
         placed_rect = None
+        placed_score = None
 
-        for candidate_x, candidate_top in choose_inline_note_candidate(page_width, bbox, note_width):
-            for shift in range(0, INLINE_NOTE_MAX_SHIFT + 1, 12):
-                top = candidate_top + shift
-                if top + note_height > page_height - PAGE_PADDING:
-                    break
+        for candidate_x, candidate_top, penalty in choose_inline_note_candidate(
+            page_width,
+            page_height,
+            bbox,
+            note_width,
+            note_height,
+        ):
+            rect = {
+                "x0": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)),
+                "x1": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)) + note_width,
+                "top": candidate_top,
+                "bottom": candidate_top + note_height,
+            }
 
-                rect = {
-                    "x0": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)),
-                    "x1": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)) + note_width,
-                    "top": top,
-                    "bottom": top + note_height,
-                }
+            if any(rects_overlap(rect, item["_rect"]) for item in placed):
+                continue
+            if rects_overlap(rect, bbox, padding=2.0):
+                continue
 
-                if any(rects_overlap(rect, item["_rect"]) for item in placed):
-                    continue
-                if rects_overlap(rect, bbox, padding=2.0):
-                    continue
-
+            score = score_inline_note_rect(bbox, rect, penalty)
+            if placed_score is None or score < placed_score:
                 placed_rect = rect
-                break
-
-            if placed_rect:
-                break
+                placed_score = score
 
         if not placed_rect:
             overflow.append(note)
@@ -1255,6 +1309,32 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
 
     for page_number, page in enumerate(reader.pages, start=1):
         notes_for_page = page_notes.get(page_number, [])
+        if not notes_for_page:
+            new_page = writer.add_blank_page(
+                width=float(page.mediabox.width),
+                height=float(page.mediabox.height),
+            )
+            new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+            continue
+
+        inline_overlay = None
+        inline_overflow: list[dict] = []
+        if USE_INLINE_NOTES:
+            inline_overlay, inline_overflow = create_inline_note_overlay(
+                float(page.mediabox.width),
+                float(page.mediabox.height),
+                notes_for_page,
+                render_styles,
+            )
+            if inline_overlay and not inline_overflow:
+                new_page = writer.add_blank_page(
+                    width=float(page.mediabox.width),
+                    height=float(page.mediabox.height),
+                )
+                new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                new_page.merge_page(inline_overlay.pages[0])
+                continue
+
         dense_page = should_use_dense_layout(notes_for_page)
 
         if dense_page:
@@ -1307,35 +1387,28 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                         writer.add_page(review_page.pages[0])
             continue
 
-        if USE_INLINE_NOTES:
-            inline_overlay, inline_overflow = create_inline_note_overlay(
-                float(page.mediabox.width),
-                float(page.mediabox.height),
-                notes_for_page,
-                render_styles,
+        if USE_INLINE_NOTES and inline_overlay:
+            new_page = writer.add_blank_page(
+                width=float(page.mediabox.width),
+                height=float(page.mediabox.height),
             )
-            if inline_overlay:
-                new_page = writer.add_blank_page(
-                    width=float(page.mediabox.width),
+            new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+            new_page.merge_page(inline_overlay.pages[0])
+            if inline_overflow:
+                overflow_page = writer.add_blank_page(
+                    width=float(page.mediabox.width) + PANEL_WIDTH,
                     height=float(page.mediabox.height),
                 )
-                new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-                new_page.merge_page(inline_overlay.pages[0])
-                if inline_overflow:
-                    overflow_page = writer.add_blank_page(
-                        width=float(page.mediabox.width) + PANEL_WIDTH,
-                        height=float(page.mediabox.height),
-                    )
-                    overflow_page.merge_transformed_page(page, Transformation().translate(0, 0))
-                    overlay_reader = create_overlay_page(
-                        float(page.mediabox.width),
-                        float(page.mediabox.height),
-                        page_number,
-                        inline_overflow,
-                        render_styles,
-                    )
-                    overflow_page.merge_page(overlay_reader.pages[0])
-                continue
+                overflow_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                overlay_reader = create_overlay_page(
+                    float(page.mediabox.width),
+                    float(page.mediabox.height),
+                    page_number,
+                    inline_overflow,
+                    render_styles,
+                )
+                overflow_page.merge_page(overlay_reader.pages[0])
+            continue
 
         new_page = writer.add_blank_page(
             width=float(page.mediabox.width) + PANEL_WIDTH,

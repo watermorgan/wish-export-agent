@@ -146,6 +146,51 @@ export type PdfArtifactLinkEntry = {
   tableStylePdfUrl?: string | null;
 };
 
+export type HumanReviewHint = {
+  id: string;
+  title: string;
+  reason: string;
+  priority: 'high' | 'medium';
+  pageNumbers: number[];
+  examples?: string[];
+};
+
+export type HumanReviewGuide = {
+  summary: string;
+  focusPages: number[];
+  suggestedAction: string;
+  hints: HumanReviewHint[];
+};
+
+export type PdfTranslationSkillPayload = {
+  kind: 'pdf_translation_skill_v1';
+  fileName: string;
+  taskType: 'feedback';
+  documentMainType: string;
+  outputStrategy: string;
+  summary: string;
+  reviewRequired: boolean;
+  artifactLinks: PdfArtifactLinkEntry[];
+  humanReviewGuide?: HumanReviewGuide;
+  snapshot?: {
+    version: 'translation_snapshot_v1';
+    fileName: string;
+    documentMainType: string;
+    outputStrategy: 'annotated_pdf';
+    generatedAt: string;
+  };
+  diagnostics: {
+    translatedSegmentCount: number;
+    translationCoveragePct: number;
+    businessSegmentCount?: number;
+    translatedBusinessSegmentCount?: number;
+    businessTranslationCoveragePct?: number;
+    businessPreviewReady?: boolean;
+    activeModel?: string;
+    activeProvider?: string;
+  };
+};
+
 export type AssistantReplyMetadata = {
   needsHumanReview: boolean;
   providerHits?: string[];
@@ -157,6 +202,10 @@ export type AssistantReplyMetadata = {
   pdfArtifactLinks?: PdfArtifactLinkEntry[];
   /** 脱敏说明：为何 A/B 可能 fallback（不含密钥与原始响应） */
   pipelineFallbackHints?: string[];
+  /** 给业务员的结构化人工复核建议，供页面/skill/OpenClaw 共用。 */
+  humanReviewGuide?: HumanReviewGuide;
+  /** 稳定的 PDF skill 输出协议，供页面/skill/OpenClaw 共用。 */
+  skillPayload?: PdfTranslationSkillPayload;
   translationTiming?: {
     totalMs: number;
     sourceBuildMs?: number;

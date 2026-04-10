@@ -1,10 +1,10 @@
 {
   "id": "comment-translator",
   "name": "意见翻译",
-  "purpose": "对批注、意见文本和聊天记录做双语翻译。",
-  "inputRequirements": ["原始意见文本或批注文件", "任务目标"],
-  "outputSchema": ["原文/译文对照", "术语清单", "歧义提示"],
-  "reviewCheckpoints": ["专业术语", "否定表达", "责任归属"],
+  "purpose": "对批注、意见文本和聊天记录做双语翻译；若输入为 PDF，则优先产出可直接预览/下载的正式翻译稿与人工复核建议。",
+  "inputRequirements": ["原始意见文本或批注文件", "任务目标", "若为 PDF 可选 A/B 模型配置"],
+  "outputSchema": ["原文/译文对照", "术语清单", "歧义提示", "正式 PDF / 预览入口", "人工复核建议", "pdf_translation_skill_v1"],
+  "reviewCheckpoints": ["专业术语", "否定表达", "责任归属", "颜色/顺色/标类", "口袋/拉链/结构说明"],
   "composableWith": ["comment-merger", "customer-reply-drafter"],
   "riskLevel": "medium",
   "taskTypes": ["feedback", "reply"]

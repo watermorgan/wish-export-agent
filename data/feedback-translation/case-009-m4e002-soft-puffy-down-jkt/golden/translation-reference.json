@@ -1,0 +1,459 @@
+{
+  "caseId": "case-009-m4e002-soft-puffy-down-jkt",
+  "sourceFile": "M4E002 soft puffy down jkt.pdf",
+  "title": "M4E002 soft puffy down jkt.pdf",
+  "outputMode": "bilingual_sections",
+  "sections": [
+    {
+      "id": "page-1",
+      "title": "Page 1",
+      "summary": "56 条英中对照",
+      "segments": [
+        {
+          "source": "TRIMS",
+          "translation": "辅料"
+        },
+        {
+          "source": "M4E002",
+          "translation": "M4E002"
+        },
+        {
+          "source": "MEN | COLORS / COULEURS | NEW LOGO LABEL - TBC | 11 Ecru",
+          "translation": "新logo主标"
+        },
+        {
+          "source": "67 ECORCE 19-1518TCX | 73518 | 11 Ecru",
+          "translation": "67#咖色"
+        },
+        {
+          "source": "42 BLEU ACIER 16-4010TCX",
+          "translation": "42 钢蓝 16-4010TCX"
+        },
+        {
+          "source": "5mm METAL ZIPPER - NEW IKKS PULLER - SHINNY SILVER FINISHING AS ORIGINAL SAMPLE",
+          "translation": "5#金属新ikks拉片，亮银色拉链与原样相同"
+        },
+        {
+          "source": "55 SAGE 17-0620TCX | ON MIDDLE FRONT OPENING + FRONT POCKETS OPENING",
+          "translation": "55#绿色 门襟+侧袋"
+        },
+        {
+          "source": "Ø 15",
+          "translation": "15mm"
+        },
+        {
+          "source": "PRESSION DESSOUS",
+          "translation": "压胶位置：下侧"
+        },
+        {
+          "source": "PLAT | 84851 | SHINNY SILVER finishing as sample",
+          "translation": "15mm-四合扣与原样相同亮银色饰面"
+        },
+        {
+          "source": "FABRICS / TISSUS | ON MIDDLE FRONT SECOND OPENING + COLLAR + CHIN PROTECTOR",
+          "translation": "面料/织物 | 前中第二开口 + 领口 + 护颈"
+        },
+        {
+          "source": "3mm REVERSE COIL ZIPPER - MATCHING COLOR with outshell fabric",
+          "translation": "3#反装闭尾尼龙拉链颜色顺面料"
+        },
+        {
+          "source": "OUTSHELL FABRIC OPTION#1 | ON INSIDE POCKET",
+          "translation": "面料1 | 内袋"
+        },
+        {
+          "source": "L&M | 3mm ELASTICATED DRAWSTRING - MATCHING COLOR with outshell fabric",
+          "translation": "3MM底摆橡筋绳颜色顺面料"
+        },
+        {
+          "source": "ON BOTTOM BODY ADJUSTABLE BELT",
+          "translation": "下摆：可调节腰带"
+        },
+        {
+          "source": "CRINKLE LIGHT NYLON FABRIC | METAL EYELETS - SHINNY SILVER FINISHING",
+          "translation": "亮银色金属气眼，底摆仿金属双孔调节卡扣"
+        },
+        {
+          "source": "ON BOTTOM SIDE BODY ADJUSTABLE BELT",
+          "translation": "底侧身：可调节腰带"
+        },
+        {
+          "source": "#ZBN476 | 2 HOLES METAL STOPPER - SHINNY SILVER FINISHING",
+          "translation": "亮银色金属气眼，底摆仿金属双孔调节卡扣"
+        },
+        {
+          "source": "100%NY | ON BOTTOM SIDE BODY ADJUSTABLE BELT",
+          "translation": "100%NY | 下摆侧身可调节腰带"
+        },
+        {
+          "source": "90GSM - 140CM",
+          "translation": "90GSM - 140CM"
+        },
+        {
+          "source": "OUTSHELL FABRIC OPTION#2",
+          "translation": "外层面料选项#2"
+        },
+        {
+          "source": "L&M",
+          "translation": "L&M"
+        },
+        {
+          "source": "CRINKLE LIGHT NYLON FABRIC",
+          "translation": "面料：轻皱尼龙"
+        },
+        {
+          "source": "#DDT-5672",
+          "translation": "#DDT-5672"
+        },
+        {
+          "source": "100%REC NY",
+          "translation": "100%再生尼龙"
+        },
+        {
+          "source": "55GSM - 141CM",
+          "translation": "55GSM - 141CM"
+        },
+        {
+          "source": "SAME SEND MORE FABRIC OPTIONS AS ORIGINAL SAMPLE !",
+          "translation": "提供与原样相同的更多布料选项！"
+        },
+        {
+          "source": "FILLING : | ARTWORK",
+          "translation": "填充：| 图案"
+        },
+        {
+          "source": "NM 120 | 4,5pts /1cm | T/T",
+          "translation": "NM 120 | 4,5pts /1cm | T/T"
+        },
+        {
+          "source": "Col : MATCHING COLOR with outshell fabric",
+          "translation": "配色同面布"
+        },
+        {
+          "source": "FAKE DOWN FREE FIBERS",
+          "translation": "仿羽绒纤维"
+        },
+        {
+          "source": "SAME PUFFY LOOK AS ORIGINAL SAMPLE | BR029-Y9",
+          "translation": "仿羽绒棉外观和参考样衣相同蓬松度"
+        },
+        {
+          "source": "TREATMENT/ TRAITEMENT | BODY LINING :",
+          "translation": "处理 | 里布："
+        },
+        {
+          "source": "MATCHING COLOR WITH SHELL FABRIC COLOR",
+          "translation": "颜色顺主身面料"
+        },
+        {
+          "source": "POLY TWILL LINING as original sample",
+          "translation": "斜纹涤里料同原样"
+        },
+        {
+          "source": "Col : MATCHING COLOR with shell fabric | FITTING / VOLUME",
+          "translation": "颜色：与主料同色 | 试穿/体积"
+        },
+        {
+          "source": "STITCHINGS / COUTURES | POCKETING FABRIC | SAME AS ORIGINAL SAMPLE",
+          "translation": "车缝 | 袋布面料 | 同原样"
+        },
+        {
+          "source": "BRUSHED POLY TRICOT | BUT MIDDLE BACK LENGTH 74CM",
+          "translation": "后中长做到74CM"
+        },
+        {
+          "source": "#ZBN476",
+          "translation": "#ZBN476"
+        },
+        {
+          "source": "100%NY",
+          "translation": "100%NY"
+        },
+        {
+          "source": "SAME SEND MORE FABRIC OPTIONS AS ORIGINAL SAMPLE!",
+          "translation": "提供与原样相同的更多布料选项！"
+        },
+        {
+          "source": "COLORS / COULEURS",
+          "translation": "颜色"
+        },
+        {
+          "source": "FILLING:",
+          "translation": "填充："
+        },
+        {
+          "source": "SAME PUFFY LOOK AS ORIGINAL SAMPLE",
+          "translation": "仿羽绒棉外观和参考样衣相同蓬松度"
+        },
+        {
+          "source": "BODY LINING:",
+          "translation": "大身里布："
+        },
+        {
+          "source": "POCKETING FABRIC",
+          "translation": "袋布：涤棉磨毛斜纹，配色同面布"
+        },
+        {
+          "source": "BRUSHED POLY TRICOT",
+          "translation": "刷毛涤纶针织布"
+        },
+        {
+          "source": "NM 120",
+          "translation": "NM 120"
+        },
+        {
+          "source": "4,5pts /1cm",
+          "translation": "4,5pts /1cm"
+        },
+        {
+          "source": "T/T",
+          "translation": "T/T"
+        },
+        {
+          "source": "67 ECORCE 19-1518TCX",
+          "translation": "67#咖色"
+        },
+        {
+          "source": "55 SAGE 17-0620TCX",
+          "translation": "55#绿色"
+        },
+        {
+          "source": "FABRICS / TISSUS",
+          "translation": "面料"
+        },
+        {
+          "source": "OUTSHELL FABRIC OPTION#1",
+          "translation": "外层面料选项#1"
+        },
+        {
+          "source": "29 cm",
+          "translation": "29 CM"
+        },
+        {
+          "source": "Hidden zipped entrance",
+          "translation": "3#隐形拉链侧"
+        }
+      ]
+    },
+    {
+      "id": "page-2",
+      "title": "Page 2",
+      "summary": "26 条英中对照",
+      "segments": [
+        {
+          "source": "flat collar filled with padding",
+          "translation": "衣领内充棉"
+        },
+        {
+          "source": "15mm snap                                                                                                             DESCRIPTION",
+          "translation": "15mm 按扣 说明"
+        },
+        {
+          "source": "MEN",
+          "translation": "男装"
+        },
+        {
+          "source": "5mm met al zipped FIRST opening",
+          "translation": "5mm 金属拉链首开"
+        },
+        {
+          "source": "15mm snap to fix collar closed",
+          "translation": "15mm 按扣固定领口闭合"
+        },
+        {
+          "source": "as original sample",
+          "translation": "按原样"
+        },
+        {
+          "source": "Removable chin protector",
+          "translation": "可拆卸护下巴"
+        },
+        {
+          "source": "in outshell fabric + padding                                                                                                                                  15mm snapped SECOND opening",
+          "translation": "面料：外层面料+填充物 第二开口：15mm按扣开合"
+        },
+        {
+          "source": "as original sample                                                                                                                                            as original sample                     POINTED top back yoke",
+          "translation": "同原样 同原样 尖角后上领"
+        },
+        {
+          "source": "with edge top-stitch as",
+          "translation": "边缘明线"
+        },
+        {
+          "source": "original sample",
+          "translation": "原样"
+        },
+        {
+          "source": "BR029-Y9",
+          "translation": "BR029-Y9"
+        },
+        {
+          "source": "embroidery as",
+          "translation": "绣花：按样"
+        },
+        {
+          "source": "originals sple",
+          "translation": "originals sple"
+        },
+        {
+          "source": "Front zipped storm pocket                                                                                                                                                                                                Elbow seam with",
+          "translation": "前拉链防风袋 肘部缝线"
+        },
+        {
+          "source": "with hidden zipped opening                                                                                                                                                                                               edge top-stitch",
+          "translation": "带隐形拉链开口，边缘明线"
+        },
+        {
+          "source": "as original sample",
+          "translation": "按原样"
+        },
+        {
+          "source": "Same cuff finishing as",
+          "translation": "袖口工艺：同上"
+        },
+        {
+          "source": "original sample (inside",
+          "translation": "原样（内里）"
+        },
+        {
+          "source": "smocked finishing)                                                                                                                                Straight body finishing",
+          "translation": "抽褶工艺；直身下摆"
+        },
+        {
+          "source": "AVERTISSEMENT : Les modèles reproduits sur ce document ont été créés par IKKS MEN et sont sa propriété exclusive. Toute reproduction totale ou partielle et/ou",
+          "translation": "警告：本文件所示款式由 IKKS MEN 设计，为其独家所有。任何全部或部分复制及/或"
+        },
+        {
+          "source": "utilisation non autorisée expressément par IKKS MEN est formellement interdite et constitue une contrefaçon pouvant donner lieu à des poursuites judiciaires.",
+          "translation": "未经IKKS MEN明确授权的使用严格禁止，构成侵权并可能导致法律诉讼。"
+        },
+        {
+          "source": "with inside adjustable drawstring",
+          "translation": "内里配可调节抽绳"
+        },
+        {
+          "source": "WARNING : The models reproduced on this document were created by IKKS MEN and are his exclusive property. Any total or partial reproduction and\\or use",
+          "translation": "警告：本文件中的模特图由IKKS MEN制作，为其独家财产。任何全部或部分复制及/或使用"
+        },
+        {
+          "source": "unauthorized expressly by IKKS MEN is formally forbidden and constitute a counterfeit which can be subject to legal proceedings.",
+          "translation": "未经IKKS MEN明确授权，正式禁止，构成假冒，可能面临法律诉讼。"
+        },
+        {
+          "source": "as original sample",
+          "translation": "按原样"
+        }
+      ]
+    },
+    {
+      "id": "page-3",
+      "title": "Page 3",
+      "summary": "6 条英中对照",
+      "segments": [
+        {
+          "source": "ORIGINAL SAMPLE",
+          "translation": "原样"
+        },
+        {
+          "source": "MEN",
+          "translation": "男装"
+        },
+        {
+          "source": "4,5cm",
+          "translation": "4,5cm"
+        },
+        {
+          "source": "1,2",
+          "translation": "1,2"
+        },
+        {
+          "source": "29 cm",
+          "translation": "29 CM"
+        },
+        {
+          "source": "Hidden zipped entrance",
+          "translation": "3#隐形拉链侧"
+        }
+      ]
+    },
+    {
+      "id": "page-4",
+      "title": "Page 4",
+      "summary": "7 条英中对照",
+      "segments": [
+        {
+          "source": "ORIGINAL SAMPLE",
+          "translation": "原样"
+        },
+        {
+          "source": "MEN",
+          "translation": "男装"
+        },
+        {
+          "source": "Snap button (Silver)",
+          "translation": "四合扣（银色）"
+        },
+        {
+          "source": "Zipper (Metal)",
+          "translation": "拉链（金属）"
+        },
+        {
+          "source": "Elastic cuff",
+          "translation": "罗纹袖口"
+        },
+        {
+          "source": "Puffer design",
+          "translation": "羽绒服设计"
+        },
+        {
+          "source": "Logo patch",
+          "translation": "Logo 布标"
+        }
+      ]
+    },
+    {
+      "id": "page-5",
+      "title": "Page 5",
+      "summary": "9 条英中对照",
+      "segments": [
+        {
+          "source": "INSIDE DESIGN",
+          "translation": "内部设计"
+        },
+        {
+          "source": "MEN                        NEW LOGO LABEL",
+          "translation": "新logo主标"
+        },
+        {
+          "source": "outshell fabric piped pocket",
+          "translation": "外层面料包边口袋"
+        },
+        {
+          "source": "Poly twill lining",
+          "translation": "斜纹涤里布"
+        },
+        {
+          "source": "+ hidden REVERSE COIL ZIPPER",
+          "translation": "+ 暗装反向螺旋拉链"
+        },
+        {
+          "source": "with NO QUILTING",
+          "translation": "无绗缝"
+        },
+        {
+          "source": "as original sample",
+          "translation": "按原样"
+        },
+        {
+          "source": "SIDE BELT ADJUSTABLE system",
+          "translation": "侧腰带：可调节系统"
+        },
+        {
+          "source": "as original sample",
+          "translation": "按原样"
+        }
+      ]
+    }
+  ]
+}

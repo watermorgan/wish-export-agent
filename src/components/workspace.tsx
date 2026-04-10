@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useEffect, useState, useTransition } from 'react';
 import {
+  businessScenarioPresets,
   quickPrompts,
   roleOptions,
   skillCatalog,
@@ -29,6 +30,13 @@ type FileDescriptor = {
   name: string;
   size: number;
   type: string;
+};
+
+type ProviderHealth = {
+  provider: 'local-openai' | 'dashscope' | 'modelscope';
+  label: string;
+  status: 'ok' | 'warning' | 'error';
+  detail: string;
 };
 
 const dateTimeFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -158,6 +166,7 @@ export function Workspace() {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [recentTasks, setRecentTasks] = useState<TaskRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [providerHealth, setProviderHealth] = useState<ProviderHealth[]>([]);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [selectedRecentTaskIds, setSelectedRecentTaskIds] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -209,6 +218,17 @@ export function Workspace() {
   }, []);
 
   useEffect(() => {
+    fetch('/api/model-health')
+      .then((response) => response.json())
+      .then((data: { providers?: ProviderHealth[] }) => {
+        setProviderHealth(data.providers ?? []);
+      })
+      .catch(() => {
+        setProviderHealth([]);
+      });
+  }, []);
+
+  useEffect(() => {
     setSelectedRecentTaskIds((current) =>
       current.filter((taskId) => recentTasks.some((task) => task.id === taskId))
     );
@@ -221,6 +241,23 @@ export function Workspace() {
     const promptIndex =
       template.taskType === 'bom' ? 0 : template.taskType === 'feedback' ? 1 : 2;
     setQuestion(quickPrompts[promptIndex]);
+  }
+
+  function applyBusinessScenario(presetId: string) {
+    const preset = businessScenarioPresets.find((item) => item.id === presetId);
+
+    if (!preset) {
+      return;
+    }
+
+    const relatedTemplate = workflowTemplates.find((template) => template.id === preset.templateId);
+
+    setRole('sales');
+    setTaskType(preset.taskType);
+    setQuestion(preset.prompt);
+    setSelectedTemplateId(relatedTemplate?.id ?? preset.templateId);
+    setSelectedSkillIds(preset.skillIds);
+    setShowAdvancedSettings(false);
   }
 
   function toggleSkill(skill: SkillDefinition) {
@@ -346,6 +383,7 @@ export function Workspace() {
   const translationTiming = reply?.metadata?.translationTiming;
   const activeProvider = reply?.metadata?.activeProvider;
   const activeModel = reply?.metadata?.activeModel ?? translationModelOverride;
+  const humanReviewGuide = reply?.metadata?.humanReviewGuide ?? null;
   const translationHtmlDocument = translationHtml
     ? buildTranslationHtmlDocument(
         translationArtifact?.title ?? '翻译结果预览',
@@ -374,6 +412,7 @@ export function Workspace() {
       : currentTask
         ? '翻译结果已生成。先查看结果，再处理待确认项。'
         : `已上传 ${uploadedFileCount} 个文件。下一步点击“开始翻译”。`;
+  const unhealthyProviders = providerHealth.filter((provider) => provider.status !== 'ok');
 
   function openTranslationResult() {
     const directUrl = previewUrl;
@@ -681,14 +720,14 @@ export function Workspace() {
   }
 
   return (
-    <main className="shell">
+    <main id="main" className="shell">
       <section className="workspace-topbar">
         <div>
           <h1>外贸助手工作台</h1>
-          <p>上传文件后，直接开始翻译并查看结果。</p>
+          <p>先选业务场景，再选细分需求；模型和工具只放在需要时的高级设置里。</p>
         </div>
         <div className="workspace-topbar-meta">
-          <span className="tag">默认场景：意见翻译</span>
+          <span className="tag">默认场景：批注翻译与归并</span>
           <span className="tag">待审核 {pendingReviewTasks.length}</span>
         </div>
       </section>
@@ -697,26 +736,71 @@ export function Workspace() {
         <div className="panel">
           <div className="panel-header">
             <div>
-              <h2>开始翻译</h2>
-              <p>上传文件，补一句处理要求，直接执行。</p>
+              <h2>业务场景优先</h2>
+              <p>先按业务场景选入口，再补一句处理要求，减少模型术语干扰。</p>
             </div>
-            <span className="tag">默认：保留英文原文 + 中文翻译</span>
+            <span className="tag">默认：保留英文原文 + 业务可读中文</span>
           </div>
 
-          <div className="answer-card answer-callout guidance-card">
-            <h3>当前指引</h3>
-            <p>{guidanceText}</p>
-            <ul>
-              <li>支持 PDF、Word、Excel、邮件、TXT。</li>
-              <li>默认不会做归并，也不会自动对外发送。</li>
-              <li>价格、交期、认证、付款、物流等内容仍会进入待确认项。</li>
-            </ul>
+            <div className="answer-card answer-callout guidance-card">
+              <h3>当前指引</h3>
+              <p>{guidanceText}</p>
+              <ul>
+                <li>支持 PDF、Word、Excel、邮件、TXT。</li>
+                <li>默认不会做归并，也不会自动对外发送。</li>
+                <li>价格、交期、认证、付款、物流等内容仍会进入待确认项。</li>
+              </ul>
+            </div>
+            {providerHealth.length > 0 ? (
+              <div className="answer-card answer-callout provider-health-card">
+                <h3>模型状态</h3>
+                <p>提交前先看这里。当前页面会优先提示本地服务、在线额度和 token 状态。</p>
+                <div className="provider-health-list">
+                  {providerHealth.map((provider) => (
+                    <div
+                      key={provider.provider}
+                      className={`provider-health-item status-${provider.status}`}
+                    >
+                      <strong>{provider.label}</strong>
+                      <span>{provider.detail}</span>
+                    </div>
+                  ))}
+                </div>
+                {unhealthyProviders.length > 0 ? (
+                  <p className="meta-note">
+                    当前存在不可用模型。若你选择的模型不可用，请先恢复服务或手动切换到可用模型后再提交。
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+          <div className="section-stack">
+            <div className="section-title">
+              <h3>高频业务场景</h3>
+              <p>先选这一块，系统会自动带入更像人工操作的默认配置。</p>
+            </div>
+            <div className="choice-grid" data-testid="business-scenario-options">
+              {businessScenarioPresets.map((preset) => (
+                <button
+                  className="choice-card scene-card"
+                  data-testid={`business-scenario-${preset.id}`}
+                  key={preset.id}
+                  type="button"
+                  onClick={() => applyBusinessScenario(preset.id)}
+                >
+                  <span className="tag scene-card-tag">{preset.audienceHint}</span>
+                  <strong>{preset.title}</strong>
+                  <span>{preset.summary}</span>
+                  <span className="scene-card-footer">点击后自动带入默认模板与处理要求</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="dropzone">
-            <span className="material-symbols-outlined" style={{ fontSize: '48px', color: 'var(--primary)', marginBottom: '16px' }}>cloud_upload</span>
+            <span className="material-symbols-outlined dropzone-icon">cloud_upload</span>
             <strong>上传文件</strong>
-            <p>把需要处理的 PDF、Excel 拖到这里吧 ~</p>
+            <p>把需要处理的 PDF、Excel 拖到这里，先看业务场景，再开始处理。</p>
             <input
               data-testid="file-input"
               aria-label="上传文件"
@@ -754,7 +838,8 @@ export function Workspace() {
               <div className="advanced-settings-body">
                 <div className="section-stack">
                   <div className="section-title">
-                    <h3>角色</h3>
+                    <h3>角色与职责</h3>
+                    <p>业务员偏执行，主管偏复核。</p>
                   </div>
                   <div className="choice-grid compact-grid">
                     {roleOptions.map((option) => (
@@ -774,6 +859,7 @@ export function Workspace() {
                 <div className="section-stack">
                   <div className="section-title">
                     <h3>任务类型</h3>
+                    <p>按业务目标选择，不要先从模型名开始。</p>
                   </div>
                   <div className="choice-grid">
                     {taskTypeOptions.map((option, index) => (
@@ -795,7 +881,8 @@ export function Workspace() {
 
                 <div className="section-stack">
                   <div className="section-title">
-                    <h3>模板</h3>
+                    <h3>工作模板</h3>
+                    <p>模板决定默认步骤和处理深度，尽量按高频场景复用。</p>
                   </div>
                   <div className="choice-grid">
                     {workflowTemplates.map((template) => (
@@ -814,7 +901,8 @@ export function Workspace() {
 
                 <div className="section-stack">
                   <div className="section-title">
-                    <h3>技能</h3>
+                    <h3>工具链</h3>
+                    <p>仅在业务场景需要时再手动拆分工具。</p>
                   </div>
                   <div className="choice-grid">
                     {skillCatalog.map((skill) => (
@@ -834,8 +922,9 @@ export function Workspace() {
                 <div className="section-stack">
                   <div className="section-title">
                     <h3>识别模型（A）</h3>
+                    <p>默认沿用系统建议，只有识别质量有特殊要求时才切换。</p>
                   </div>
-                  <div className="choice-grid compact-grid">
+                  <div className="choice-grid compact-grid" data-testid="vision-model-options">
                     {visionModelOptions.map((option) => (
                       <button
                         className={`choice-card ${visionModelOverride === option.id ? 'choice-card-active' : ''}`}
@@ -853,8 +942,9 @@ export function Workspace() {
                 <div className="section-stack">
                   <div className="section-title">
                     <h3>翻译模型（B）</h3>
+                    <p>高频场景优先保证业务术语一致，后续再微调文风。</p>
                   </div>
-                  <div className="choice-grid compact-grid">
+                  <div className="choice-grid compact-grid" data-testid="translation-model-options">
                     {translationModelOptions.map((option) => (
                       <button
                         className={`choice-card ${translationModelOverride === option.id ? 'choice-card-active' : ''}`}
@@ -943,36 +1033,28 @@ export function Workspace() {
 
           {error ? (
             <div
-              className="answer-card"
+              className="answer-card error-card"
               data-testid="request-error"
-              style={{
-                borderLeft: '6px solid var(--color-risk-coral)',
-                background: 'var(--color-risk-soft)'
-              }}
             >
-              <div className="flex items-center gap-2 mb-3">
-                <span className="material-symbols-outlined text-risk-coral">error</span>
-                <h3
-                  className="text-sm font-bold text-risk-coral m-0"
-                  style={{ color: 'var(--color-risk-coral)' }}
-                >
-                  请求失败
-                </h3>
+              <div className="error-card-header">
+                <span className="material-symbols-outlined error-card-icon">error</span>
+                <div>
+                  <h3 className="error-card-title">请求失败</h3>
+                  <p className="error-card-summary">
+                    当前请求无法完成，请检查模型状态、文件输入或网络连接后重试。
+                  </p>
+                </div>
               </div>
               {error.length > 150 ? (
-                <details className="group">
-                  <summary className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1 hover:text-risk-coral transition-colors list-none">
-                    <span className="material-symbols-outlined !text-[16px] group-open:rotate-180 transition-transform">
-                      expand_more
-                    </span>
+                <details className="error-card-details">
+                  <summary>
+                    <span className="material-symbols-outlined">expand_more</span>
                     查看详细错误日志
                   </summary>
-                  <pre className="mt-3 p-4 bg-white/80 rounded-xl text-[11px] text-slate-600 font-mono whitespace-pre-wrap break-all w-full max-w-full max-h-[400px] overflow-y-auto border border-risk-coral/20 shadow-inner">
-                    {error}
-                  </pre>
+                  <pre className="error-card-code">{error}</pre>
                 </details>
               ) : (
-                <p className="text-xs text-slate-700 m-0 font-medium">{error}</p>
+                <p className="error-card-message">{error}</p>
               )}
             </div>
           ) : null}
@@ -1093,6 +1175,54 @@ export function Workspace() {
                     ))}
                   </ul>
                 </div>
+              ) : null}
+            </div>
+
+            <div className="answer-card review-guide-card" data-testid="human-review-guide">
+              <h3>人工复核建议</h3>
+              <p className="meta-note">
+                {humanReviewGuide?.summary ??
+                  '翻译完成后，这里会提示先看哪些页、哪些细项最值得人工确认。'}
+              </p>
+
+              {humanReviewGuide?.focusPages?.length ? (
+                <div className="page-chip-row">
+                  {humanReviewGuide.focusPages.map((pageNumber) => (
+                    <span key={`focus-page-${pageNumber}`} className="page-chip">
+                      第 {pageNumber} 页
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              {humanReviewGuide?.hints?.length ? (
+                <ul className="review-guide-list">
+                  {humanReviewGuide.hints.map((hint) => (
+                    <li key={hint.id} className="review-guide-item">
+                      <div className="review-guide-item-header">
+                        <strong>{hint.title}</strong>
+                        <span className={`tag review-priority review-priority-${hint.priority}`}>
+                          {hint.priority === 'high' ? '高优先级' : '建议复核'}
+                        </span>
+                      </div>
+                      <p>{hint.reason}</p>
+                      {hint.pageNumbers.length ? (
+                        <p className="meta-note">
+                          关联页面：第 {hint.pageNumbers.join('、')} 页
+                        </p>
+                      ) : null}
+                      {hint.examples?.length ? (
+                        <p className="review-guide-examples">
+                          典型原文：{hint.examples.join(' / ')}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {humanReviewGuide?.suggestedAction ? (
+                <p className="review-guide-action">{humanReviewGuide.suggestedAction}</p>
               ) : null}
             </div>
 
@@ -1262,14 +1392,19 @@ export function Workspace() {
             </details>
 
                     {reply?.status === 'exported' && reply.finalArtifact && (
-                    <div className="answer-card" style={{ borderColor: 'var(--color-success)', backgroundColor: '#f0fdf4' }}>
-                    <h3 style={{ color: 'var(--color-success)' }}>🎉 最终产物已生成</h3>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: '14px', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #d1d5db', marginTop: '12px', overflowX: 'auto' }}>
+                    <div className="answer-card export-card">
+                    <div className="export-card-header">
+                      <h3>最终产物已生成</h3>
+                      <span className="tag export-card-tag">已导出</span>
+                    </div>
+                    <p className="meta-note export-card-note">
+                      当前结果已写入正式产物，可以复制到剪贴板或作为后续导出依据。
+                    </p>
+                    <pre className="export-card-code">
                     {reply.finalArtifact}
                     </pre>
                     <button
-                    className="primary-button"
-                    style={{ marginTop: '12px', backgroundColor: 'var(--color-success)' }}
+                    className="primary-button export-card-button"
                     onClick={() => navigator.clipboard.writeText(reply.finalArtifact!)}
                     >
                     复制到剪贴板

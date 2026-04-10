@@ -15,6 +15,9 @@
     "eval:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/run-test02-regression.ts",
     "compare:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/compare-test02.ts",
     "verify:test02:ui": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02-ui.ts",
+    "generate:test02:goldens": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/generate-test02-goldens.ts",
+    "generate:test02:golden-pipelines": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/generate-test02-golden-pipelines.ts",
+    "verify:ui": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ui-smoke.ts",
     "verify:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02.ts",
     "samples:business-review": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/generate-business-review-samples.ts"
   },

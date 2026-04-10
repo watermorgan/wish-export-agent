@@ -4,6 +4,11 @@ export type ModelOption = {
   description: string;
 };
 
+const localModelId =
+  process.env.NEXT_PUBLIC_LOCAL_OPENAI_MODEL_NAME ?? 'gemma-4-31B-it-Q3_K_M.gguf';
+const localModelLabel =
+  process.env.NEXT_PUBLIC_LOCAL_OPENAI_MODEL_LABEL ?? 'Gemma 4 31B Local';
+
 export const visionModelOptions: ModelOption[] = [
   {
     id: 'Qwen/Qwen3.5-35B-A3B',
@@ -16,8 +21,8 @@ export const visionModelOptions: ModelOption[] = [
     description: '视觉/OCR辅助识别，适合图片与低置信区域补强。'
   },
   {
-    id: 'Qwen3.5-35B-A3B',
-    label: 'Qwen 3.5 35B A3B Local',
+    id: localModelId,
+    label: localModelLabel,
     description: '本地 OpenAI-compatible 模型，优先用于视觉/OCR 低成本联调。'
   }
 ];
@@ -34,8 +39,8 @@ export const translationModelOptions: ModelOption[] = [
     description: 'ModelScope 在线翻译模型，作为结构化翻译兜底。'
   },
   {
-    id: 'Qwen3.5-35B-A3B',
-    label: 'Qwen 3.5 35B A3B Local',
+    id: localModelId,
+    label: localModelLabel,
     description: '本地 OpenAI-compatible 模型，A/B 联调优先，节省线上 token。'
   },
   {

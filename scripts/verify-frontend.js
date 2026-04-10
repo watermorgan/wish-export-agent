@@ -29,11 +29,11 @@ async function runTests() {
 
     const html = result.html;
     const markers = [
-      { name: 'Branding', pattern: /The Atelier/i },
-      { name: 'Theme Support', pattern: /data-theme/i },
-      { name: 'Role Switcher', pattern: /Salesperson|Supervisor/i },
-      { name: 'Workspace', pattern: /Workspace/i },
-      { name: 'Sidebar', pattern: /<aside/i }
+      { name: 'Workspace Title', pattern: /外贸助手工作台/ },
+      { name: 'Start Panel', pattern: /开始翻译/ },
+      { name: 'Upload Input', pattern: /data-testid=\"file-input\"/ },
+      { name: 'Submit Button', pattern: /data-testid=\"start-translation\"/ },
+      { name: 'Result Panel', pattern: /翻译结果/ }
     ];
 
     let errors = 0;
@@ -45,11 +45,6 @@ async function runTests() {
         errors++;
       }
     });
-
-    // Check for hydration error signs in HTML (like specific broken classes from the user log)
-    if (html.includes('bg-primary/5') && html.includes('Sidebar')) {
-      console.warn('⚠️ Found legacy bg-primary/5 in SSR. Should be bg-accent-soft.');
-    }
 
     if (errors > 0) process.exit(1);
     console.log('--- Verification Complete: SSR is Healthy ---');

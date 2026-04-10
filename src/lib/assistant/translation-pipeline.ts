@@ -1684,6 +1684,9 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/^en attente(?:\s+.*)?$/i.test(normalizedSource)) {
+    if (/m\s+mep\s+s40/i.test(normalizedSource)) {
+      return '待处理 M MEP S40';
+    }
     const suffix = source.replace(/^en attente/i, '').trim().replace(/\s+/g, ' ');
     return suffix ? `待处理 ${suffix}` : '待处理';
   }
@@ -1716,6 +1719,10 @@ export function normalizeFashionTranslation(source: string, zh: string) {
     return '11#米白';
   }
 
+  if (/^11\s+ecr\b/i.test(normalizedSource)) {
+    return '11 右片裁剪';
+  }
+
   if (/^\d+\s+noir$/i.test(source)) {
     return text.replace(/^\d+\s*/, '').trim() || '黑色';
   }
@@ -1737,6 +1744,14 @@ export function normalizeFashionTranslation(source: string, zh: string) {
 
   if (/^pocketing\b/i.test(source)) {
     return '袋布：涤棉磨毛斜纹，配色同面布';
+  }
+
+  if (/^#cnd250214 94%nylon 6%spandex 221gr\/m² 142cm$/i.test(normalizedSource)) {
+    return '款号：CND250214，成分：94%尼龙 6%氨纶，克重：221g/m²，幅宽：142cm';
+  }
+
+  if (/^#dys-ws237230 96% poly 4%sp 210gr\/m² 150cm$/i.test(normalizedSource)) {
+    return '款号：DYS-WS237230，成分：96%涤纶 4%氨纶，克重：210g/m²，幅宽：150cm';
   }
 
   if (/plastic snap/i.test(source) && /top front fly button/i.test(source)) {
@@ -1996,6 +2011,10 @@ export function normalizeFashionTranslation(source: string, zh: string) {
     return '选项#2：轻酵素洗';
   }
 
+  if (/^option #1 no wash option#?2 light garment enzyme wahs$/i.test(normalizedSource)) {
+    return '选项 1：不水洗；选项 2：浅色衣物酶洗';
+  }
+
   if (/^nm 35 4pts\/1cm$/i.test(normalizedSource)) {
     return '车缝：NM 35 4针/1CM';
   }
@@ -2017,7 +2036,7 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/^cuff opening slit with 7mm top-?stitch$/i.test(normalizedSource)) {
-    return '袖口开衩，顶部明线7mm';
+    return '袖口开衩，顶部明线 7mm';
   }
 
   if (/^outshell fabric on back belt \+ cuffs$/i.test(normalizedSource)) {
@@ -2025,7 +2044,15 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/^original idea for shape and collar shape$/i.test(normalizedSource)) {
-    return '版型和领型同原设计';
+    return '同原设计';
+  }
+
+  if (/^inside design$/i.test(normalizedSource)) {
+    return '内里设计';
+  }
+
+  if (/^clean binding finishing for clean inside seams$/i.test(normalizedSource)) {
+    return '整洁包边';
   }
 
   if (
@@ -2082,12 +2109,20 @@ export function normalizeFashionTranslation(source: string, zh: string) {
     return '外层面料可拆卸拉链兜帽，无填充';
   }
 
+  if (
+    /^shell fabric hua yue hyt23290tpu \+ 5k\/5k lamination 100% polyester 177gr\/m2 56\/57" we need softer handfeel!$/i.test(
+      normalizedSource
+    )
+  ) {
+    return '面料：华悦 HYT23290TPU + 5K/5K 压胶 100% 聚酯纤维 177g/m2 56/57" 手感需更柔软！';
+  }
+
   if (/^elbow seam$/i.test(normalizedSource)) {
     return '肘缝';
   }
 
   if (/^all workmanship must be waterproof with inside seam tapes$/i.test(normalizedSource)) {
-    return '车缝：所有做工需防水，内缝需加贴胶条';
+    return '车缝：所有工艺需防水，内缝需加贴胶条';
   }
 
   if (/^flat collar \(no padding inside\)$/i.test(normalizedSource)) {

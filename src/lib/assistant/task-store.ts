@@ -6,6 +6,7 @@ import {
   workflowTemplates
 } from '@/lib/assistant/catalog';
 import { hasDatabaseConfig, queryDb, withDbTransaction } from '@/lib/assistant/db';
+import type { PdfTranslationSkillPayload } from '@/lib/assistant/types';
 import type {
   ArtifactSection,
   AssistantReply,
@@ -110,6 +111,170 @@ type ReviewRow = {
 };
 
 const taskStore = new Map<string, StoredTask>();
+const UI_FIXTURE_TASK_ID = 'task_ui_fixture_preview';
+
+function logTaskStoreFallback(stage: string, error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error);
+  console.warn(`[task-store] ${stage} fallback to memory store: ${detail}`);
+}
+
+function ensureUiFixtureTask(taskId: string) {
+  if (taskId !== UI_FIXTURE_TASK_ID) return;
+  if (taskStore.has(taskId)) return;
+
+  const request: AssistantRequest = {
+    channel: 'web',
+    role: 'sales',
+    question: 'UI Smoke Fixture: translation preview',
+    files: [
+      {
+        name: 'fixture-translation.pdf',
+        size: 1024,
+        type: 'application/pdf'
+      }
+    ],
+    selectedSkillIds: ['comment-translator'],
+    selectedTemplateId: 'translation-merge',
+    modelOverride: 'fixture',
+    visionModelOverride: 'fixture',
+    translationModelOverride: 'fixture',
+    taskType: 'feedback'
+  };
+
+  const artifactHtml = `
+<section class="fixture-section">
+  <div class="fixture-section-header">
+    <h3>样例片段</h3>
+    <p>用于验证预览页渲染链路，不代表真实业务产物。</p>
+  </div>
+  <div class="bilingual-block">
+    <p class="source-line">SHELL FABRIC OPTION #1: 94% NYLON 6% SPANDEX</p>
+    <p class="translation-line">面料1：94%尼龙 6%氨纶</p>
+  </div>
+</section>
+`.trim();
+
+  const fixtureSkillPayload: PdfTranslationSkillPayload = {
+    kind: 'pdf_translation_skill_v1',
+    fileName: 'fixture-translation.pdf',
+    taskType: 'feedback',
+    documentMainType: 'sketch_comment',
+    outputStrategy: 'annotated_pdf',
+    summary: 'UI 预览样例已生成，可用于页面与 skill 输出验证。',
+    reviewRequired: true,
+    artifactLinks: [
+      {
+        fileName: 'fixture-translation.pdf',
+        documentMainType: 'sketch_comment',
+        outputStrategy: 'annotated_pdf',
+        primary: 'annotated_preview',
+        bilingualXlsxUrl: null,
+        annotatedPreviewUrl: '/preview/task/task_ui_fixture_preview',
+        tableStylePdfUrl: null
+      }
+    ],
+    humanReviewGuide: {
+      summary: '建议先核对第 1 页的面料与颜色标识。',
+      focusPages: [1],
+      suggestedAction: '先看颜色和面料描述是否与原文一致，再决定是否直接给业务预览。',
+      hints: [
+        {
+          id: 'fixture-color-fabric',
+          title: '核对颜色与面料',
+          reason: '样例中包含主面料和颜色类字段，适合作为 UI 预览验证点。',
+          priority: 'high',
+          pageNumbers: [1],
+          examples: ['SHELL FABRIC OPTION #1: 94% NYLON 6% SPANDEX']
+        }
+      ]
+    },
+    snapshot: {
+      version: 'translation_snapshot_v1',
+      fileName: 'fixture-translation.pdf',
+      documentMainType: 'mixed',
+      outputStrategy: 'annotated_pdf',
+      generatedAt: new Date().toISOString()
+    },
+    diagnostics: {
+      translatedSegmentCount: 1,
+      translationCoveragePct: 100,
+      businessSegmentCount: 1,
+      translatedBusinessSegmentCount: 1,
+      businessTranslationCoveragePct: 100,
+      businessPreviewReady: true,
+      activeModel: 'fixture',
+      activeProvider: 'fixture'
+    }
+  };
+
+  const reply: AssistantReply = {
+    intent: 'feedback',
+    intentLabel: '意见翻译',
+    role: 'sales',
+    status: 'approved',
+    statusLabel: getTaskStatusLabel('approved'),
+    reviewStatus: 'approved',
+    reviewStatusLabel: getReviewStatusLabel('approved'),
+    summary: 'UI 预览样例（用于本地页面验证）',
+    nextActions: [],
+    riskAlerts: [],
+    draftDirection: '',
+    taskType: 'feedback',
+    taskTypeLabel: '意见翻译',
+    skillCatalog,
+    templates: workflowTemplates,
+    selectedSkills: request.selectedSkillIds
+      .map((skillId) => getSkillById(skillId))
+      .filter((skill): skill is NonNullable<typeof skill> => skill !== null),
+    selectedTemplate: getTemplateById(request.selectedTemplateId ?? '') ?? null,
+    executionPlan: [
+      {
+        id: 'fixture-step',
+        name: 'Preview Fixture',
+        skillId: 'comment-translator',
+        status: 'completed',
+        summary: 'UI smoke fixture'
+      }
+    ],
+    pendingConfirmations: [],
+    blockingIssues: [],
+    validationIssues: [],
+    artifacts: [
+      {
+        title: '翻译结果',
+        kind: 'text',
+        summary: '预览页 fixture',
+        fields: [
+          {
+            label: '预览',
+            value: 'fixture',
+            richTextHtml: artifactHtml
+          },
+          {
+            label: 'pdf_translation_skill_v1',
+            value: 'fixture',
+            structuredData: fixtureSkillPayload
+          }
+        ]
+      }
+    ],
+    auditTrail: [
+      {
+        label: 'UI Fixture',
+        detail: 'This task exists only for UI verification and preview rendering smoke tests.'
+      }
+    ],
+    metadata: {
+      needsHumanReview: false,
+      translationMode: 'fixture',
+      humanReviewGuide: fixtureSkillPayload.humanReviewGuide,
+      skillPayload: fixtureSkillPayload,
+      pdfArtifactLinks: fixtureSkillPayload.artifactLinks
+    }
+  };
+
+  storeSnapshot(taskId, request, reply);
+}
 
 function deriveNeedsHumanReview(status: TaskStatus, pendingConfirmations: PendingConfirmation[]) {
   if (status === 'approved' || status === 'exported' || status === 'archived') {
@@ -893,21 +1058,26 @@ export async function createTaskFromExecution(
     return snapshot;
   }
 
-  await withDbTransaction(async (client) => {
-    await acquireTaskWriteLock(client, snapshot.task.id);
-    await insertTaskRow(client, snapshot, request);
-    await replaceTaskChildren(
-      client,
-      snapshot.task.id,
-      snapshot.reply,
-      snapshot.task.createdAt
-    );
-  });
+  try {
+    await withDbTransaction(async (client) => {
+      await acquireTaskWriteLock(client, snapshot.task.id);
+      await insertTaskRow(client, snapshot, request);
+      await replaceTaskChildren(
+        client,
+        snapshot.task.id,
+        snapshot.reply,
+        snapshot.task.createdAt
+      );
+    });
 
-  return {
-    ...snapshot,
-    recentTasks: await listTasksFromDb()
-  } satisfies TaskSnapshot;
+    return {
+      ...snapshot,
+      recentTasks: await listTasksFromDb()
+    } satisfies TaskSnapshot;
+  } catch (error) {
+    logTaskStoreFallback('createTaskFromExecution', error);
+    return snapshot;
+  }
 }
 
 export async function updateTaskFromExecution(
@@ -933,21 +1103,29 @@ export async function updateTaskFromExecution(
 
   const snapshot = replaceStoredTask(taskId, request, reply, stored.record.createdAt);
 
-  await withDbTransaction(async (client) => {
-    await acquireTaskWriteLock(client, taskId);
-    await updateTaskRow(client, snapshot, request);
-    await replaceTaskChildren(
-      client,
-      snapshot.task.id,
-      snapshot.reply,
-      snapshot.task.updatedAt
-    );
-  });
+  try {
+    await withDbTransaction(async (client) => {
+      await acquireTaskWriteLock(client, taskId);
+      await updateTaskRow(client, snapshot, request);
+      await replaceTaskChildren(
+        client,
+        snapshot.task.id,
+        snapshot.reply,
+        snapshot.task.updatedAt
+      );
+    });
 
-  return {
-    ...snapshot,
-    recentTasks: await listTasksFromDb()
-  } satisfies TaskSnapshot;
+    return {
+      ...snapshot,
+      recentTasks: await listTasksFromDb()
+    } satisfies TaskSnapshot;
+  } catch (error) {
+    logTaskStoreFallback('updateTaskFromExecution', error);
+    return {
+      ...snapshot,
+      recentTasks: listMemoryTasks()
+    } satisfies TaskSnapshot;
+  }
 }
 
 export async function listTasks(): Promise<TaskRecord[]> {
@@ -955,15 +1133,31 @@ export async function listTasks(): Promise<TaskRecord[]> {
     return listMemoryTasks();
   }
 
-  return listTasksFromDb();
+  try {
+    return await listTasksFromDb();
+  } catch (error) {
+    logTaskStoreFallback('listTasks', error);
+    return listMemoryTasks();
+  }
 }
 
 export async function getTask(taskId: string): Promise<StoredTask | null> {
+  ensureUiFixtureTask(taskId);
+
+  if (taskId === UI_FIXTURE_TASK_ID) {
+    return taskStore.get(taskId) ?? null;
+  }
+
   if (!hasDatabaseConfig()) {
     return taskStore.get(taskId) ?? null;
   }
 
-  return getStoredTaskFromDb(taskId);
+  try {
+    return await getStoredTaskFromDb(taskId);
+  } catch (error) {
+    logTaskStoreFallback('getTask', error);
+    return taskStore.get(taskId) ?? null;
+  }
 }
 
 export async function deleteTask(taskId: string): Promise<boolean> {

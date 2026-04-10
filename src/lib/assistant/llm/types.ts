@@ -9,6 +9,7 @@ export type LlmProviderName =
   | 'dashscope'
   | 'modelscope'
   | 'glm'
+  | 'local-openai'
   | 'gemini-cli'
   | 'anthropic'
   | 'claude-cli'

@@ -23,6 +23,8 @@ import type {
   AssistantReply,
   AssistantReplyMetadata,
   AssistantRequest,
+  HumanReviewGuide,
+  PdfTranslationSkillPayload,
   PendingConfirmation,
   UploadedFile
 } from '@/lib/assistant/types';
@@ -198,6 +200,37 @@ function buildStructuredFixtureHtml(reference: GoldenTranslationReference) {
 </section>`
     )
     .join('\n');
+}
+
+function toTranslationSnapshot(reference: GoldenTranslationReference): TranslationSnapshot {
+  const generatedAt = new Date().toISOString();
+  const items = reference.sections.flatMap((section, sectionIndex) =>
+    section.segments.map((segment, segmentIndex) => ({
+      id: `${section.id}_${sectionIndex + 1}_${segmentIndex + 1}`,
+      pageNumber: sectionIndex + 1,
+      regionId: `${section.id}_${sectionIndex + 1}`,
+      en: segment.source,
+      zh: segment.translation,
+      renderMode: 'inline' as const,
+      sourceType: 'golden-fixture',
+      confidence: 1
+    }))
+  );
+
+  return {
+    version: 'translation_snapshot_v1',
+    generatedAt,
+    fileName: reference.sourceFile,
+    documentMainType: 'mixed',
+    outputStrategy: 'annotated_pdf',
+    diagnostics: {
+      translatedSegmentCount: items.length,
+      translationCoveragePct: 100,
+      aModelExecuted: false,
+      bModelExecuted: false
+    },
+    items
+  };
 }
 
 function highlightChineseInline(value: string) {
@@ -787,49 +820,6 @@ function buildPipelineRichTextHtml(
     .join('\n');
 }
 
-// Legacy debug/fixture structure. Formal annotated PDF now renders from translation_snapshot_v1.
-function buildPipelineStructuredSections(
-  annotated: NonNullable<Awaited<ReturnType<typeof runPdfTranslationPipeline>>['outputs']['annotatedPdf']>,
-  segments: Awaited<ReturnType<typeof runPdfTranslationPipeline>>['segments']
-) {
-  const grouped = new Map<number, typeof annotated.items>();
-  const segmentMeta = new Map(
-    segments.map((segment) => [
-      segment.id,
-      {
-        pageNumber: segment.pageNumber,
-        regionId: segment.regionId,
-        bbox: segment.extractionMeta.bbox
-      }
-    ])
-  );
-
-  for (const item of annotated.items) {
-    const bucket = grouped.get(item.pageNumber) ?? [];
-    bucket.push(item);
-    grouped.set(item.pageNumber, bucket);
-  }
-
-  return Array.from(grouped.entries())
-    .sort((left, right) => left[0] - right[0])
-    .map(([pageNumber, items]) => ({
-      id: `pipeline_page_${pageNumber}`,
-      title: `Page ${pageNumber}`,
-      summary: `${items.length} 个识别块`,
-      segments: items.map((item) => {
-        const meta = segmentMeta.get(item.id);
-        return {
-          source: item.en,
-          translation: item.zh ?? '',
-          renderMode: item.renderMode,
-          pageNumber: meta?.pageNumber ?? item.pageNumber,
-          regionId: meta?.regionId ?? item.regionId,
-          bbox: meta?.bbox
-        };
-      })
-    }));
-}
-
 function buildPipelineSnapshot(
   annotated: NonNullable<Awaited<ReturnType<typeof runPdfTranslationPipeline>>['outputs']['annotatedPdf']>
 ): TranslationSnapshot {
@@ -868,6 +858,220 @@ function buildPipelinePendingItems(
   }
 
   return items;
+}
+
+type ReviewRule = {
+  id: string;
+  title: string;
+  reason: string;
+  priority: 'high' | 'medium';
+  patterns: RegExp[];
+};
+
+const PDF_REVIEW_RULES: ReviewRule[] = [
+  {
+    id: 'labels-and-variants',
+    title: '核对方案标签、主标与码标',
+    reason: 'OP1/OP2、PROTO、主标、码标、刺绣字样属于高误伤信息，建议对照原图人工确认。',
+    priority: 'high',
+    patterns: [
+      /\b(op\s*#?\d+|proto\s*#?\d+)\b/i,
+      /\b(size label|main label|logo label|new logo label|neck label|hangtag)\b/i,
+      /\b(embroidery|embroidered|logo)\b/i
+    ]
+  },
+  {
+    id: 'colors-and-fabric',
+    title: '核对颜色、顺色与主辅面料',
+    reason: '颜色名、顺色要求以及主辅面料经常直接影响打样，不能只看摘要。',
+    priority: 'high',
+    patterns: [
+      /\b(noir|ecru|donuts|ecr)\b/i,
+      /\b(matching color|same color|self color|tone on tone|color with)\b/i,
+      /\b(shell fabric|lining|pocketing|fabric|rib|jersey|fleece|cotton|polyester)\b/i
+    ]
+  },
+  {
+    id: 'pocket-and-closure',
+    title: '核对口袋、拉链与闭合工艺',
+    reason: '袋型、拉链、按扣、魔术贴和门襟类工艺很容易影响工厂执行，建议逐页核对。',
+    priority: 'high',
+    patterns: [
+      /\b(pocket|zip|zipper|snap|button|velcro|placket|opening|binding)\b/i,
+      /\b(tape|seam|piped pocket|hidden pocket)\b/i
+    ]
+  },
+  {
+    id: 'construction-and-fit',
+    title: '核对结构与版型说明',
+    reason: 'same front/back、construction、fit、pleat、dart 等结构语句需要确认没有漏掉条件和方向。',
+    priority: 'medium',
+    patterns: [
+      /\b(same front|same back|construction|fit|fitting|pleat|dart|waistband)\b/i,
+      /\b(collar|cuff|belt|inside design|binding finishing)\b/i
+    ]
+  }
+];
+
+function normalizeReviewText(text: string) {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function isLikelyBusinessReviewText(text: string) {
+  const normalized = normalizeReviewText(text);
+  if (normalized.length < 6) return false;
+  if (
+    /\b(all rights reserved|style sheet|edited on|copyright|avertissement|warning:|menswear|womenswear)\b/i.test(
+      normalized
+    )
+  ) {
+    return false;
+  }
+  if (/^[A-Z0-9\s:/#.+-]+$/.test(normalized) && normalized.length < 10) {
+    return false;
+  }
+  return /[a-z]{3,}/i.test(normalized) || /[#/]/.test(normalized);
+}
+
+function buildHumanReviewGuide(
+  pipelineResult: Awaited<ReturnType<typeof runPdfTranslationPipeline>>
+): HumanReviewGuide | undefined {
+  const focusPages = new Set<number>();
+  const hints: HumanReviewGuide['hints'] = [];
+  const pageRiskScore = new Map<number, number>();
+
+  const addPageRisk = (pageNumber: number, score = 1) => {
+    if (!pageNumber || !Number.isFinite(pageNumber)) {
+      return;
+    }
+    focusPages.add(pageNumber);
+    pageRiskScore.set(pageNumber, (pageRiskScore.get(pageNumber) ?? 0) + score);
+  };
+
+  for (const rule of PDF_REVIEW_RULES) {
+    const matchedSegments = pipelineResult.segments.filter((segment) =>
+      isLikelyBusinessReviewText(segment.text) &&
+      rule.patterns.some((pattern) => pattern.test(segment.text))
+    );
+
+    if (matchedSegments.length === 0) {
+      continue;
+    }
+
+    const pageNumbers = Array.from(
+      new Set(matchedSegments.map((segment) => segment.pageNumber))
+    ).sort((left, right) => left - right);
+    for (const pageNumber of pageNumbers) {
+      addPageRisk(pageNumber, rule.priority === 'high' ? 3 : 2);
+    }
+
+    const examples = Array.from(
+      new Set(
+        matchedSegments
+          .map((segment) => normalizeReviewText(segment.text))
+          .filter(Boolean)
+          .slice(0, 3)
+      )
+    ).slice(0, 2);
+
+    hints.push({
+      id: rule.id,
+      title: rule.title,
+      reason: rule.reason,
+      priority: rule.priority,
+      pageNumbers,
+      examples
+    });
+  }
+
+  const untranslatedPages = Array.from(
+    pipelineResult.segments.reduce((pages, segment) => {
+      if (!segment.zh?.trim() && isLikelyBusinessReviewText(segment.text)) {
+        pages.add(segment.pageNumber);
+      }
+      return pages;
+    }, new Set<number>())
+  ).sort((left, right) => left - right);
+
+  if (!pipelineResult.diagnostics.isBusinessPreviewReady || untranslatedPages.length > 0) {
+    for (const pageNumber of untranslatedPages) {
+      addPageRisk(pageNumber, 4);
+    }
+
+    hints.unshift({
+      id: 'coverage-check',
+      title: '优先复核覆盖率不足页',
+      reason:
+        pipelineResult.diagnostics.previewSuppressedReason === 'no_business_translations'
+          ? '当前译出内容主要是页眉或管理信息，建议先确认这些页是否还有关键业务批注漏掉。'
+          : `当前业务预览覆盖率 ${pipelineResult.diagnostics.businessTranslationCoveragePct ?? pipelineResult.diagnostics.translationCoveragePct}% ，建议先看有未译业务句的页面。`,
+      priority: 'high',
+      pageNumbers: untranslatedPages.slice(0, 4),
+      examples: untranslatedPages.length > 0 ? ['先核对这些页的关键批注是否已出中文。'] : undefined
+    });
+  }
+
+  const sortedFocusPages = Array.from(focusPages)
+    .sort((left, right) => (pageRiskScore.get(right) ?? 0) - (pageRiskScore.get(left) ?? 0))
+    .slice(0, 4);
+
+  if (sortedFocusPages.length === 0 && hints.length === 0) {
+    return undefined;
+  }
+
+  return {
+    summary:
+      sortedFocusPages.length > 0
+        ? `建议先人工复核第 ${sortedFocusPages.join('、')} 页，再决定是否直接给工厂使用。`
+        : '当前结果可直接预览，但仍建议人工抽检关键业务条目。',
+    focusPages: sortedFocusPages,
+    suggestedAction: '先打开预览页，优先核对高风险页上的颜色、标类、口袋与结构说明。',
+    hints: hints.slice(0, 5)
+  };
+}
+
+function buildPdfTranslationSkillPayload(options: {
+  sourceFile: UploadedFile;
+  pipelineResult: Awaited<ReturnType<typeof runPdfTranslationPipeline>>;
+  summary: string;
+  pipelineModelName: string;
+  pdfArtifactLinks: NonNullable<AssistantReplyMetadata['pdfArtifactLinks']>;
+  humanReviewGuide?: HumanReviewGuide;
+}): PdfTranslationSkillPayload {
+  const { sourceFile, pipelineResult, summary, pipelineModelName, pdfArtifactLinks, humanReviewGuide } =
+    options;
+  const snapshot = pipelineResult.outputs.annotatedPdf?.snapshot;
+
+  return {
+    kind: 'pdf_translation_skill_v1',
+    fileName: sourceFile.name,
+    taskType: 'feedback',
+    documentMainType: pipelineResult.documentMainType,
+    outputStrategy: pipelineResult.outputStrategy,
+    summary,
+    reviewRequired: true,
+    artifactLinks: pdfArtifactLinks,
+    humanReviewGuide,
+    snapshot: snapshot
+      ? {
+          version: snapshot.version,
+          fileName: snapshot.fileName,
+          documentMainType: snapshot.documentMainType,
+          outputStrategy: snapshot.outputStrategy,
+          generatedAt: snapshot.generatedAt
+        }
+      : undefined,
+    diagnostics: {
+      translatedSegmentCount: pipelineResult.diagnostics.translatedSegmentCount,
+      translationCoveragePct: pipelineResult.diagnostics.translationCoveragePct,
+      businessSegmentCount: pipelineResult.diagnostics.businessSegmentCount,
+      translatedBusinessSegmentCount: pipelineResult.diagnostics.translatedBusinessSegmentCount,
+      businessTranslationCoveragePct: pipelineResult.diagnostics.businessTranslationCoveragePct,
+      businessPreviewReady: pipelineResult.diagnostics.isBusinessPreviewReady,
+      activeModel: pipelineModelName,
+      activeProvider: 'pdf-pipeline'
+    }
+  };
 }
 
 async function buildPipelineFallbackReply(
@@ -923,6 +1127,7 @@ async function buildPipelineFallbackReply(
   }
 
   const pendingConfirmations = buildPipelinePendingItems(pipelineResult);
+  const humanReviewGuide = buildHumanReviewGuide(pipelineResult);
   const coverageText = `已译 ${pipelineResult.diagnostics.translatedSegmentCount}/${pipelineResult.segments.length} 段（覆盖率 ${pipelineResult.diagnostics.translationCoveragePct}%）`;
   const pipelineModelName =
     pipelineResult.diagnostics.bModelActiveModel ??
@@ -950,6 +1155,15 @@ async function buildPipelineFallbackReply(
       ? '当前 PDF pipeline 未产出可用中文结果。'
       : '意见翻译主链已降级到 PDF pipeline，但当前模型未产出可用中文结果。';
 
+  const skillPayload = buildPdfTranslationSkillPayload({
+    sourceFile,
+    pipelineResult,
+    summary: nextSummary,
+    pipelineModelName,
+    pdfArtifactLinks,
+    humanReviewGuide
+  });
+
   const fallbackField: ArtifactField = {
     label: 'PDF Pipeline 结果',
     value: nextSummary,
@@ -967,6 +1181,20 @@ async function buildPipelineFallbackReply(
     kind: 'list',
     summary: '当前页面已切换为 PDF pipeline 产物入口，可直接预览或下载。',
     fields: [fallbackField]
+  };
+
+  const skillArtifact: ArtifactSection = {
+    title: 'Skill 输出协议',
+    kind: 'list',
+    summary: '供页面、后续 skill 和 OpenClaw 复用的稳定 PDF 翻译结果包。',
+    fields: [
+      {
+        label: 'pdf_translation_skill_v1',
+        value: '已生成稳定 skill 输出协议',
+        citation: sourceFile.name,
+        structuredData: skillPayload
+      }
+    ]
   };
 
   return {
@@ -990,7 +1218,7 @@ async function buildPipelineFallbackReply(
           ],
     pendingConfirmations,
     riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
-    artifacts: [...reply.artifacts, fallbackArtifact],
+    artifacts: [...reply.artifacts, fallbackArtifact, skillArtifact],
     auditTrail: [
       ...reply.auditTrail,
       {
@@ -1018,6 +1246,8 @@ async function buildPipelineFallbackReply(
       translationMode: 'real',
       pdfArtifactLinks,
       pipelineFallbackHints,
+      humanReviewGuide,
+      skillPayload,
       translationTiming: {
         totalMs: Date.now() - startedAt,
         sourceBuildMs,
@@ -1036,6 +1266,9 @@ async function buildPipelineFallbackReply(
 
 async function findGoldenFixture(sourceFileName: string) {
   const baseName = basename(sourceFileName, extname(sourceFileName));
+  const normalizeName = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const normalizedBaseName = normalizeName(baseName);
+  const normalizedSourceFileName = normalizeName(sourceFileName);
   const rootDir = join(process.cwd(), 'data', 'feedback-translation');
   const caseDirs = await readdir(rootDir, { withFileTypes: true });
 
@@ -1051,7 +1284,11 @@ async function findGoldenFixture(sourceFileName: string) {
         const structured = JSON.parse(
           await readFile(structuredPath, 'utf8')
         ) as GoldenTranslationReference;
-        if (structured.sourceFile === sourceFileName && Array.isArray(structured.sections)) {
+        if (
+          Array.isArray(structured.sections) &&
+          (structured.sourceFile === sourceFileName ||
+            normalizeName(structured.sourceFile) === normalizedSourceFileName)
+        ) {
           return {
             kind: 'structured' as const,
             name: 'translation-reference.json',
@@ -1067,7 +1304,7 @@ async function findGoldenFixture(sourceFileName: string) {
         (file) =>
           file.isFile() &&
           file.name.toLowerCase().endsWith('.pdf') &&
-          file.name.startsWith(baseName)
+          (file.name.startsWith(baseName) || normalizeName(file.name) === normalizedBaseName)
       );
 
       if (matched) {
@@ -1096,6 +1333,7 @@ async function buildFixtureReply(
   }
 
   if (fixture.kind === 'structured') {
+    const snapshot = toTranslationSnapshot(fixture.reference);
     return {
       ...reply,
       summary: '当前未连通正式模型，已使用结构化人工标准答案生成业务预览。',
@@ -1112,15 +1350,15 @@ async function buildFixtureReply(
           kind: 'text' as const,
           summary: '已按业务章节组织标准答案，适合对照预览和自动评测。',
           fields: [
-            {
-              label: 'Golden Preview',
-              value: `已加载 ${fixture.name}`,
-              citation: fixture.name,
-              richTextHtml: buildStructuredFixtureHtml(fixture.reference),
-              structuredData: fixture.reference
-            }
-          ]
-        }
+          {
+            label: 'Golden Preview',
+            value: `已加载 ${fixture.name}`,
+            citation: fixture.name,
+            richTextHtml: buildStructuredFixtureHtml(fixture.reference),
+            structuredData: snapshot
+          }
+        ]
+      }
       ],
       auditTrail: [
         ...reply.auditTrail,
@@ -1195,6 +1433,16 @@ export async function maybeRunRealFeedbackTranslation(
     hasTranslatorSkill &&
     sourceFile?.name.toLowerCase().endsWith('.pdf');
   const canRunPdfPipeline = Boolean(sourceFile && (sourceFile.storagePath || sourceFile.localPath));
+
+  if (process.env.ASSISTANT_FORCE_GOLDEN === '1' && sourceFile) {
+    const goldenReply = await buildFixtureReply(reply, sourceFile);
+    if (goldenReply !== reply) {
+      console.log(
+        `[ASSISTANT_FORCE_GOLDEN] loaded fixture reply for ${sourceFile.name}`
+      );
+      return goldenReply;
+    }
+  }
 
   if (sourceFile && isPdfFeedbackTask && canRunPdfPipeline) {
     const pipelineReply = await buildPipelineFallbackReply(

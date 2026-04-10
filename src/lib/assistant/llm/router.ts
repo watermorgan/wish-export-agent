@@ -4,6 +4,7 @@ import { codexCliProvider } from '@/lib/assistant/llm/providers/codex-cli';
 import { dashScopeProvider } from '@/lib/assistant/llm/providers/dashscope';
 import { geminiCliProvider } from '@/lib/assistant/llm/providers/gemini-cli';
 import { glmProvider } from '@/lib/assistant/llm/providers/glm';
+import { localOpenAiProvider } from '@/lib/assistant/llm/providers/local-openai';
 import { modelScopeProvider } from '@/lib/assistant/llm/providers/modelscope';
 import type { LlmProvider, LlmProviderName, LlmRequest } from '@/lib/assistant/llm/types';
 
@@ -11,6 +12,7 @@ const providers: Record<LlmProviderName, LlmProvider> = {
   dashscope: dashScopeProvider,
   modelscope: modelScopeProvider,
   glm: glmProvider,
+  'local-openai': localOpenAiProvider,
   'gemini-cli': geminiCliProvider,
   anthropic: anthropicProvider,
   'claude-cli': claudeCliProvider,
@@ -32,6 +34,14 @@ function resolveProviderFromModel(modelOverride: string): LlmProviderName {
 
   if (normalized === 'qwen3.5-flash' || normalized.startsWith('qwen3.5-flash')) {
     return 'dashscope';
+  }
+
+  if (
+    normalized.includes('gemma-4-31b-it-q3_k_m.gguf') ||
+    normalized.startsWith('gemma4') ||
+    normalized.endsWith('.gguf')
+  ) {
+    return 'local-openai';
   }
 
   if (normalized === 'minimax/minimax-m2.1') {

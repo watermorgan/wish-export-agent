@@ -94,12 +94,21 @@
       - `aiPrecisionPct=38`
     - 这说明 page 1 的主矛盾已经从“完全没回块”变成“细项召回和术语/粒度仍有差距”
   - 同日继续把 page 1 术语往人工稿靠：
+    - `EN ATTENTE M MEP S40 -> 待处理 M MEP S40`
     - `65 DONUTS 18-1409TCX -> 65#咖色`
+    - `11 Ecr -> 11 右片裁剪`
     - `11 Ecru -> 11#米白`
     - `MATCHING COLOR WITH OUTSHELL FABRIC -> 顺色`
     - `CUFF + BELT + COLLAR FABRIC -> 袖口、底摆、领材料`
     - `SAME COTTON FACE LOOK BUT SHAVED POLAR FLEECE TO BE THINNER -> 比主身摇粒绒更薄`
     - 这轮 style-align 后，`m415013` 的 `aiPrecisionPct` 提到 `43`，但由于 A 运行态与 comparison 粒度仍有波动，`referenceRecallPct` 仍不稳定，说明下一步仍应优先看 page 级细项召回，而不是只盯术语分数
+  - 2026-04-07 又补了一轮更窄的 stage 对齐规则：
+    - `cuff opening slit with 7mm top-stitch -> 袖口开衩，顶部明线 7mm`
+    - `original idea for shape and collar shape -> 同原设计`
+    - `inside design -> 内里设计`
+    - `clean binding finishing for clean inside seams -> 整洁包边`
+    - `shell fabric hua yue hyt23290tpu + 5k/5k lamination 100% polyester 177gr/m2 56/57" we need softer handfeel! -> 面料：华悦 HYT23290TPU + 5K/5K 压胶 100% 聚酯纤维 177g/m2 56/57" 手感需更柔软！`
+    - 这几条主要用来把 `M445033` 的剩余差异压到人工稿短句风格，不再继续扩大到其他样本族
   - 同日晚些时候把 parser 修复后的 sketch 标杆组一起回归（`20260331-sketch-batch-arrayrecover-v1`）：
     - `m422123`: `pass`，`referenceRecallPct=80`，`aiPrecisionPct=72`
     - `m441083`: `warn`，`referenceRecallPct=57`，`aiPrecisionPct=74`
@@ -296,3 +305,13 @@
 2. 补“人工评分表”逐样本结果并与 AI 指标并排
 3. 在 low-confidence 样本上启用真实 second pass 修正逻辑
 4. 输出下一版可上线边界（灰度范围与回退策略）
+
+## 2026-04-10 人工稿对照补充
+
+- 针对当前业务确认的 4 个 sketch/comment 代表样本，已补充一份“人工翻译 PDF vs 当前 AI 阶段版正式 PDF”的对照分析：
+  - [manual-vs-ai-translation-analysis-20260410.md](/Users/weitao/Documents/buildworld/aigc/export-agent/docs/project/manual-vs-ai-translation-analysis-20260410.md)
+- 该文档明确了：
+  - 人工翻译 PDF 的实际路径（`data/test02/*翻译.pdf`）
+  - 当前 AI 正式稿路径（`.tmp/business-review-pdfs/*.annotated.pdf`）
+  - `M422123 / M441083 / M445033 / M415013` 的样本级差异说明
+  - 当前可对业务使用的口径：AI 已进入“高质量辅助稿”阶段，但仍不应表述为“无需人工复核的最终稿”

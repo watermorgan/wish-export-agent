@@ -1,0 +1,2067 @@
+{
+  "caseId": "case-003-ata019-shell-jacket",
+  "sourceFile": "ATA019 MEN'S WP 3.5L SHELL JACKET TECHPACK.pdf",
+  "title": "ATA019 MEN'S WP 3.5L SHELL JACKET TECHPACK.pdf",
+  "outputMode": "bilingual_sections",
+  "sections": [
+    {
+      "id": "page-1",
+      "title": "Page 1",
+      "summary": "74 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "款名：3.5L WP Jacket | 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "面料：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS | HOOD:",
+          "translation": "L&M-CY-CNT480SMXPS | 连帽："
+        },
+        {
+          "source": "RECCO 印花颜色要顺面料色",
+          "translation": "RECCO 印花颜色：顺面料色"
+        },
+        {
+          "source": "AT INNER BACK NECK.",
+          "translation": "后领内"
+        },
+        {
+          "source": "ZIP GARAGE | 内置调节扣，在于兜帽通道内，帽绳卡扣从领口接缝处的鸡眼扣穿出。",
+          "translation": "拉链仓 | 内置调节扣位于兜帽通道内，帽绳卡扣从领口接缝处的鸡眼扣穿出。"
+        },
+        {
+          "source": "ATA_BNP | 拉链库",
+          "translation": "ATA_BNP | 拉链库"
+        },
+        {
+          "source": "所有接缝均采用胶条进行车线密封处理，无明线",
+          "translation": "所有接缝：胶条车线密封，无明线"
+        },
+        {
+          "source": "- | ALL SEAMS ARE STITCHED AND SEAM SEALED USING NARROW TAPE. | SET IN SLEEVE | 上肩袖",
+          "translation": "- | 所有缝线均用窄带缝合并封边。| 插肩袖 | 上肩袖"
+        },
+        {
+          "source": "- | NO TOPSTITCHING",
+          "translation": "- | 无明线"
+        },
+        {
+          "source": "- | EMBROIDERED CHEST LOGO ATAE017 | 胸前刺绣logoATAE017",
+          "translation": "- | 胸前刺绣logo ATAE017"
+        },
+        {
+          "source": "在所有外漏拉链 ADD SHELL FABRIC ZIP GARAGES TO THE TOP",
+          "translation": "所有外露拉链：顶部加面料拉链盖"
+        },
+        {
+          "source": "上下两端增加面 AND BOTTOM OF ALL EXPOSED ZIPS. | - | 2 X ZIPPED CHEST POCKETS:",
+          "translation": "上下两端增加面 AND BOTTOM OF ALL EXPOSED ZIPS. | - | 2 X ZIPPED CHEST POCKETS:"
+        },
+        {
+          "source": "料拉链库 | - | YKK NO.3 WP REVERSE COIL ZIPPED CHEST POCKET @ LENGTH 22CM",
+          "translation": "料拉链库 | - | YKK NO.3 WP REVERSE COIL 反装拉链胸袋 @ 长度 22CM"
+        },
+        {
+          "source": "RECCO ADVANCED RESCUE SYSTEM | - | SINGLE LAYER 3 PANEL HOOD USING BODY FABRIC.",
+          "translation": "RECCO高级救援系统 | - | 单层三片式连帽，采用衣身面料。"
+        },
+        {
+          "source": "YKK 2 WAY NO. 5 AQUAGUARD®NATULON® COIL MATTE TRANSPARENT | - | HALF WIDTH OF ZIP IS COVERED BY A FOLDED HEATSET WELT AND",
+          "translation": "YKK 双向#5 AQUAGUARD®NATULON®线圈哑光透明拉链 | - | 拉链半宽由折叠热定型嵌条覆盖"
+        },
+        {
+          "source": "FILM WITH NON-LOCK SLIDER | STIFFENER.",
+          "translation": "带非锁止滑片的薄膜 | 衬布."
+        },
+        {
+          "source": "- | 2 X OUTER ZIPPED HAND POCKETS - YKK NO.3 WP REVERSE COIL",
+          "translation": "- | 2 X 外侧拉链手袋 - YKK NO.3 WP 反向线圈"
+        },
+        {
+          "source": "BELLOW AT BOTTOM OF OUTER HANDPOCKET BAG. | - | @ LENGTH 24CM COVERED BY FOLDED HEATSET WELT AND STIFFENER.",
+          "translation": "外贴袋袋布底部下方。| - | @ 长度 24CM，由折叠热定型嵌条和衬垫覆盖。"
+        },
+        {
+          "source": "DEPTH OF BELLOW IS 3CM | - | SUEDED TRICOT LINING AT FRONT SIDE OF POCKETBAG拉链一半由袋",
+          "translation": "褶裥深度：3CM | - | 袋布正面贴麂皮针织里布；拉链一半由袋"
+        },
+        {
+          "source": "口面料折边覆盖，兜压压胶，斗口拉链尺寸 24CM",
+          "translation": "面料折边覆盖，兜压压胶，斗口拉链尺寸 24CM"
+        },
+        {
+          "source": "兜底有风琴緔，宽度",
+          "translation": "兜底：风琴褶，宽度"
+        },
+        {
+          "source": "3CM | - | ANGLED SLEEVE POCKET USING YKK NO.3 WP REVERSE COIL ZIP",
+          "translation": "3CM | - | 斜插袖袋，配YKK NO.3 WP反齿拉链"
+        },
+        {
+          "source": "- | @ LENGTH 15CM",
+          "translation": "- | @ 长度 15CM"
+        },
+        {
+          "source": "- | NO TOPSTITCHING袖兜上下两端增加面料拉链库",
+          "translation": "- | 无明线：袖兜上下两端增加面料拉链库"
+        },
+        {
+          "source": "REF. 723 WELDED TO INSIDE OF PEAK. | - | LIGHTWEIGHT STIFFENER IN HOOD PEAK",
+          "translation": "REF. 723 焊接至帽檐内侧。| - | 帽檐内衬轻质硬挺剂"
+        },
+        {
+          "source": "SHADED GREY AREA SHOWS THE DEPTH | - | ADD SHELL FABRIC ZIP GARAGE AT TOP AND BOTTOM OF ZIP",
+          "translation": "灰色阴影区域显示深度 | - | 拉链上下端加面料拉链盖"
+        },
+        {
+          "source": "OF BELLOW",
+          "translation": "下摆"
+        },
+        {
+          "source": "- | VELCRO CUFF ADJUSTER",
+          "translation": "- | 魔术贴袖口调节扣"
+        },
+        {
+          "source": "阴影部分为风琴緔 | - | DOUBLE LAYER OF SHELL FABRIC WITH LIGHTWEIGHT STIFFENER.",
+          "translation": "阴影部分为风琴緔 | - | 双层面料加轻质衬布。"
+        },
+        {
+          "source": "- | ADD A REFLECTIVE CUFF ADJUSTER TAB WITH EMBOSSED LOGO TO",
+          "translation": "- | 加反光袖口调节袢，带压印LOGO"
+        },
+        {
+          "source": "EACH CUFF ADJUSTER.",
+          "translation": "每只袖口调节扣。"
+        },
+        {
+          "source": "COLOUR TO BE TONAL TO SHELL FABRIC | - | 2.5MM COLOUR MATCHED SHOCK CORD AT HOOD OPENING AND BACK OF HOOD ADJUSTER.",
+          "translation": "颜色：与主面料同色系 | - | 2.5MM 抽绳：帽口及后部调节处，颜色匹配。"
+        },
+        {
+          "source": "- | COHEASIVE LIGHTWEIGHT, LOW PROFILE ADJUSTER CONTAINED WITHIN HOOD CHANNEL.",
+          "translation": "- | 连帽通道内藏式一体轻量低轮廓调节扣。"
+        },
+        {
+          "source": "后领内侧印有尺码信息 | - | CORD ADJUSTER EXITS THROUGH EYELET IN NECK SEAM.",
+          "translation": "后领内侧印尺码 | - | 调节绳从领口眼位穿出。"
+        },
+        {
+          "source": "单层三片式兜帽，采用大身面料制作。帽檐处内置双面胶",
+          "translation": "单层三片式兜帽，采用大身面料制作。帽檐处内置双面胶"
+        },
+        {
+          "source": "INNER PRINTED SIZE INFO",
+          "translation": "内印尺码信息"
+        },
+        {
+          "source": "帽口及后部调节器处使用2.5mm配色弹力绳",
+          "translation": "帽口及后部调节器：2.5mm配色弹力绳"
+        },
+        {
+          "source": "前中拉链为5#尼龙防水双开 | ATAE011 EMBROIDERED LOGO | SHAPED CUFF OPENING. 2CM LONGER",
+          "translation": "前中拉链：5#尼龙防水双开 | ATAE011 刺绣LOGO | 弧形袖口开口，加长2CM"
+        },
+        {
+          "source": "ON TOPSIDE COVERING BACK OF HAND | 增加反光调节袖拉",
+          "translation": "手背外侧覆盖 | 增加反光调节袖拉"
+        },
+        {
+          "source": "ATAE011刺绣logo",
+          "translation": "ATAE011刺绣logo"
+        },
+        {
+          "source": "马蹄袖口，手背长处袖口2cm已便护住手背",
+          "translation": "马蹄袖口，手背长处袖口2cm已便护住手背"
+        },
+        {
+          "source": "EXTERNAL SPEC FRONT | PAGE 1 /9",
+          "translation": "外部规格 前片 | 第 1 /9 页"
+        },
+        {
+          "source": "STYLE REF: ATA019",
+          "translation": "款号：ATA019"
+        },
+        {
+          "source": "SINGLE LAYER 3 PANEL HOOD USING BODY FABRIC.",
+          "translation": "单层三片式连帽，使用主面料。"
+        },
+        {
+          "source": "LIGHTWEIGHT STIFFENER IN HOOD PEAK",
+          "translation": "帽舌轻质衬布"
+        },
+        {
+          "source": "2.5MM COLOUR MATCHED SHOCK CORD AT HOOD OPENING AND BACK OF HOOD ADJUSTER.",
+          "translation": "帽口及后部调节处配2.5MM同色松紧绳。"
+        },
+        {
+          "source": "RECCO ADVANCED RESCUE SYSTEM",
+          "translation": "RECCO 高级救援系统"
+        },
+        {
+          "source": "REF. 723 WELDED TO INSIDE OF PEAK.",
+          "translation": "REF. 723 焊接至帽檐内侧。"
+        },
+        {
+          "source": "COLOUR TO BE TONAL TO SHELL FABRIC",
+          "translation": "颜色：与主面料同色系"
+        },
+        {
+          "source": "INNER PRINTED SIZE INFO AT INNER BACK NECK.",
+          "translation": "后领内侧印尺码信息。"
+        },
+        {
+          "source": "ATA_BNP",
+          "translation": "ATA_BNP"
+        },
+        {
+          "source": "BRAND: ATACAMA",
+          "translation": "品牌：ATACAMA"
+        },
+        {
+          "source": "ZIP GARAGE",
+          "translation": "拉链袋"
+        },
+        {
+          "source": "ALL SEAMS ARE STITCHED AND SEAM SEALED USING NARROW TAPE.",
+          "translation": "所有缝线：使用窄带缝合并封边。"
+        },
+        {
+          "source": "ADD SHELL FABRIC ZIP GARAGES TO THE TOP AND BOTTOM OF ALL EXPOSED ZIPS.",
+          "translation": "所有外露拉链上下端加面料拉链套。"
+        },
+        {
+          "source": "YKK 2 WAY NO. 5 AQUAGUARD®NATULON® COIL MATTE TRANSPARENT FILM WITH NON-LOCK SLIDER",
+          "translation": "YKK 双向#5 AQUAGUARD®NATULON®线圈哑光透明膜，配无锁止滑块"
+        },
+        {
+          "source": "BELLOW AT BOTTOM OF OUTER HANDPOCKET BAG.",
+          "translation": "外贴袋袋布底部下方。"
+        },
+        {
+          "source": "DEPTH OF BELLOW IS 3CM",
+          "translation": "下摆深度：3CM"
+        },
+        {
+          "source": "SHADE D GREY AREA SHOWS THE DEPTH OF BELLOW",
+          "translation": "灰色区域显示下摆深度"
+        },
+        {
+          "source": "SET IN SLEEVE",
+          "translation": "插肩袖"
+        },
+        {
+          "source": "SEASON: W26",
+          "translation": "季节：W26"
+        },
+        {
+          "source": "DEPT: MENS",
+          "translation": "部门：男装"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket",
+          "translation": "描述：3.5L 防水夹克"
+        },
+        {
+          "source": "FABRIC: L&M-CY-CNT480SMXPS",
+          "translation": "面料：L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DATE: 23/12/25",
+          "translation": "日期：23/12/25"
+        },
+        {
+          "source": "HOOD:",
+          "translation": "帽："
+        }
+      ]
+    },
+    {
+      "id": "page-2",
+      "title": "Page 2",
+      "summary": "57 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L 防水夹克 | 面料：70D+40D*70D + 40%再生尼龙，PU石墨烯薄膜 | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 聚酯平纹布 + 50D 石墨烯背胶，"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "帽后中刺绣ATAE005,距后中开气7cm",
+          "translation": "帽后中刺绣ATAE005，距后中开气7cm"
+        },
+        {
+          "source": "EMBROIDERED LOGO ATAE005 AT CB HOOD",
+          "translation": "后领中绣标 ATAE005"
+        },
+        {
+          "source": "7CM UP FROM CB WELT FABRIC EDGE",
+          "translation": "后中贴边边缘向上7CM"
+        },
+        {
+          "source": "ADD IN CB NECK SEAM",
+          "translation": "后中领缝：加衬"
+        },
+        {
+          "source": "增加后领中破缝",
+          "translation": "增加后领中破缝"
+        },
+        {
+          "source": "双向双拉头腋下透气拉链，",
+          "translation": "双向双拉头腋下透气拉链，"
+        },
+        {
+          "source": "3#尼龙反装防水拉链",
+          "translation": "3#尼龙反装防水拉链"
+        },
+        {
+          "source": "- | ALL ZIPS ARE TO HAVE A CORD",
+          "translation": "- | 所有拉链需配拉绳"
+        },
+        {
+          "source": "肘部后侧省道",
+          "translation": "肘部后侧省道"
+        },
+        {
+          "source": "WITH PLASTIC PULLER.",
+          "translation": "配塑料拉片。"
+        },
+        {
+          "source": "设计，增强 | - | TOP AND BOTTOM OF PITZIPS",
+          "translation": "设计，增强 | - | 拉链上下端"
+        },
+        {
+          "source": "关节活动灵 | HAVE A SHELL FABRIC ZIP GARAGE",
+          "translation": "关节活动灵 | 面料拉链藏头"
+        },
+        {
+          "source": "活性",
+          "translation": "活性"
+        },
+        {
+          "source": "拉链上下两端增加面料拉链库",
+          "translation": "拉链上下两端加面料拉链库"
+        },
+        {
+          "source": "所有拉链有拉链引手",
+          "translation": "所有拉链：配拉链引手"
+        },
+        {
+          "source": "DART AT BACK OF | 当腋下拉链闭合时，两个拉头在一起。",
+          "translation": "后背省道 | 腋下拉链闭合时，两拉头并拢。"
+        },
+        {
+          "source": "ELBOW FOR",
+          "translation": "ELBOW FOR"
+        },
+        {
+          "source": "ARTICULATION | - | 2 WAY DOUBLE SLIDER PIT ZIPS,",
+          "translation": "结构 | - | 双向双拉片腋下拉链,"
+        },
+        {
+          "source": "USING YKK NO.3 AQUAGUARD",
+          "translation": "使用YKK NO.3 AQUAGUARD"
+        },
+        {
+          "source": "WP REVERSE COIL ZIP.",
+          "translation": "WP 反向线圈拉链"
+        },
+        {
+          "source": "- | SLIDERS ARE TOGETHER WHEN",
+          "translation": "- | 拉链头并拢时"
+        },
+        {
+          "source": "PIT ZIPS ARE CLOSED.",
+          "translation": "腋下拉链：闭合"
+        },
+        {
+          "source": "底摆采",
+          "translation": "底摆采"
+        },
+        {
+          "source": "COHAESIVE ADJUSTER AT HEM | 用CL21X-G-2.5卡扣",
+          "translation": "下摆用CL21X-G-2.5卡扣"
+        },
+        {
+          "source": "CL21X-G-2.5 | HEM AT BACK",
+          "translation": "CL21X-G-2.5 | 后下摆"
+        },
+        {
+          "source": "- COHAESIVE GRIP ICON FOR LOCATING ADJUSTER. | SHOULD SIT SLIGHTLY",
+          "translation": "- 定位调节器的粘合抓握图标。| 应略微贴合"
+        },
+        {
+          "source": "- 2.5MM SHOCKCORD | 配合卡扣用2.5mm底摆绳",
+          "translation": "- 2.5MM SHOCKCORD | 配卡扣用2.5mm底摆绳"
+        },
+        {
+          "source": "LONGER THAN FRONT HEM",
+          "translation": "后下摆长于前下摆"
+        },
+        {
+          "source": "后底摆长于前底摆",
+          "translation": "后底摆长于前底摆"
+        },
+        {
+          "source": "EXTERNAL SPEC BACK | PAGE 2/9",
+          "translation": "外部规格背面 | 第 2/9 页"
+        },
+        {
+          "source": "STYLE REF: ATA019",
+          "translation": "款号：ATA019"
+        },
+        {
+          "source": "DART AT BACK OF ELBOW FOR ARTICULATION",
+          "translation": "肘后设省道以增加活动量"
+        },
+        {
+          "source": "肘部后侧省道设计，增强关节活动灵活性",
+          "translation": "肘部后侧省道设计，增强关节活动灵活性"
+        },
+        {
+          "source": "2 WAY DOUBLE SLIDER PIT ZIPS,",
+          "translation": "双向双拉片腋下拉链"
+        },
+        {
+          "source": "USING YKK NO.3 AQUAGUARD WP REVERSE COIL ZIP.",
+          "translation": "使用YKK 3号AQUAGUARD WP反齿拉链。"
+        },
+        {
+          "source": "SLIDERS ARE TOGETHER WHEN PIT ZIPS ARE CLOSED.",
+          "translation": "拉链闭合时，拉头并拢。"
+        },
+        {
+          "source": "ALL ZIPS ARE TO HAVE A CORD WITH PLASTIC PULLER.",
+          "translation": "所有拉链需配带塑料拉头的绳带。"
+        },
+        {
+          "source": "TOP AND BOTTOM OF PITZIPS HAVE A SHELL FABRIC ZIP GARAGE",
+          "translation": "拉链上下端设面料拉链盖"
+        },
+        {
+          "source": "COHAESIVE ADJUSTER AT HEM CL21X-G-2.5",
+          "translation": "下摆处 COHAESIVE 调节器 CL21X-G-2.5"
+        },
+        {
+          "source": "COHAESIVE GRIP ICON FOR LOCATING ADJUSTER.",
+          "translation": "定位调节器的整体抓握图标。"
+        },
+        {
+          "source": "BRAND: ATACAMA",
+          "translation": "品牌：ATACAMA"
+        },
+        {
+          "source": "2.5MM SHOCKCORD",
+          "translation": "2.5MM 松紧带"
+        },
+        {
+          "source": "HEM AT BACK SHOULD SIT SLIGHTLY LONGER THAN FRONT HEM",
+          "translation": "后下摆应略长于前下摆"
+        },
+        {
+          "source": "SEASON: W26",
+          "translation": "季节：W26"
+        },
+        {
+          "source": "DEPT: MENS",
+          "translation": "部门：男装"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket",
+          "translation": "说明：3.5L 防水夹克"
+        },
+        {
+          "source": "FABRIC: L&M-CY-CNT480SMXPS",
+          "translation": "面料：L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DATE: 23/12/25",
+          "translation": "日期：23/12/25"
+        }
+      ]
+    },
+    {
+      "id": "page-3",
+      "title": "Page 3",
+      "summary": "61 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "ALL RIGHTS RESERVED TO ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L WP Jacket | 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "面料：30D 涤纶汗布 + 50D 石墨烯背胶"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "UNDERSIDE OF HOOD PEAK",
+          "translation": "帽峰内侧"
+        },
+        {
+          "source": "弹力绳从210T 通道中 | SHOCK CORD FROM BOTH HOOD ADJUSTING POINTS RUNS THROUGH A POLYESTER TAFFETA CHANNEL",
+          "translation": "弹力绳从210T通道中"
+        },
+        {
+          "source": "穿出",
+          "translation": "穿出"
+        },
+        {
+          "source": "STIFFENED PEAK CONSTRUCTION WITH SHOCKCORD",
+          "translation": "挺括帽檐结构，配松紧带"
+        },
+        {
+          "source": "SECURED IN POLYESTER TAFFETA CHANNEL",
+          "translation": "固定于涤纶塔夫绸通道"
+        },
+        {
+          "source": "帽檐结构图（鱼骨线和弹力绳）",
+          "translation": "帽檐结构图（鱼骨线、弹力绳）"
+        },
+        {
+          "source": "SHELL FABRIC 1",
+          "translation": "SHELL FABRIC 1"
+        },
+        {
+          "source": "SEAM SEALED CHANNELS FOR",
+          "translation": "压胶通道"
+        },
+        {
+          "source": "HOOD GARAGE | DRAWCORDS",
+          "translation": "连帽车库 | 抽绳"
+        },
+        {
+          "source": "CROWN TO BASE OF",
+          "translation": "帽顶至帽底"
+        },
+        {
+          "source": "UNDERSIDE | SKULL ADJUSTMENT | DRAWCORD 2 粉色为帽口调节的弹力绳",
+          "translation": "内侧 | 骷髅调节 | 抽绳 2 粉色为帽口调节弹力绳"
+        },
+        {
+          "source": "OF GARAGE | FACE VOLUME",
+          "translation": "OF GARAGE | 正面体积"
+        },
+        {
+          "source": "ADJUSTMENT",
+          "translation": "调整"
+        },
+        {
+          "source": "CORD GRAB | 蓝色为帽后调节的",
+          "translation": "CORD GRAB | 蓝色为帽后调节"
+        },
+        {
+          "source": "ADJUSTER IS SECURED | 帽绳 | DRAWCORD 2",
+          "translation": "帽绳固定 | 帽绳 | DRAWCORD 2"
+        },
+        {
+          "source": "INTO SEAM WITH 6MM",
+          "translation": "入缝份：6MM"
+        },
+        {
+          "source": "WIDE GROSGRAIN TAPE",
+          "translation": "宽织带"
+        },
+        {
+          "source": "SECURED WITH | 固定弹力绳的载条",
+          "translation": "固定弹力绳的载条"
+        },
+        {
+          "source": "WEBBING LOOPS",
+          "translation": "织带圈"
+        },
+        {
+          "source": "SELF FABRIC GARAGE WITH | GREEN DOTTED",
+          "translation": "主料：车库绿点"
+        },
+        {
+          "source": "LIGHTWEIGHT STIFFENER | LINE SHOWS CHANNEL",
+          "translation": "轻质衬布 | 线迹显示通道"
+        },
+        {
+          "source": "DRAWCORD EXITS",
+          "translation": "抽绳出口"
+        },
+        {
+          "source": "FROM BASE OF ADJUSTER | NO STITCHING | MOULDABLE PLASTIC COATED",
+          "translation": "调节器底部起 | 无车缝 | 可塑涂层塑料"
+        },
+        {
+          "source": "CONCEALED UNDER | 帽绳调节通道为贴合 | WIRE IN FRONT PEAK EDGE",
+          "translation": "隐藏式下沿 | 帽绳调节通道贴合 | 前帽檐嵌钢丝"
+        },
+        {
+          "source": "GARAGE | 绿色虚线为位置指示，不是明线",
+          "translation": "GARAGE | 绿色虚线为位置指示，非明线"
+        },
+        {
+          "source": "帽檐有金属丝",
+          "translation": "帽檐：含金属丝"
+        },
+        {
+          "source": "DRAWCORD 1",
+          "translation": "抽绳 1"
+        },
+        {
+          "source": "CONCEALED DRAWCORD WITH COHAESIVE (OR SAB) LOCKING",
+          "translation": "隐藏抽绳，配热熔胶（或SAB）锁紧"
+        },
+        {
+          "source": "TOGGLE FIXED INTERNALLY CONCEALED CORD LOCK",
+          "translation": "绳扣：内置隐藏式固定"
+        },
+        {
+          "source": "帽后调节系统",
+          "translation": "帽后调节系统"
+        },
+        {
+          "source": "灰色部分用0.15厚双面胶贴合弹簧扣",
+          "translation": "灰色部分：用0.15厚双面胶贴合弹簧扣"
+        },
+        {
+          "source": "内有隐形调节扣",
+          "translation": "内配隐形调节扣"
+        },
+        {
+          "source": "Cord End",
+          "translation": "绳头"
+        },
+        {
+          "source": "* THIS ILLUSTRATION SHOWS ALL INTERNAL TECHNICAL DETAILS - | 此图显示了所有内部技术细节",
+          "translation": "* 此图显示所有内部技术细节"
+        },
+        {
+          "source": "ALL TO BE CONCEALED *",
+          "translation": "全部隐藏 *"
+        },
+        {
+          "source": "INTERNAL HOOD SPEC | PAGE 3/9",
+          "translation": "内部帽工艺单 | 第3/9页"
+        },
+        {
+          "source": "ADJUSTER IS SECURED INTO SEAM WITH 6MM WIDE GROSGRAIN TAPE",
+          "translation": "调节器用6毫米宽织带固定于缝份"
+        },
+        {
+          "source": "SEAM SEALED CHANNELS FOR DRAWCORDS",
+          "translation": "抽绳通道压胶"
+        },
+        {
+          "source": "GREEN DOTTED LINE SHOWS CHANNEL NO STITCHING",
+          "translation": "绿色虚线表示压褶，无车缝"
+        },
+        {
+          "source": "DRAWCORD 1 CROWN TO BASE OF SKULL ADJUSTMENT",
+          "translation": "抽绳：从帽顶至后颈调节"
+        },
+        {
+          "source": "MOULDABLE PLASTIC COATED WIRE IN FRONT PEAK EDGE",
+          "translation": "前浪边：可塑塑料涂层钢丝"
+        },
+        {
+          "source": "DRAWCORD 2 FACE VOLUME ADJUSTMENT",
+          "translation": "抽绳：双面松紧调节"
+        },
+        {
+          "source": "DRAWCORD 2 SECURED WITH WEBBING LOOPS",
+          "translation": "抽绳：用织带圈固定"
+        },
+        {
+          "source": "CONCEALED DRAWCORD WITH COHAESIVE (OR SAB) LOCKING TOGGLE FIXED INTERNALLY CONCEALED CORD LOCK",
+          "translation": "隐藏抽绳，配粘合（或SAB）锁定扣；内部固定隐藏式绳扣"
+        },
+        {
+          "source": "* THIS ILLUSTRATION SHOWS ALL INTERNAL TECHNICAL DETAILS - ALL TO BE CONCEALED *",
+          "translation": "* 本图展示所有内部工艺细节 - 全部需隐藏 *"
+        },
+        {
+          "source": "SHOCK CORD FROM BOTH HOOD ADJUSTING POINTS RUNS THROUGH A POLYESTER TAFFETA CHANNEL",
+          "translation": "抽绳：从帽檐两侧调节点穿过涤纶塔夫绸通道"
+        },
+        {
+          "source": "STIFFENED PEAK CONSTRUCTION WITH SHOCKCORD SECURED IN POLYESTER TAFFETA CHANNEL",
+          "translation": "挺括帽檐结构，松紧带固定于涤纶塔夫绸通道内"
+        },
+        {
+          "source": "HOOD GARAGE",
+          "translation": "连帽车库"
+        },
+        {
+          "source": "SELF FABRIC GARAGE WITH LIGHTWEIGHT STIFFENER",
+          "translation": "主料：车库款，配轻薄衬"
+        },
+        {
+          "source": "DRAWCORD EXITS FROM BASE OF ADJUSTER CONCEALED UNDER GARAGE",
+          "translation": "抽绳从调节器底部穿出，隐藏于车库下"
+        },
+        {
+          "source": "UNDERSIDE OF GARAGE",
+          "translation": "车库底部"
+        },
+        {
+          "source": "CORD GRAB",
+          "translation": "抓皱"
+        }
+      ]
+    },
+    {
+      "id": "page-4",
+      "title": "Page 4",
+      "summary": "86 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L 防水夹克 | 面料：70D+ 40D*70D + 40%再生尼龙，PU石墨烯薄膜 | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "经编布位于领口内侧/前中门襟处",
+          "translation": "经编布：领口内侧/前中门襟"
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "T210 AC COATED | WITH LIGHTWEIGHT STIFFENER/ INTERLINING | L/G",
+          "translation": "T210 AC 涂层 | 配轻薄衬布/里衬 | L/G"
+        },
+        {
+          "source": "红色海帕龙挂环 | 面料激光切割单口袋，贴合于穿着时内侧左",
+          "translation": "红色海帕龙挂环 | 面料激光切割单口袋，贴合于穿着时内侧左"
+        },
+        {
+          "source": "CHIN GUARD | 领口内侧经编起毛布 | DYE CUT HYPALON HANGING LOOP | 身位",
+          "translation": "护领 | 领口内侧经编起毛布 | 染色切割海帕隆挂环 | 身位"
+        },
+        {
+          "source": "FABRIC 2- | 100% POLYESTER | IN RED COLOUR",
+          "translation": "面料2- | 100% 聚酯纤维 | 红色"
+        },
+        {
+          "source": "CHIN GUARD: | 经编起毛布 | SUEDED TRICOT | INSIDE OF COLLAR | SHELL FABRIC 1 POCKET LASER CUT",
+          "translation": "护颈：| 经编起毛布 | 磨毛针织布 | 领内 | 主料 1 个口袋激光切割"
+        },
+        {
+          "source": "ON INSIDE OF COLLAR/ | 100% POLYESTER | AND WELDED ONTO INSIDE LEFT SIDE AS WORN",
+          "translation": "领里内侧：100% 聚酯纤维 | 焊接于穿着时左侧内面"
+        },
+        {
+          "source": "SOFT SUEDED POLYESTER TRICOT",
+          "translation": "面料：柔软磨砂聚酯针织"
+        },
+        {
+          "source": "前门襟2.7CM宽，内有双面胶 | CF PLACKET | SUEDED TRICOT | 15.5CM",
+          "translation": "前门襟：2.7CM宽，内衬双面胶 | CF PLACKET：丝光针织布 | 15.5CM"
+        },
+        {
+          "source": "WATER REPELLENT 600MM | 2.7CM WIDE SHELL FABRIC INNER CF PLACKET",
+          "translation": "防泼水600MM | 2.7CM宽面料门襟内衬"
+        },
+        {
+          "source": "POLYESTER TAFETTA",
+          "translation": "面料：涤纶塔夫绸"
+        },
+        {
+          "source": "防水涂",
+          "translation": "防水涂"
+        },
+        {
+          "source": "涤网眼袋布 | 宽度的中间",
+          "translation": "涤网眼袋布 | 宽度中间"
+        },
+        {
+          "source": "GOGGLE POCKET | L/G",
+          "translation": "护目镜袋 | 左/右"
+        },
+        {
+          "source": "2 WAY ZIPPED UNDERARM VENTS",
+          "translation": "双向拉链腋下通风口"
+        },
+        {
+          "source": "100% POLYESTER | 双闭腋下透气拉链",
+          "translation": "100% 涤纶 | 双闭腋下透气拉链"
+        },
+        {
+          "source": "MESH WITH 10MM | SHELL FACINGS | 面料贴边",
+          "translation": "网眼布配10MM | 外壳贴边 | 面料贴边"
+        },
+        {
+          "source": "FINISHED DEPTH | YKK NO.3 REVERSE COIL AQUAGUARD ZIP.",
+          "translation": "成品深度 | YKK NO.3 反向线圈防水拉鍊。"
+        },
+        {
+          "source": "LYCRA BINDING | PLASTIC ZIP PULLER",
+          "translation": "LYCRA BINDING | PLASTIC ZIP PULLER"
+        },
+        {
+          "source": "6CM | AT OPENING | PRINTED BRAND STORY | YKK 3#反装尼龙拉链Aquaguard防水拉链",
+          "translation": "6CM | 开口处 | 印制品牌故事 | YKK 3#反装尼龙拉链Aquaguard防水拉链"
+        },
+        {
+          "source": "护目镜口袋，袋口弹力包边 | 配引手",
+          "translation": "护目镜袋：袋口弹力包边 | 配引手"
+        },
+        {
+          "source": "13CM",
+          "translation": "13CM"
+        },
+        {
+          "source": "ATAP002 - MAKE SURE THE LOGO IS | WELDED SHELL FABRIC WITH EMBROIDERED LOGO",
+          "translation": "ATAP002 - 确保LOGO | 热熔外壳面料配刺绣LOGO"
+        },
+        {
+          "source": "CARE LABEL | 洗标与ID标缝于袋布并采用贴",
+          "translation": "洗标与ID标：缝于袋布并采用贴"
+        },
+        {
+          "source": "24CM",
+          "translation": "24CM"
+        },
+        {
+          "source": "SHELL FABRIC WELT | & ID LABEL STITCHED ONTO",
+          "translation": "面料嵌条 | 与ID标车缝"
+        },
+        {
+          "source": "COVERING SNOWSKIRT ZIP | POCKETBAG MATERIAL & WELDED 合工艺",
+          "translation": "覆盖雪裙拉链 | 贴袋布材质及压胶工艺"
+        },
+        {
+          "source": "层600mmT210塔夫绸",
+          "translation": "层：600mm T210塔夫绸"
+        },
+        {
+          "source": "POLYESTER STRETCH MESH",
+          "translation": "聚酯弹力网布"
+        },
+        {
+          "source": "CENTRAL. PRINT FINISH HAS CHANGED TO",
+          "translation": "中央：印花后整理已更改为"
+        },
+        {
+          "source": "面料贴合做后领托， | 25CM",
+          "translation": "面料贴合做后领托， | 25CM"
+        },
+        {
+          "source": "BE MATTE.",
+          "translation": "BE 哑光。"
+        },
+        {
+          "source": "上有刺绣尺码标 | 22.5CM",
+          "translation": "上：刺绣尺码标 | 22.5CM"
+        },
+        {
+          "source": "哑光印花，位置居门牌可见",
+          "translation": "哑光印花，位置居门牌可见"
+        },
+        {
+          "source": "13CM | 用面料做个洗标袋",
+          "translation": "13CM | 用面料做洗标袋"
+        },
+        {
+          "source": "面料嵌边覆盖 | 2 OPPOSITE SIDE PRESS",
+          "translation": "面料嵌边覆盖 | 2 对面压"
+        },
+        {
+          "source": "STUDS ON CF FACING FOR | 前身贴边上设2组",
+          "translation": "前身贴边：设2组铆钉"
+        },
+        {
+          "source": "防风裙拉链",
+          "translation": "防风裙拉链"
+        },
+        {
+          "source": "SECURING SNOW | 对侧按扣，用于",
+          "translation": "固定雪裙 | 对侧按扣，用于"
+        },
+        {
+          "source": "19CM | SKIRT WHEN NOT IN USE. | 固定未",
+          "translation": "19CM | 裙摆闲置状态。| 固定未"
+        },
+        {
+          "source": "使用状态下的防",
+          "translation": "使用状态下的防"
+        },
+        {
+          "source": "风裙。",
+          "translation": "风裙。"
+        },
+        {
+          "source": "ZIP REMOVABLE SNOWSKIRT,",
+          "translation": "拉链可拆卸雪裙,"
+        },
+        {
+          "source": "YKK NO. 5 COIL ZIP.",
+          "translation": "YKK 5号线圈拉链"
+        },
+        {
+          "source": "用于固定未使用状态下的防风裙",
+          "translation": "用于固定未使用状态下的防风裙"
+        },
+        {
+          "source": "WATER REPELLENT 600MM",
+          "translation": "防泼水：600MM"
+        },
+        {
+          "source": "2 OPPOSITE SIDE PRESS | HEM FACED AND GLUED | T210 AC COATED",
+          "translation": "2 反面压胶 | 下摆贴边并粘合 | T210 AC 涂层"
+        },
+        {
+          "source": "STUDS ON CF FACING FOR | 下摆采用贴边与粘合工艺处理 | ANTI-GLIDING BRANDED | POLYESTER TAFETTA",
+          "translation": "前中贴边钉铆钉 | 下摆：贴边与粘合工艺 | 防滑动品牌标 | 聚酯塔夫绸"
+        },
+        {
+          "source": "SECURING SNOW | 贴合式卡扣背面 | ELASTIC TAPE",
+          "translation": "固定雪 | 贴合式卡扣背面 | 松紧带"
+        },
+        {
+          "source": "REVERSE SIDE OF COHAESIVE ADJUSTER | 可拆卸防风裙拉链，",
+          "translation": "可拆卸防风裙拉链反面"
+        },
+        {
+          "source": "SKIRT WHEN NOT IN USE. | 防滑品牌logo橡筋 | 采用YKK 5#拉链。",
+          "translation": "SKIRT WHEN NOT IN USE. | 防滑品牌logo橡筋 | 采用YKK 5#拉链。"
+        },
+        {
+          "source": "前身贴边上设2组对侧按扣， | 面料为600mm防水T210",
+          "translation": "前身贴边：2组对侧按扣 | 面料：600mm防水T210"
+        },
+        {
+          "source": "AC涂层塔夫绸",
+          "translation": "AC涂层塔夫绸"
+        },
+        {
+          "source": "LINING VIEW | PAGE 4/9",
+          "translation": "里布视图 | 第 4/9 页"
+        },
+        {
+          "source": "前身贴边上设2组对侧按扣，用于固定未使用状态下的防风裙。",
+          "translation": "前身贴边：设2组对侧按扣，固定未使用状态下的防风裙。"
+        },
+        {
+          "source": "HEM FACED AND GLUED 下摆采用贴边与粘合工艺处理",
+          "translation": "下摆：贴边+粘合"
+        },
+        {
+          "source": "REVERSE SIDE OF COHAESIVE ADJUSTER 贴合式卡扣背面",
+          "translation": "贴合式卡扣背面"
+        },
+        {
+          "source": "ANTI-GLIDING BRANDED ELASTIC TAPE 防滑品牌logo橡筋",
+          "translation": "防滑品牌logo橡筋"
+        },
+        {
+          "source": "ZIP REMOVABLE SNOWSKIRT, YKK NO. 5 COIL ZIP. WATER REPELLENT 600MM T210 AC COATED POLYESTER TAFETTA",
+          "translation": "拉链可拆卸雪裙，YKK 5号线圈拉链。600MM防水T210 AC涂层涤纶塔夫绸"
+        },
+        {
+          "source": "洗标与ID标缝于袋布并采用贴合工艺 用面料做个洗标袋",
+          "translation": "洗标与ID标缝于袋布，采用贴合工艺；用面料制作洗标袋"
+        },
+        {
+          "source": "CARE LABEL & ID LABEL STITCHED ONTO POCKETBAG MATERIAL & WELDED",
+          "translation": "洗水标与ID标：缝于袋布面料并热压"
+        },
+        {
+          "source": "PRINTED BRAND STORY",
+          "translation": "印花品牌故事"
+        },
+        {
+          "source": "FABRIC 2- CHIN GUARD: SOFT SUEDED POLYESTER TRICOT",
+          "translation": "面料 2-护颈：柔软磨砂涤纶针织"
+        },
+        {
+          "source": "SHELL FACINGS",
+          "translation": "面料贴边"
+        },
+        {
+          "source": "2 WAY ZIPPED UNDERARM VENTS 双闭腋下透气拉链",
+          "translation": "双向拉链腋下透气口"
+        },
+        {
+          "source": "YKK NO.3 REVERSE COIL AQUAGUARD ZIP. PLASTIC ZIP PULLER",
+          "translation": "YKK 3号反向线圈防水拉链。塑料拉链头"
+        },
+        {
+          "source": "SHELL FABRIC 1 POCKET LASER CUT AND WELDED ONTO INSIDE LEFT SIDE AS WORN",
+          "translation": "主料：1个口袋激光切割并焊接于穿着时左侧内里"
+        },
+        {
+          "source": "面料激光切割单口袋，贴合于穿着时内侧左身位",
+          "translation": "面料：激光切割单口袋，贴合于穿着时内侧左身位"
+        },
+        {
+          "source": "DYE CUT HYPALON HANGING LOOP IN RED COLOUR",
+          "translation": "红色海帕龙染色切割挂环"
+        },
+        {
+          "source": "INSIDE OF COLLAR 100% POLYESTER SUEDED TRICOT",
+          "translation": "领里：100% 聚酯纤维磨毛针织"
+        },
+        {
+          "source": "WATER REPELLENT 600MM T210 AC COATED POLYESTER TAFETTA",
+          "translation": "防水 600MM T210 AC 涂层聚酯塔夫绸"
+        },
+        {
+          "source": "ATAP002 - MAKE SURE THE LOGO IS CENTRAL. PRINT FINISH HAS CHANGED TO BE MATTE.",
+          "translation": "ATAP002 - 确保LOGO居中。印花工艺改为哑光。"
+        },
+        {
+          "source": "GOGGLE POCKET 100% POLYESTER MESH WITH 10MM FINISHED DEPTH LYCRA BINDING AT OPENING",
+          "translation": "护目镜袋：100% 聚酯纤维网布，成品深度 10MM，开口处 LYCRA 包边"
+        },
+        {
+          "source": "SHELL FABRIC WELT COVERING SNOWSKIRT ZIP",
+          "translation": "面料：雪裙拉链贴边"
+        },
+        {
+          "source": "面料嵌边覆盖防风裙拉链",
+          "translation": "面料嵌边覆盖防风裙拉链"
+        },
+        {
+          "source": "2 OPPOSITE SIDE PRESS STUDS ON CF FACING FOR SECURING SNOW SKIRT WHEN NOT IN USE.",
+          "translation": "前中贴边反面设2颗按扣，用于固定雪裙。"
+        }
+      ]
+    },
+    {
+      "id": "page-5",
+      "title": "Page 5",
+      "summary": "42 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L 防水夹克 | 面料：70D+40D*70D + 40%再生尼龙，PU石墨烯膜 | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "增加可拆卸编织携带肩带， | 按扣顶部带有激光雕刻的甲",
+          "translation": "增加可拆卸编织肩带，按扣顶部激光雕刻甲"
+        },
+        {
+          "source": "带有提花品牌标识。 | REMOVABLE WOVEN CARRY STRAP WITH JACQUARD LOGO. | 虫标识",
+          "translation": "提花品牌标识。 | 可拆卸织带，带提花LOGO。 | 虫标识"
+        },
+        {
+          "source": "肩带可穿过背颈处吊环， | STRAP FITS THROUGH BACK NECK HANGING LOOP AND",
+          "translation": "肩带可穿过背颈处吊环，"
+        },
+        {
+          "source": "IS FASTENED WITH A BRANDED PRESS STUD THROUGH | TOPSIDE OF PRESS STUD BUTTON",
+          "translation": "通过品牌按扣固定 | 按扣正面"
+        },
+        {
+          "source": "并通过品牌按扣固定在腋下",
+          "translation": "通过品牌按扣固定在腋下"
+        },
+        {
+          "source": "HYPALON LOOPS AT BACKSIDE OF PITZIPS. | WITH LASER ENGRAVED BEETLE LOGO",
+          "translation": "HYPALON 环位于 PITZIPS 背面。| 激光雕刻甲虫 LOGO"
+        },
+        {
+          "source": "散热拉链背面的海帕伦挂环上",
+          "translation": "散热拉链背面海帕伦挂环上"
+        },
+        {
+          "source": "132CM",
+          "translation": "132CM"
+        },
+        {
+          "source": "4CM",
+          "translation": "4CM"
+        },
+        {
+          "source": "TOPSIDE OF PRESS STUD BUTTON",
+          "translation": "按扣正面"
+        },
+        {
+          "source": "按扣顶部带有激光雕刻的甲虫标识",
+          "translation": "按扣顶部：激光雕刻甲虫标识"
+        },
+        {
+          "source": "L/G",
+          "translation": "L/G"
+        },
+        {
+          "source": "WITH LASER ENGRAVED BEETLE LOGO",
+          "translation": "激光雕刻甲虫标志"
+        },
+        {
+          "source": "3CM",
+          "translation": "3CM"
+        },
+        {
+          "source": "7CM X 3CM RECTANGLE OF SHELL FABRIC WELDED",
+          "translation": "7CM X 3CM 面料矩形压胶"
+        },
+        {
+          "source": "7CM | TO LINING WITH DIE CUT HYPALON",
+          "translation": "7CM | 衬里使用模切HYPALON"
+        },
+        {
+          "source": "LOOP FOR SECURING THE CARRY STRAPS.",
+          "translation": "固定背带的袢。"
+        },
+        {
+          "source": "CARE LABEL POCKET IS ALSO STITCHED TO",
+          "translation": "洗水标袋亦需车缝"
+        },
+        {
+          "source": "THE SAME WELDED FABRIC PATCH.",
+          "translation": "相同的热压布贴。"
+        },
+        {
+          "source": "7CM x 3CM 的面料，热压贴合至内衬，",
+          "translation": "面料：7CM x 3CM，热压贴合至内衬"
+        },
+        {
+          "source": "并配有模切海帕伦挂环，用于固定携带肩带。",
+          "translation": "配模切海帕伦挂环，固定携带肩带。"
+        },
+        {
+          "source": "洗标口袋也缝制在同一块贴合面料上。",
+          "translation": "洗标口袋：缝制于同一块贴合面料上。"
+        },
+        {
+          "source": "SHELL FABRIC POCKET FOR",
+          "translation": "面料口袋用于"
+        },
+        {
+          "source": "TUCKING IN THE CARE LABEL",
+          "translation": "缝制洗水标"
+        },
+        {
+          "source": "面料做的洗标口袋",
+          "translation": "面料：洗标袋"
+        },
+        {
+          "source": "LINING VIEW - CARRY STRAPS | PAGE 5/9",
+          "translation": "里布视图 - 背带 | 第 5/9 页"
+        },
+        {
+          "source": "LINING VIEW - CARRY STRAPS",
+          "translation": "里布视图 - 背带"
+        },
+        {
+          "source": "SHELL FABRIC POCKET FOR TUCKING IN THE CARE LABEL",
+          "translation": "主料口袋：用于插入洗水标"
+        },
+        {
+          "source": "7CM X 3CM RECTANGLE OF SHELL FABRIC WELDED TO LINING WITH DIE CUT HYPALON LOOP FOR SECURING THE CARRY STRAPS.",
+          "translation": "7CM X 3CM 面料矩形片，热熔贴合里布；配模切海帕龙圈，用于固定背带。"
+        },
+        {
+          "source": "CARE LABEL POCKET IS ALSO STITCHED TO THE SAME WELDED FABRIC PATCH.",
+          "translation": "洗水标袋同样缝制于同一热压布贴。"
+        },
+        {
+          "source": "TOPSIDE OF PRESS STUD BUTTON WITH LASER ENGRAVED BEETLE LOGO",
+          "translation": "按扣正面：激光雕刻甲虫标志"
+        },
+        {
+          "source": "REMOVABLE WOVEN CARRY STRAP WITH JACQUARD LOGO.",
+          "translation": "可拆卸织带肩带，提花LOGO。"
+        },
+        {
+          "source": "STRAP FITS THROUGH BACK NECK HANGING LOOP AND IS FASTENED WITH A BRANDED PRESS STUD THROUGH HYPALON LOOPS AT BACKSIDE OF PITZIPS.",
+          "translation": "肩带穿过后颈挂环，并通过PITZIPS背面的HYPALON环用品牌按扣固定。"
+        }
+      ]
+    },
+    {
+      "id": "page-6",
+      "title": "Page 6",
+      "summary": "43 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L 防水夹克 | 面料：70D+40D*70D + 40%再生尼龙，PU石墨烯膜 | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "BAG COLOUR = NAVY 19-4013 TCX",
+          "translation": "袋色：藏青 19-4013 TCX"
+        },
+        {
+          "source": "PRINTED LOGO COLOUR = MONUMENT GREY 17-4405 TCX",
+          "translation": "印花LOGO颜色：MONUMENT GREY 17-4405 TCX"
+        },
+        {
+          "source": "DRAWSTRING COLOUR = CHILLI RED 19-1557 TCX | 3MM扁平弹力绳，",
+          "translation": "抽绳颜色：辣椒红 19-1557 TCX | 3MM扁平弹力绳，"
+        },
+        {
+          "source": "固定在网布口袋内侧",
+          "translation": "固定于网布口袋内侧"
+        },
+        {
+          "source": "雪镜袋颜色=藏青色19-4013TCX",
+          "translation": "雪镜袋颜色：藏青色 19-4013TCX"
+        },
+        {
+          "source": "印花颜色=灰色17-4405TCX | 3MM FLAT ELASTICATED CORD SECURED IN",
+          "translation": "印花颜色：灰色 17-4405TCX | 3MM 扁平松紧绳固定"
+        },
+        {
+          "source": "抽绳颜色=红色19-1557TCX | SIDE OF MESH POCKET.",
+          "translation": "抽绳颜色：红色 19-1557TCX | 网袋侧边。"
+        },
+        {
+          "source": "LIGHTWEIGHT",
+          "translation": "轻质"
+        },
+        {
+          "source": "19cm | METAL HOOK",
+          "translation": "19cm | 金属钩"
+        },
+        {
+          "source": "folding/ stitching 4mm | BEETLE COLOUR = CHILLI RED",
+          "translation": "折边/车缝 4mm | 甲虫色 = 辣椒红"
+        },
+        {
+          "source": "1.2cm",
+          "translation": "1.2cm"
+        },
+        {
+          "source": "织标底色=藏青色19-",
+          "translation": "织标底色：藏青色 19-"
+        },
+        {
+          "source": "对折 | FOLD | 4013TCX",
+          "translation": "对折 | FOLD | 4013TCX"
+        },
+        {
+          "source": "7CM | 甲虫颜色=红色19-",
+          "translation": "7CM | 甲虫色=红色19-"
+        },
+        {
+          "source": "1557TCX",
+          "translation": "1557TCX"
+        },
+        {
+          "source": "1cm",
+          "translation": "1cm"
+        },
+        {
+          "source": "HOOKS ON TO",
+          "translation": "钩扣：缝制"
+        },
+        {
+          "source": "FOLDED",
+          "translation": "对折"
+        },
+        {
+          "source": "WOVEN TAB",
+          "translation": "织带袢"
+        },
+        {
+          "source": "ATAWL003",
+          "translation": "ATAWL003"
+        },
+        {
+          "source": "金属挂钩挂在ATAWL003织标上",
+          "translation": "金属挂钩：挂在ATAWL003织标上"
+        },
+        {
+          "source": "印花ATAP008居中 | ATAWL003",
+          "translation": "印花：ATAP008居中 | ATAWL003"
+        },
+        {
+          "source": "ATAP008 PRINTED CENTRAL TO BAG | 3mm Allowance for | 1.2cm",
+          "translation": "ATAP008 印花居中至袋口 | 留位3mm | 1.2cm"
+        },
+        {
+          "source": "LABEL BASE COLOUR = NAVY",
+          "translation": "标底色：藏青"
+        },
+        {
+          "source": "4.9CM",
+          "translation": "4.9CM"
+        },
+        {
+          "source": "GOGGLE BAG | PAGE 6/9",
+          "translation": "护目镜袋 | 第6/9页"
+        },
+        {
+          "source": "FOLD",
+          "translation": "对折"
+        },
+        {
+          "source": "LABEL BASE COLOUR = NAVY BEETLE COLOUR = CHILLI RED",
+          "translation": "标底色：藏青；甲虫色：辣椒红"
+        },
+        {
+          "source": "GOGGLE BAG",
+          "translation": "护目镜包"
+        },
+        {
+          "source": "ATACAMA PERFORMANCE",
+          "translation": "ATACAMA PERFORMANCE"
+        },
+        {
+          "source": "3MM FLAT ELASTICATED CORD SECURED IN SIDE OF MESH POCKET.",
+          "translation": "3MM 扁平松紧绳固定于网袋内侧。"
+        },
+        {
+          "source": "LIGHTWEIGHT METAL HOOK HOOKS ON TO FOLDED WOVEN TAB ATAWL003",
+          "translation": "轻质金属钩：钩扣于折叠织带 ATAWL003"
+        },
+        {
+          "source": "ATAW003",
+          "translation": "ATAW003"
+        },
+        {
+          "source": "3mm Allowance for folding/ stitching",
+          "translation": "折边/车缝：3mm 余量"
+        }
+      ]
+    },
+    {
+      "id": "page-7",
+      "title": "Page 7",
+      "summary": "33 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "内袖衩采用防水600mm T210 AC涂层塔夫绸",
+          "translation": "内袖衩：防水600mm T210 AC涂层塔夫绸"
+        },
+        {
+          "source": "INNER CUFF GUSSET IN WATER REPELLENT 600MM",
+          "translation": "内袖口拼接：600MM 防泼水"
+        },
+        {
+          "source": "T210 AC COATED POLYESTER TAFETTA",
+          "translation": "T210 AC 涂层涤纶塔夫绸"
+        },
+        {
+          "source": "15CM      7CM",
+          "translation": "15CM 7CM"
+        },
+        {
+          "source": "7.5CM",
+          "translation": "7.5CM"
+        },
+        {
+          "source": "KNITTED STRETCH INNER CUFF MATERIAL",
+          "translation": "针织弹力内袖口面料"
+        },
+        {
+          "source": "HAS CHANGED TO BE A LIGHTWEIGHT",
+          "translation": "已更改为轻质面料"
+        },
+        {
+          "source": "DOUBLE LAYER POLYESTER LYCRA.",
+          "translation": "双层聚酯纤维氨纶。"
+        },
+        {
+          "source": "LYCRA BINDING AT CUFF EDGE HAS BEEN REMOVED.",
+          "translation": "袖口莱卡包边已去除。"
+        },
+        {
+          "source": "10CM",
+          "translation": "10CM"
+        },
+        {
+          "source": "袖口内侧弹力针织材料已改为双层涤纶莱卡",
+          "translation": "袖口内侧弹力针织材料：双层涤纶莱卡"
+        },
+        {
+          "source": "。袖口边缘的弹力包边取消",
+          "translation": "袖口边缘弹力包边：取消"
+        },
+        {
+          "source": "THUMBHOLE IN INNER SIDE SEAM",
+          "translation": "内侧缝拇指孔"
+        },
+        {
+          "source": "5CM LONG 1.5CM FROM CUFF OPENING",
+          "translation": "距袖口开口 1.5CM，长 5CM"
+        },
+        {
+          "source": "拇指扣位于内侧缝处",
+          "translation": "拇指扣：内侧缝"
+        },
+        {
+          "source": "距袖口开口5cm，开口长度1.5cm",
+          "translation": "距袖口开口5cm，开口长度1.5cm"
+        },
+        {
+          "source": "INNER CUFF DETAILS                                                                                                                                         PAGE 9/9",
+          "translation": "内袖口细节 第9/9页"
+        },
+        {
+          "source": "STYLE REF: ATA019                           BRAND: ATACAMA                                                                   SPEC",
+          "translation": "款号：ATA019 品牌：ATACAMA 工艺单"
+        },
+        {
+          "source": "DEPT:                                    SEASON: W26",
+          "translation": "部门： 季节：W26"
+        },
+        {
+          "source": "MENS                                                                      REF:",
+          "translation": "男装 REF:"
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket                FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE,          SUPPLIER:                   DATE: 23/12/25",
+          "translation": "描述：3.5L WP Jacket 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE 供应商： 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶 JERSEY + 50D GRAPHENE BACKING,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "WATER REPELLENT 600MM      防水600mm T210 AC涂层塔夫绸",
+          "translation": "防水：600mm T210 AC涂层塔夫绸"
+        },
+        {
+          "source": "T210 AC COATED",
+          "translation": "T210 AC 涂层"
+        },
+        {
+          "source": "POLYESTER TAFETTA",
+          "translation": "面料：涤纶塔夫绸"
+        },
+        {
+          "source": "LIGHTWEIGHT STRETCH",
+          "translation": "轻质弹力"
+        },
+        {
+          "source": "LYCRA FABRIC",
+          "translation": "莱卡面料"
+        },
+        {
+          "source": "针织防风袖口",
+          "translation": "针织防风袖口"
+        },
+        {
+          "source": "INNER CUFF",
+          "translation": "内袖口"
+        }
+      ]
+    },
+    {
+      "id": "page-8",
+      "title": "Page 8",
+      "summary": "20 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC:70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L WP Jacket | 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶针织布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "MOBILE PHONE HOLDER",
+          "translation": "手机袋"
+        },
+        {
+          "source": "3MM FLAT ELASTICATED CORD SECURED IN | 3毫米扁平弹力绳，固定于网布",
+          "translation": "3MM FLAT ELASTICATED CORD SECURED IN | 3毫米扁平弹力绳，固定于网布"
+        },
+        {
+          "source": "TOPSIDE OF MESH POCKET. | 口袋顶部",
+          "translation": "网袋顶部"
+        },
+        {
+          "source": "PLASTIC HOOK",
+          "translation": "塑料钩"
+        },
+        {
+          "source": "8MM",
+          "translation": "8MM"
+        },
+        {
+          "source": "1.2CM",
+          "translation": "1.2CM"
+        },
+        {
+          "source": "5CM",
+          "translation": "5CM"
+        },
+        {
+          "source": "LASER CUT DURABLE WOVEN FABRIC, | 激光切割耐用梭织面料，双层结构",
+          "translation": "激光切割耐用梭织面料，双层结构"
+        },
+        {
+          "source": "DOUBLE LAYER, WELDED AND WITH A | ，经焊接处理并附加轻质硬衬",
+          "translation": "双层，焊接并加垫轻质硬衬"
+        },
+        {
+          "source": "LIGHTWEIGHT STIFFENER",
+          "translation": "轻质硬衬"
+        },
+        {
+          "source": "MESH POCKET WITH MOBILE PHONE HOLDER | PAGE 7/9",
+          "translation": "网布口袋配手机袋 | 第7/9页"
+        }
+      ]
+    },
+    {
+      "id": "page-9",
+      "title": "Page 9",
+      "summary": "24 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L 防水夹克 | 面料：70D+40D*70D + 40%再生尼龙，PU石墨烯薄膜 | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶针织布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "网布口袋贴合于胸前口袋背面，通过胸前拉链口袋进入",
+          "translation": "网布口袋贴合于胸前口袋背面，通过胸前拉链口袋进入"
+        },
+        {
+          "source": "MESH POCKET IS WELDED TO BACK SIDE OF CHEST POCKET",
+          "translation": "网布袋焊接于胸袋背面"
+        },
+        {
+          "source": "AND ACCESSED THROUGH THE ZIPPED CHEST POCKET",
+          "translation": "并通过拉链胸袋取用"
+        },
+        {
+          "source": "20CM",
+          "translation": "20CM"
+        },
+        {
+          "source": "INNER MESH POCKET",
+          "translation": "内网袋"
+        },
+        {
+          "source": "100% POLYESTER STRETCH MESH WITH 10MM",
+          "translation": "100% 聚酯纤维弹力网布，含 10MM"
+        },
+        {
+          "source": "FINISHED DEPTHLYCRA BINDING AT OPENING",
+          "translation": "成品深度：开口处LYCRA包边"
+        },
+        {
+          "source": "内侧网布口袋",
+          "translation": "内侧网布口袋"
+        },
+        {
+          "source": "14CM | 100%聚酯弹性网布，袋口采用",
+          "translation": "14CM | 100%聚酯弹性网布，袋口采用"
+        },
+        {
+          "source": "10mm宽莱卡包边",
+          "translation": "10mm宽莱卡包边"
+        },
+        {
+          "source": "SLEEVE POCKET BAG IS WELDED",
+          "translation": "袖袋：热熔"
+        },
+        {
+          "source": "11CM ON TO THE INSIDE OF SLEEVE",
+          "translation": "袖内侧 11CM"
+        },
+        {
+          "source": "袖袋贴合于袖子内侧",
+          "translation": "袖袋：贴于袖子内侧"
+        },
+        {
+          "source": "15CM",
+          "translation": "15CM"
+        },
+        {
+          "source": "POCKET DIMENSIONS | PAGE 8/9",
+          "translation": "袋位尺寸 | 第8/9页"
+        }
+      ]
+    },
+    {
+      "id": "page-10",
+      "title": "Page 10",
+      "summary": "9 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC:70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "品名：3.5L 防水夹克 | 面料：70D+40D*70D + 40% 再生尼龙，PU 石墨烯薄膜 | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        }
+      ]
+    },
+    {
+      "id": "page-11",
+      "title": "Page 11",
+      "summary": "9 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：3.5L WP Jacket | 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        }
+      ]
+    },
+    {
+      "id": "page-12",
+      "title": "Page 12",
+      "summary": "10 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "L&M-CY-CNT480SMXPS",
+          "translation": "L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: 3.5L WP Jacket | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "品名：3.5L WP Jacket | 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE | 供应商： | 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "30D 涤纶汗布 + 50D 石墨烯背胶,"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "SIZE SPEC",
+          "translation": "尺码规格"
+        }
+      ]
+    },
+    {
+      "id": "page-13",
+      "title": "Page 13",
+      "summary": "24 条英中对照",
+      "segments": [
+        {
+          "source": "ALL RIGHTS RESERVED TO ATACAMA",
+          "translation": "版权所有 ATACAMA"
+        },
+        {
+          "source": "SPECIFICATION SHEET",
+          "translation": "工艺单"
+        },
+        {
+          "source": "STYLE REF: ATA019 | BRAND: ATACAMA | SPEC",
+          "translation": "款号：ATA019 | 品牌：ATACAMA | 工艺单"
+        },
+        {
+          "source": "DEPT: | SEASON: W26",
+          "translation": "部门：| 季节：W26"
+        },
+        {
+          "source": "MENS | REF:",
+          "translation": "男装 | 款号："
+        },
+        {
+          "source": "3.5L WP Jacket | L&M-CY-CNT480SMXPS",
+          "translation": "3.5L 防水夹克 | L&M-CY-CNT480SMXPS"
+        },
+        {
+          "source": "DESCRIPTION: | FABRIC: 70D+ 40D*70D + 40 RE-CYCLED NYLON, PU GRAPHENE MEMBRANE, | SUPPLIER: | DATE: 23/12/25",
+          "translation": "描述：| 面料：70D+ 40D*70D + 40 RE-CYCLED 尼龙, PU GRAPHENE MEMBRANE | 供应商：| 日期：23/12/25"
+        },
+        {
+          "source": "30D POLY JERSEY + 50D GRAPHENE BACKING,",
+          "translation": "面料：30D 涤纶针织布 + 50D 石墨烯背胶"
+        },
+        {
+          "source": "FACE: 86% RECYCLED NYLON/14% SPANDEX, BACK: 100% POLYESTER",
+          "translation": "正面：86%再生尼龙/14%氨纶，背面：100%聚酯纤维"
+        },
+        {
+          "source": "O",
+          "translation": "O"
+        },
+        {
+          "source": "M",
+          "translation": "M"
+        },
+        {
+          "source": "Back Neck Seam | N",
+          "translation": "后领缝 | N"
+        },
+        {
+          "source": "L | D | P | J K",
+          "translation": "L | D | P | J K"
+        },
+        {
+          "source": "Imaginary Line",
+          "translation": "假想线"
+        },
+        {
+          "source": "Q",
+          "translation": "Q"
+        },
+        {
+          "source": "B | C",
+          "translation": "B | C"
+        },
+        {
+          "source": "U | A",
+          "translation": "U | A"
+        },
+        {
+          "source": "H | V",
+          "translation": "H | V"
+        },
+        {
+          "source": "E | G",
+          "translation": "E | G"
+        },
+        {
+          "source": "H2",
+          "translation": "H2"
+        },
+        {
+          "source": "R",
+          "translation": "R"
+        },
+        {
+          "source": "F",
+          "translation": "F"
+        },
+        {
+          "source": "T",
+          "translation": "T"
+        },
+        {
+          "source": "I",
+          "translation": "I"
+        }
+      ]
+    }
+  ]
+}

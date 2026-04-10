@@ -1,0 +1,118 @@
+{
+  "caseId": "case-006-m422123",
+  "sourceFile": "M422123.pdf",
+  "title": "M422123.pdf",
+  "outputMode": "bilingual_sections",
+  "sections": [
+    {
+      "id": "page-1",
+      "title": "Page 1",
+      "summary": "14 条英中对照",
+      "segments": [
+        {
+          "source": "HIVER 26 (26H)",
+          "translation": "款号：HIVER 26 (26H)"
+        },
+        {
+          "source": "M422123",
+          "translation": "款号：M422123"
+        },
+        {
+          "source": "EN ATTENTE                   M MEP S40",
+          "translation": "待确认 M 码 M 码 S40"
+        },
+        {
+          "source": "DOSSIER STYLE",
+          "translation": "款式档案"
+        },
+        {
+          "source": "© Tous Droits Réservés - All rights reserved                                         Edited on 23/07/2025   1/2",
+          "translation": "版权所有 - 保留所有权利 编辑日期：2025 年 7 月 23 日 页码：1/2"
+        },
+        {
+          "source": "02 NOIR",
+          "translation": "02#黑色"
+        },
+        {
+          "source": "#CND250214 94%NYLON 6%SPANDEX 221GR/M² 142CM",
+          "translation": "款号：CND250214; 成分：94%尼龙 6%氨纶; 克重：221GR/M²; 幅宽：142CM"
+        },
+        {
+          "source": "#DYS-WS237230 96% POLY 4%SP 210GR/M² 150CM",
+          "translation": "款号：DYS-WS237230; 成分：96% 涤纶 4% 氨纶; 克重：210g/m²; 幅宽：150cm"
+        },
+        {
+          "source": "POCKETING: BRUSHED COTTON POLY TWILL COL: MATCHING COLOR WITH OUTSHELL FABRIC",
+          "translation": "袋布：涤棉磨毛斜纹，配色同面布"
+        },
+        {
+          "source": "17 PLASTIC SNAP - EXTRA FLAT - BLACK color TOP FRONT FLY BUTTON",
+          "translation": "17mm塑料四合扣黑色门襟用"
+        },
+        {
+          "source": "AUTOBLOCK ZIPPER - GUN METAL FINISHING MIDDLE FRONT FLY",
+          "translation": "枪色自动锁头闭尾拉链"
+        },
+        {
+          "source": "OPTION #1 NO WASH OPTION#2 LIGHT GARMENT ENZYME WAHS",
+          "translation": "选项 1：不水洗；选项 2：浅色衣物酶洗"
+        },
+        {
+          "source": "NM 35 4PTS/1CM",
+          "translation": "车缝：NM 35 4针/1CM"
+        },
+        {
+          "source": "SIZE S L XXL BASE M322183",
+          "translation": "版型基于M322183"
+        }
+      ]
+    },
+    {
+      "id": "page-2",
+      "title": "Page 2",
+      "summary": "10 条英中对照",
+      "segments": [
+        {
+          "source": "HIVER 26 (26H)",
+          "translation": "款号：HIVER 26 (26H)"
+        },
+        {
+          "source": "M422123",
+          "translation": "款号：M422123"
+        },
+        {
+          "source": "EN ATTENTE       M MEP S40",
+          "translation": "待确认 M 码 M 码 S40"
+        },
+        {
+          "source": "DOSSIER STYLE",
+          "translation": "款式档案"
+        },
+        {
+          "source": "© Tous Droits Réservés - All rights reserved                                      Edited on 23/07/2025   2/2",
+          "translation": "版权所有 - 保留所有权利 编辑日期：2025 年 7 月 23 日 页码：2/2"
+        },
+        {
+          "source": "17mm PLASTIC SNAP BLACK color",
+          "translation": "17mm塑料门襟扣"
+        },
+        {
+          "source": "Back elasticated waistband",
+          "translation": "后腰部橡筋"
+        },
+        {
+          "source": "Chino pocket + pleat",
+          "translation": "斜插侧袋"
+        },
+        {
+          "source": "Dart",
+          "translation": "省"
+        },
+        {
+          "source": "15mm piped pocket",
+          "translation": "15mm单开线口袋"
+        }
+      ]
+    }
+  ]
+}
