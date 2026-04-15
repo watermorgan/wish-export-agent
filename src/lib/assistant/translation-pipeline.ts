@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import PDFDocument from 'pdfkit';
@@ -1954,8 +1954,41 @@ function normalizeTraditionalApparelChinese(value: string) {
     .replace(/顏色/g, '颜色');
 }
 
+let _glossaryCache: Map<string, string> | null = null;
+
+function loadGlossaryCache(): Map<string, string> {
+  if (_glossaryCache) return _glossaryCache;
+  _glossaryCache = new Map();
+  try {
+    const glossaryPath = path.join(process.cwd(), 'data', 'glossary', 'core.json');
+    if (existsSync(glossaryPath)) {
+      const data = JSON.parse(readFileSync(glossaryPath, 'utf-8')) as {
+        entries?: Array<{ en: string; zh: string; aliases?: string[]; reviewStatus: string }>;
+      };
+      for (const entry of data.entries ?? []) {
+        if (entry.reviewStatus === 'approved' && entry.en && entry.zh) {
+          _glossaryCache.set(normalizeSourceText(entry.en), entry.zh);
+          for (const alias of entry.aliases ?? []) {
+            _glossaryCache.set(normalizeSourceText(alias), entry.zh);
+          }
+        }
+      }
+    }
+  } catch {
+    // silently fallback to hardcoded rules
+  }
+  return _glossaryCache;
+}
+
 export function normalizeFashionTranslation(source: string, zh: string) {
   const normalizedSource = normalizeSourceText(source);
+
+  // Glossary exact-match takes priority over hardcoded rules
+  const glossaryHit = loadGlossaryCache().get(normalizedSource);
+  if (glossaryHit) {
+    return normalizeTraditionalApparelChinese(glossaryHit);
+  }
+
   let text = normalizeTraditionalApparelChinese(zh.replace(/\s+/g, ' ').trim());
 
   if (!text) return text;

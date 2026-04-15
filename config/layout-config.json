@@ -4,12 +4,18 @@
   "updatedAt": "2026-04-15",
 
   "global": {
+    "densePageNoteThreshold": 18,
+    "crowdedThreshold": 14,
     "inlineNoteMaxZhLen": 30,
     "inlineNoteCombinedMaxLen": 160,
     "inlineNoteMaxWidth": 188,
     "inlineNoteMinWidth": 76,
     "inlineNoteMaxShift": 120,
     "inlineNoteScanStep": 12,
+    "inlineNoteWideSourceThreshold": 150,
+    "inlineNoteTallSourceThreshold": 48,
+    "inlineNoteSketchMaxWidth": 124,
+    "inlineNoteSketchMinWidth": 64,
     "markerFontSize": 10,
     "panelWidth": 248,
     "pagePadding": 18,

@@ -18,26 +18,43 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 
 
-PANEL_WIDTH = 248
-PAGE_PADDING = 18
-BOX_PADDING = 10
-BOX_GAP = 10
+def _load_layout_config() -> dict:
+    """Load layout parameters from config/layout-config.json (relative to repo root).
+    Falls back silently to empty dict so callers use their hardcoded defaults."""
+    config_path = Path(__file__).parent.parent / "config" / "layout-config.json"
+    try:
+        return json.loads(config_path.read_text(encoding="utf-8")).get("global", {})
+    except Exception:
+        return {}
+
+
+def _cfg(key: str, default):
+    """Read a global layout config value, falling back to the given default."""
+    return _LAYOUT_CONFIG.get(key, default)
+
+
+_LAYOUT_CONFIG = _load_layout_config()
+
+PANEL_WIDTH = _cfg("panelWidth", 248)
+PAGE_PADDING = _cfg("pagePadding", 18)
+BOX_PADDING = _cfg("boxPadding", 10)
+BOX_GAP = _cfg("boxGap", 10)
 MARKER_COLOR = colors.HexColor("#ef4444")
-COLUMN_GAP = 8
-DENSE_PAGE_NOTE_THRESHOLD = 18
-DENSE_PAGE_CROWDED_THRESHOLD = 14
-DENSE_ROW_TOLERANCE = 8.0
-DENSE_ROW_MAX_ITEMS = 3
-DENSE_ROW_MAX_SOURCE_CHARS = 100
-INLINE_NOTE_MAX_WIDTH = 188
-INLINE_NOTE_MIN_WIDTH = 76
-INLINE_NOTE_MAX_SHIFT = 120
-INLINE_NOTE_SCAN_STEP = 12
-INLINE_NOTE_WIDE_SOURCE_THRESHOLD = 150
-INLINE_NOTE_TALL_SOURCE_THRESHOLD = 48
-INLINE_NOTE_SKETCH_MAX_WIDTH = 124
-INLINE_NOTE_SKETCH_MIN_WIDTH = 64
-MARKER_FONT_SIZE = 10
+COLUMN_GAP = _cfg("columnGap", 8)
+DENSE_PAGE_NOTE_THRESHOLD = _cfg("densePageNoteThreshold", 18)
+DENSE_PAGE_CROWDED_THRESHOLD = _cfg("crowdedThreshold", 14)
+DENSE_ROW_TOLERANCE = _cfg("denseRowTolerance", 8.0)
+DENSE_ROW_MAX_ITEMS = _cfg("denseRowMaxItems", 3)
+DENSE_ROW_MAX_SOURCE_CHARS = _cfg("denseRowMaxSourceChars", 100)
+INLINE_NOTE_MAX_WIDTH = _cfg("inlineNoteMaxWidth", 188)
+INLINE_NOTE_MIN_WIDTH = _cfg("inlineNoteMinWidth", 76)
+INLINE_NOTE_MAX_SHIFT = _cfg("inlineNoteMaxShift", 120)
+INLINE_NOTE_SCAN_STEP = _cfg("inlineNoteScanStep", 12)
+INLINE_NOTE_WIDE_SOURCE_THRESHOLD = _cfg("inlineNoteWideSourceThreshold", 150)
+INLINE_NOTE_TALL_SOURCE_THRESHOLD = _cfg("inlineNoteTallSourceThreshold", 48)
+INLINE_NOTE_SKETCH_MAX_WIDTH = _cfg("inlineNoteSketchMaxWidth", 124)
+INLINE_NOTE_SKETCH_MIN_WIDTH = _cfg("inlineNoteSketchMinWidth", 64)
+MARKER_FONT_SIZE = _cfg("markerFontSize", 10)
 USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES", "1") != "0"
 USE_DENSE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_DENSE_INLINE_NOTES") == "1"
 
