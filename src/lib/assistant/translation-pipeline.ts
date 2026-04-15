@@ -1974,8 +1974,8 @@ function loadGlossaryCache(): Map<string, string> {
         }
       }
     }
-  } catch {
-    // silently fallback to hardcoded rules
+  } catch (err) {
+    console.warn('[glossary] Failed to load core.json, falling back to hardcoded rules:', err);
   }
   return _glossaryCache;
 }
