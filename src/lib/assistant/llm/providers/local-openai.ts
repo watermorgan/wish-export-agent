@@ -8,6 +8,7 @@ function isPrivateHost(hostname: string) {
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname === '::1' ||
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hostname) ||
     /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname) ||
     /^192\.168\./.test(hostname)
@@ -44,7 +45,7 @@ function getLocalModel(modelOverride?: string) {
     modelOverride?.trim() ||
     process.env.LOCAL_OPENAI_MODEL_NAME ||
     process.env.LOCAL_MODEL_NAME ||
-    'gemma-4-31B-it-Q3_K_M.gguf'
+    'Gemma-4-31B-it'
   );
 }
 

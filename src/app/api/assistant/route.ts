@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { runAssistant } from '@/lib/assistant/execution';
+import { createAssistantTask } from '@/lib/assistant/service';
 import { readAssistantRequest } from '@/lib/assistant/task-input';
-import { createTaskFromExecution } from '@/lib/assistant/task-store';
 
 function isDebugEnabled() {
   return process.env.ASSISTANT_DEBUG_DB === '1';
@@ -27,13 +26,11 @@ export async function POST(request: Request) {
     logDebug('request.start', { traceId });
     const input = await readAssistantRequest(request);
     logDebug('request.input_ready', { traceId, elapsedMs: Date.now() - startedAt });
-    const payload = await runAssistant(input);
-    logDebug('request.assistant_done', { traceId, elapsedMs: Date.now() - startedAt });
-    const snapshot = await createTaskFromExecution(input, payload);
+    const snapshot = await createAssistantTask(input);
     logDebug('request.task_saved', { traceId, elapsedMs: Date.now() - startedAt });
 
     return NextResponse.json({
-      ...payload,
+      ...snapshot.reply,
       task: snapshot.task,
       recentTasks: snapshot.recentTasks
     });

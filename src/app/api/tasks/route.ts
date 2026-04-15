@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { runAssistant } from '@/lib/assistant/service';
+import { createAssistantTaskAsync } from '@/lib/assistant/service';
 import { readAssistantRequest } from '@/lib/assistant/task-input';
 import {
-  createTaskFromExecution,
   deleteTasks,
   listTasks
 } from '@/lib/assistant/task-store';
@@ -16,8 +15,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const input = await readAssistantRequest(request);
-    const reply = await runAssistant(input);
-    const snapshot = await createTaskFromExecution(input, reply);
+    const snapshot = await createAssistantTaskAsync(input);
 
     return NextResponse.json({
       task: snapshot.task,

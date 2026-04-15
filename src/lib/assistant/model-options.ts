@@ -5,11 +5,16 @@ export type ModelOption = {
 };
 
 const localModelId =
-  process.env.NEXT_PUBLIC_LOCAL_OPENAI_MODEL_NAME ?? 'gemma-4-31B-it-Q3_K_M.gguf';
+  process.env.NEXT_PUBLIC_LOCAL_OPENAI_MODEL_NAME ?? 'Gemma-4-31B-it';
 const localModelLabel =
   process.env.NEXT_PUBLIC_LOCAL_OPENAI_MODEL_LABEL ?? 'Gemma 4 31B Local';
 
 export const visionModelOptions: ModelOption[] = [
+  {
+    id: localModelId,
+    label: localModelLabel,
+    description: '本地 OpenAI-compatible 模型，默认联调入口，优先用于视觉/OCR 低成本联调。'
+  },
   {
     id: 'Qwen/Qwen3.5-35B-A3B',
     label: 'Qwen 3.5 35B A3B',
@@ -19,15 +24,15 @@ export const visionModelOptions: ModelOption[] = [
     id: 'moonshotai/Kimi-K2.5',
     label: 'Kimi K2.5',
     description: '视觉/OCR辅助识别，适合图片与低置信区域补强。'
-  },
-  {
-    id: localModelId,
-    label: localModelLabel,
-    description: '本地 OpenAI-compatible 模型，优先用于视觉/OCR 低成本联调。'
   }
 ];
 
 export const translationModelOptions: ModelOption[] = [
+  {
+    id: localModelId,
+    label: localModelLabel,
+    description: '本地 OpenAI-compatible 模型，A/B 联调默认入口，优先用于节省线上 token。'
+  },
   {
     id: 'qwen3.5-27b',
     label: 'Qwen 3.5 27B',
@@ -55,5 +60,5 @@ export const translationModelOptions: ModelOption[] = [
   }
 ];
 
-export const defaultVisionModelId = visionModelOptions[0]?.id ?? '';
-export const defaultTranslationModelId = translationModelOptions[0]?.id ?? '';
+export const defaultVisionModelId = localModelId;
+export const defaultTranslationModelId = localModelId;

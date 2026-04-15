@@ -79,6 +79,7 @@ function isPrivateHost(hostname: string) {
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname === '::1' ||
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hostname) ||
     /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname) ||
     /^192\.168\./.test(hostname)
@@ -218,7 +219,12 @@ export async function generateOpenAiCompatibleText({
       const payload = JSON.parse(raw) as OpenAiCompatibleResponse;
       const text =
         extractTextContent(payload.choices?.[0]?.message?.content) ||
-        extractTextContent(payload.choices?.[0]?.delta?.content);
+        extractTextContent(payload.choices?.[0]?.delta?.content) ||
+        (isApiKeyOptional(baseUrl)
+          ? extractTextContent(payload.choices?.[0]?.message?.reasoning_content) ||
+            extractTextContent(payload.choices?.[0]?.delta?.reasoning_content) ||
+            extractTextContent(payload.choices?.[0]?.reasoning_content)
+          : '');
 
       if (text) {
         return text;

@@ -13,7 +13,7 @@
 
 项目背景如下：
 - 这是一个内部私有部署的外贸 AI 工作台，不是开放式泛聊天机器人
-- 产品形态参考 OpenClaw 的工作台模式
+- 产品形态参考统一外贸工作台模式
 - 能力组织参考 CoPaw 的 workspace + skill catalog + manual composition
 - V1 用户是业务员和主管
 - V1 主入口是 Web 工作台，Feishu/Slack/企微等 bot 仅作为后续扩展层预留

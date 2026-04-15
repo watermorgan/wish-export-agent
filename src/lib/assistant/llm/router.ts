@@ -2,7 +2,6 @@ import { anthropicProvider } from '@/lib/assistant/llm/providers/anthropic';
 import { claudeCliProvider } from '@/lib/assistant/llm/providers/claude-cli';
 import { codexCliProvider } from '@/lib/assistant/llm/providers/codex-cli';
 import { dashScopeProvider } from '@/lib/assistant/llm/providers/dashscope';
-import { geminiCliProvider } from '@/lib/assistant/llm/providers/gemini-cli';
 import { glmProvider } from '@/lib/assistant/llm/providers/glm';
 import { localOpenAiProvider } from '@/lib/assistant/llm/providers/local-openai';
 import { modelScopeProvider } from '@/lib/assistant/llm/providers/modelscope';
@@ -13,20 +12,29 @@ const providers: Record<LlmProviderName, LlmProvider> = {
   modelscope: modelScopeProvider,
   glm: glmProvider,
   'local-openai': localOpenAiProvider,
-  'gemini-cli': geminiCliProvider,
   anthropic: anthropicProvider,
   'claude-cli': claudeCliProvider,
   'codex-cli': codexCliProvider
 };
 
-function getProviderOrder(): LlmProviderName[] {
+export const DEFAULT_PROVIDER_ORDER: LlmProviderName[] = [
+  'local-openai',
+  'dashscope',
+  'modelscope',
+  'glm',
+  'codex-cli',
+  'claude-cli',
+  'anthropic'
+];
+
+export function getProviderOrder(): LlmProviderName[] {
   const configured = process.env.ASSISTANT_LLM_PROVIDERS?.split(',')
     .map((item) => item.trim())
-    .filter(Boolean) as LlmProviderName[] | undefined;
+    .filter((item): item is LlmProviderName => Boolean(item) && item in providers) as
+    | LlmProviderName[]
+    | undefined;
 
-  return configured && configured.length > 0
-    ? configured
-    : ['dashscope', 'modelscope', 'glm', 'codex-cli', 'claude-cli', 'gemini-cli', 'anthropic'];
+  return configured && configured.length > 0 ? configured : DEFAULT_PROVIDER_ORDER;
 }
 
 function resolveProviderFromModel(modelOverride: string): LlmProviderName {
@@ -76,6 +84,12 @@ export async function generateWithAvailableProvider(request: LlmRequest) {
   }
 
   if (!provider.isAvailable()) {
+    if (providerName === 'local-openai') {
+      throw new Error(
+        '指定的本地 OpenAI-compatible provider 当前不可用。请检查 `LOCAL_OPENAI_API_URL` / `LOCAL_MODEL_API_URL` / `.env.local` 是否生效，并重启当前 Next 服务后重试。'
+      );
+    }
+
     if (providerName === 'dashscope') {
       throw new Error(
         '指定的 DashScope provider 当前不可用。请检查 `DASHSCOPE_API_KEY` / `.env.local` 是否生效，并重启当前 Next 服务后重试。'

@@ -1,0 +1,61 @@
+{
+  "$comment": "PDF 标注布局策略参数。被 render_feedback_pdf.py 和 translation-pipeline.ts 消费。通过 scripts/calibrate-layout-params.ts 校准。",
+  "version": "0.1.0",
+  "updatedAt": "2026-04-15",
+
+  "global": {
+    "inlineNoteMaxZhLen": 30,
+    "inlineNoteCombinedMaxLen": 160,
+    "inlineNoteMaxWidth": 188,
+    "inlineNoteMinWidth": 76,
+    "inlineNoteMaxShift": 120,
+    "inlineNoteScanStep": 12,
+    "markerFontSize": 10,
+    "panelWidth": 248,
+    "pagePadding": 18,
+    "boxPadding": 10,
+    "boxGap": 10,
+    "columnGap": 8,
+    "denseRowTolerance": 8.0,
+    "denseRowMaxItems": 3,
+    "denseRowMaxSourceChars": 100
+  },
+
+  "levelDecision": {
+    "$comment": "分层决策：Level1=近场旁注, Level2=右侧说明栏, Level3=补充review页",
+    "bboxDensityThreshold": 0.35,
+    "minFreeSpaceRatio": 0.15,
+    "overlapSafetyMargin": 4
+  },
+
+  "byDocumentType": {
+    "sketch_comment": {
+      "nearFieldThreshold": 30,
+      "densePageNoteThreshold": 25,
+      "crowdedThreshold": 20,
+      "inlineNoteMaxWidth": 124,
+      "inlineNoteMinWidth": 64,
+      "$comment": "sketch 页通常空白较多，可容纳更多近场旁注。sketch_comment 在 TS 侧当前默认不走 inline（全部 footnote），未来放开时使用这些参数。"
+    },
+    "mixed": {
+      "nearFieldThreshold": 20,
+      "densePageNoteThreshold": 18,
+      "crowdedThreshold": 14,
+      "$comment": "mixed 页布局变化大，保守处理"
+    },
+    "tp_bom_table_heavy": {
+      "nearFieldThreshold": 12,
+      "densePageNoteThreshold": 10,
+      "crowdedThreshold": 8,
+      "$comment": "表格密集页，空白极少，快速降级到 dense/review"
+    }
+  },
+
+  "calibration": {
+    "$comment": "校准元数据 - 记录参数是如何确定的",
+    "method": "manual_initial",
+    "basedOnSamples": ["M422123", "M445033", "M415013", "M441083"],
+    "lastCalibratedAt": "2026-04-15",
+    "notes": "初始参数基于 acceptance-criteria.md 和现有硬编码值。待 scripts/calibrate-layout-params.ts 实现后用样本数据校准。"
+  }
+}

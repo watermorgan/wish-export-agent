@@ -10,7 +10,6 @@ export type LlmProviderName =
   | 'modelscope'
   | 'glm'
   | 'local-openai'
-  | 'gemini-cli'
   | 'anthropic'
   | 'claude-cli'
   | 'codex-cli';

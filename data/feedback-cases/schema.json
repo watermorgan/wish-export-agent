@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FeedbackCase",
+  "description": "业务反馈记录，由 Ting/Web 工作台收集，开发侧消费处理",
+  "type": "object",
+  "required": ["id", "category", "priority", "status", "source", "reporter", "reportedAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^fb-\\d{8}-\\d{3,}$",
+      "description": "反馈唯一标识，格式 fb-YYYYMMDD-NNN"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "translation_error",
+        "term_correction",
+        "layout_issue",
+        "missing_content",
+        "noise_content",
+        "general_quality"
+      ],
+      "description": "反馈类别"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low"],
+      "description": "优先级。critical=阻断业务；high=影响交付质量；medium=体验问题；low=改善建议"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["open", "triaged", "in_progress", "resolved", "wont_fix"],
+      "description": "处理状态"
+    },
+    "source": {
+      "type": "object",
+      "required": ["fileName"],
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "description": "关联的任务 ID"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "原始 PDF 文件名"
+        },
+        "pageNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "问题所在页码"
+        },
+        "segmentId": {
+          "type": "string",
+          "description": "关联的 segment ID"
+        },
+        "sourceText": {
+          "type": "string",
+          "description": "英文原文"
+        },
+        "currentTranslation": {
+          "type": "string",
+          "description": "当前翻译结果"
+        },
+        "expectedTranslation": {
+          "type": "string",
+          "description": "用户期望的翻译（可选）"
+        },
+        "screenshotPath": {
+          "type": "string",
+          "description": "相关截图路径（可选）"
+        }
+      }
+    },
+    "reporter": {
+      "type": "string",
+      "description": "报告者标识"
+    },
+    "reportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "报告时间"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "自由标签，如 ['术语', '面料', 'M422123']"
+    },
+    "resolution": {
+      "type": ["object", "null"],
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "glossary_update",
+            "normalize_rule_update",
+            "suppress_rule_update",
+            "layout_param_update",
+            "prompt_update",
+            "wont_fix",
+            "duplicate"
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "description": "处理说明"
+        },
+        "commitRef": {
+          "type": "string",
+          "description": "关联的 git commit SHA"
+        },
+        "resolvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "resolvedBy": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

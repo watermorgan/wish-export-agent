@@ -1,3 +1,6 @@
+import { claudeCliProvider } from '@/lib/assistant/llm/providers/claude-cli';
+import { codexCliProvider } from '@/lib/assistant/llm/providers/codex-cli';
+
 type QwenChatContentPart =
   | {
       type: 'text';
@@ -36,6 +39,7 @@ type QwenChatResult = {
 const DEBUG_MODEL = process.env.ASSISTANT_DEBUG_MODEL === '1';
 const DEFAULT_TIMEOUT_MS = Number(process.env.MODEL_API_TIMEOUT_MS ?? '30000');
 type ModelRole = 'vision' | 'translation';
+type EmbeddedCliProviderName = 'claude-cli' | 'codex-cli';
 
 export type ModelRuntimeConfig = {
   model: string;
@@ -44,11 +48,48 @@ export type ModelRuntimeConfig = {
   label: string;
 };
 
+function getEmbeddedCliProvider(name: EmbeddedCliProviderName) {
+  switch (name) {
+    case 'claude-cli':
+      return claudeCliProvider;
+    case 'codex-cli':
+      return codexCliProvider;
+  }
+}
+
+function resolveEmbeddedCliProvider(config: ModelRuntimeConfig): EmbeddedCliProviderName | null {
+  const normalized = config.model.trim().toLowerCase();
+  if (normalized === 'claude-cli') return 'claude-cli';
+  if (normalized === 'codex-cli') return 'codex-cli';
+  return null;
+}
+
+function extractMessageTextContent(content: string | QwenChatContentPart[]) {
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+
+  return content
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function buildCliPromptFromMessages(messages: QwenChatMessage[]) {
+  return messages
+    .map((message) => `${message.role.toUpperCase()}:\n${extractMessageTextContent(message.content)}`)
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 function isPrivateHost(hostname: string) {
   return (
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
     hostname === '::1' ||
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hostname) ||
     /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname) ||
     /^192\.168\./.test(hostname)
@@ -240,11 +281,32 @@ function hasLocalFallbackTransport() {
   );
 }
 
-function getDefaultLocalFallbackModel() {
+function hasOpenRouterFallbackTransport() {
+  const baseUrl = firstNonEmpty(
+    process.env.OPENROUTER_API_URL,
+    process.env.OPENROUTER_BASE_URL,
+    process.env.B_MODEL_FALLBACK_API_URL
+  );
+  return Boolean(baseUrl && firstNonEmpty(process.env.OPENROUTER_API_KEY));
+}
+
+function getDefaultLocalModelName() {
   return firstNonEmpty(
     process.env.LOCAL_OPENAI_MODEL_NAME,
     process.env.LOCAL_MODEL_NAME,
-    'Qwen3.5-9B-Q8_0.gguf'
+    'Gemma-4-31B-it'
+  );
+}
+
+function getDefaultLocalFallbackModel() {
+  return getDefaultLocalModelName();
+}
+
+function getDefaultOpenRouterFallbackModel() {
+  return firstNonEmpty(
+    process.env.OPENROUTER_MODEL,
+    process.env.OPENROUTER_FALLBACK_MODEL,
+    'openrouter/free'
   );
 }
 
@@ -252,11 +314,14 @@ export function getTranslationFallbackRuntimeConfig(): ModelRuntimeConfig | null
   const model = firstNonEmpty(
     process.env.B_MODEL_FALLBACK_NAME,
     process.env.TRANSLATION_MODEL_FALLBACK,
+    hasOpenRouterFallbackTransport() ? getDefaultOpenRouterFallbackModel() : '',
     hasLocalFallbackTransport() ? getDefaultLocalFallbackModel() : ''
   );
   const baseUrl = firstNonEmpty(
     process.env.B_MODEL_FALLBACK_API_URL,
     process.env.TRANSLATION_FALLBACK_API_URL,
+    process.env.OPENROUTER_API_URL,
+    process.env.OPENROUTER_BASE_URL,
     process.env.LOCAL_OPENAI_API_URL,
     process.env.LOCAL_MODEL_API_URL
   );
@@ -271,6 +336,7 @@ export function getTranslationFallbackRuntimeConfig(): ModelRuntimeConfig | null
       [
         process.env.B_MODEL_FALLBACK_API_KEY,
         process.env.TRANSLATION_FALLBACK_API_KEY,
+        process.env.OPENROUTER_API_KEY,
         process.env.LOCAL_OPENAI_API_KEY,
         process.env.LOCAL_MODEL_API_KEY
       ],
@@ -372,6 +438,7 @@ function getTranslationOverrideConfig(modelOverride?: string): ModelRuntimeConfi
 
   if (
     normalized.includes('gemma-4-31b-it-q3_k_m.gguf') ||
+    normalized === 'gemma-4-31b-it' ||
     normalized.startsWith('gemma-4-31b') ||
     normalized.includes('gemma4')
   ) {
@@ -394,6 +461,33 @@ function getTranslationOverrideConfig(modelOverride?: string): ModelRuntimeConfi
         process.env.TRANSLATION_API_KEY,
         process.env.OPENAI_API_KEY
       ]),
+      label: 'B-model'
+    };
+  }
+
+  if (normalized === 'openrouter/free' || normalized.startsWith('openrouter/')) {
+    const baseUrl = firstNonEmpty(
+      process.env.OPENROUTER_API_URL,
+      process.env.OPENROUTER_BASE_URL,
+      process.env.B_MODEL_FALLBACK_API_URL,
+      process.env.TRANSLATION_FALLBACK_API_URL,
+      process.env.TRANSLATION_API_URL,
+      process.env.OPENAI_BASE_URL,
+      process.env.OPENAI_API_BASE,
+      'https://openrouter.ai/api/v1'
+    );
+    return {
+      model: modelOverride!.trim(),
+      baseUrl,
+      apiKey: pickApiKey(
+        baseUrl,
+        [
+          process.env.OPENROUTER_API_KEY,
+          process.env.B_MODEL_FALLBACK_API_KEY,
+          process.env.TRANSLATION_FALLBACK_API_KEY
+        ],
+        [process.env.OPENAI_API_KEY]
+      ),
       label: 'B-model'
     };
   }
@@ -468,6 +562,8 @@ function getTranslationOverrideConfig(modelOverride?: string): ModelRuntimeConfi
 function getRoleConfig(role: ModelRole, modelOverride?: string): ModelRuntimeConfig {
   if (role === 'vision') {
     const baseUrl = firstNonEmpty(
+      process.env.LOCAL_OPENAI_API_URL,
+      process.env.LOCAL_MODEL_API_URL,
       process.env.A_MODEL_API_URL,
       process.env.VISION_API_URL,
       process.env.MODELSCOPE_VISION_API_URL,
@@ -479,13 +575,15 @@ function getRoleConfig(role: ModelRole, modelOverride?: string): ModelRuntimeCon
     );
     return {
       model: firstNonEmpty(
+        process.env.LOCAL_OPENAI_MODEL_NAME,
+        process.env.LOCAL_MODEL_NAME,
         process.env.A_MODEL_NAME,
         process.env.VISION_MODEL,
         process.env.MODELSCOPE_VISION_MODEL,
         process.env.QWEN_VISION_MODEL,
         process.env.MODELSCOPE_MODEL,
         process.env.QWEN_MODEL,
-        'qwen3.5-35b-instruct'
+        'Gemma-4-31B-it'
       ),
       baseUrl,
       apiKey: pickApiKey(baseUrl, [
@@ -506,6 +604,8 @@ function getRoleConfig(role: ModelRole, modelOverride?: string): ModelRuntimeCon
   }
 
   const baseUrl = firstNonEmpty(
+    process.env.LOCAL_OPENAI_API_URL,
+    process.env.LOCAL_MODEL_API_URL,
     process.env.B_MODEL_API_URL,
     process.env.TRANSLATION_API_URL,
     process.env.DASHSCOPE_API_URL,
@@ -518,6 +618,8 @@ function getRoleConfig(role: ModelRole, modelOverride?: string): ModelRuntimeCon
   );
   return {
     model: firstNonEmpty(
+      process.env.LOCAL_OPENAI_MODEL_NAME,
+      process.env.LOCAL_MODEL_NAME,
       process.env.B_MODEL_NAME,
       process.env.TRANSLATION_MODEL,
       process.env.DASHSCOPE_MODEL,
@@ -525,7 +627,7 @@ function getRoleConfig(role: ModelRole, modelOverride?: string): ModelRuntimeCon
       process.env.QWEN_TRANSLATION_MODEL,
       process.env.MODELSCOPE_MODEL,
       process.env.QWEN_MODEL,
-      'qwen3.5-35b-instruct'
+      'Gemma-4-31B-it'
     ),
     baseUrl,
     apiKey: pickApiKey(baseUrl, [
@@ -569,6 +671,10 @@ function buildResponsesUrl(baseUrlOrEndpoint: string) {
 
 function isRoleConfigured(role: ModelRole, modelOverride?: string) {
   const config = getRoleConfig(role, modelOverride);
+  const embeddedCliProvider = resolveEmbeddedCliProvider(config);
+  if (embeddedCliProvider) {
+    return getEmbeddedCliProvider(embeddedCliProvider).isAvailable();
+  }
   const configured = isRuntimeConfigUsable(config);
   logModelDebug('config.check', {
     role,
@@ -583,6 +689,19 @@ function isRoleConfigured(role: ModelRole, modelOverride?: string) {
 
 async function callRoleChat(role: ModelRole, input: QwenChatInput): Promise<QwenChatResult> {
   const config = input.runtimeConfigOverride ?? getRoleConfig(role, input.modelOverride);
+  const embeddedCliProvider = resolveEmbeddedCliProvider(config);
+  if (embeddedCliProvider) {
+    const provider = getEmbeddedCliProvider(embeddedCliProvider);
+    const result = await provider.generate({
+      system: `You are the ${role} model adapter for the export-agent pipeline.`,
+      user: buildCliPromptFromMessages(input.messages),
+      timeoutMs: resolveRequestTimeoutMs(role, config)
+    });
+    return {
+      text: result.text,
+      model: result.model ?? config.model
+    };
+  }
   const useResponsesApi = shouldUseResponsesApi(config);
   const endpointUrl = useResponsesApi
     ? buildResponsesUrl(config.baseUrl)

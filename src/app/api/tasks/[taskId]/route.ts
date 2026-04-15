@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { runAssistant } from '@/lib/assistant/service';
+import {
+  AssistantTaskServiceError,
+  getAssistantTaskSnapshot,
+  runAssistant
+} from '@/lib/assistant/service';
 import { applyTaskPatch, readTaskPatch } from '@/lib/assistant/task-input';
 import {
   canEditTaskStatus,
@@ -16,21 +20,20 @@ type RouteContext = {
 
 export async function GET(_: Request, context: RouteContext) {
   const { taskId } = await context.params;
-  const task = await getTask(taskId);
+  try {
+    return NextResponse.json(await getAssistantTaskSnapshot(taskId));
+  } catch (error) {
+    if (error instanceof AssistantTaskServiceError) {
+      return NextResponse.json(
+        {
+          error: error.message
+        },
+        { status: error.status }
+      );
+    }
 
-  if (!task) {
-    return NextResponse.json(
-      {
-        error: '任务不存在。'
-      },
-      { status: 404 }
-    );
+    throw error;
   }
-
-  return NextResponse.json({
-    task: task.record,
-    reply: task.reply
-  });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {

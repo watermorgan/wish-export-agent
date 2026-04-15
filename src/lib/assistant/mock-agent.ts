@@ -18,7 +18,9 @@ export const uploadedFileSchema = z.object({
   name: z.string().min(1).max(180),
   size: z.number().nonnegative().max(MAX_FILE_SIZE_BYTES),
   type: z.string().min(1).max(120),
-  storagePath: z.string().min(1).optional()
+  storagePath: z.string().min(1).optional(),
+  localPath: z.string().min(1).optional(),
+  contentText: z.string().optional()
 });
 
 export const assistantRoleSchema = z.enum(['sales', 'supervisor']).default('sales');

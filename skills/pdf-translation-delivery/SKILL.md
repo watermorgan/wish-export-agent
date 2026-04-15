@@ -34,6 +34,50 @@
    - `/api/tasks/[taskId]`
    - 或更轻的 `/api/tasks/[taskId]/skill-payload`
 
+当前 `POST /api/tasks` 已支持 submit-then-poll：
+
+- 提交后可能先返回 `status: validating`
+- 后续通过：
+  - `GET /api/tasks/[taskId]`
+  - `GET /api/tasks/[taskId]/skill-payload`
+ 轮询结果
+
+## Ting / CLI Invocation Pattern
+
+当 Ting 外贸助手不直接走页面，而是通过本地命令调用时，优先使用：
+
+1. 先启动当前服务实例（保留现有 Web/UI）
+2. 再通过 CLI 壳调用同一任务服务：
+   - `npm run ting:pdf-service -- submit --base-url http://127.0.0.1:3000 --stdin`
+   - `npm run ting:pdf-service -- get-task --base-url http://127.0.0.1:3000 <taskId>`
+   - `npm run ting:pdf-service -- get-skill-payload --base-url http://127.0.0.1:3000 <taskId>`
+
+说明：
+
+- CLI 只是薄壳，不重算翻译结果
+- `get-skill-payload` 返回 `ting_pdf_translation_v1`
+- 业务字段仍只看 `result: pdf_translation_skill_v1`
+- 若 `submit` 先返回 `validating`，应继续轮询 `get-task` / `get-skill-payload`
+
+## Ting / MCP Invocation Pattern
+
+Ting 的 round-1 推荐形态不是直接拼 REST，也不是直接解析页面，而是：
+
+1. 运行 export-agent 服务实例
+2. 通过本地 command transport 的 MCP wrapper 调用服务
+3. MCP 工具只暴露：
+   - `submit_pdf_translation_task`
+   - `get_pdf_translation_task`
+   - `get_pdf_translation_skill_payload`
+
+本地启动：
+
+- `npm run ting:pdf-mcp-server`
+
+回归验证：
+
+- `npm run verify:ting-mcp-server`
+
 ## Stable Fields
 
 优先消费：

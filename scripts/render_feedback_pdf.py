@@ -35,6 +35,8 @@ INLINE_NOTE_MAX_SHIFT = 120
 INLINE_NOTE_SCAN_STEP = 12
 INLINE_NOTE_WIDE_SOURCE_THRESHOLD = 150
 INLINE_NOTE_TALL_SOURCE_THRESHOLD = 48
+INLINE_NOTE_SKETCH_MAX_WIDTH = 124
+INLINE_NOTE_SKETCH_MIN_WIDTH = 64
 MARKER_FONT_SIZE = 10
 USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES", "1") != "0"
 USE_DENSE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_DENSE_INLINE_NOTES") == "1"
@@ -61,6 +63,34 @@ def clean_translation(value: str) -> str:
     if "->" in text:
       return text.split("->", 1)[-1].replace("[译文]", "").strip()
 
+    return text
+
+
+def normalize_translation_display(value: str) -> str:
+    text = clean_translation(value)
+    replacements = {
+        "圈型拉链": "尼龙拉链",
+        "圈形拉链": "尼龙拉链",
+        "拉鍊": "拉链",
+        "鍊": "链",
+        "門": "门",
+        "邊": "边",
+        "線": "线",
+        "綫": "线",
+        "車": "车",
+        "針": "针",
+        "領": "领",
+        "裡": "里",
+        "號": "号",
+        "開": "开",
+        "閉": "闭",
+        "裝": "装",
+        "雙": "双",
+        "帶": "带",
+        "顏色": "颜色",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
     return text
 
 
@@ -248,7 +278,7 @@ def build_page_assignment(input_pdf: Path, structured: dict) -> tuple[dict[int, 
     segments: list[dict] = []
     for item in structured.get("items", []):
         source = str(item.get("en", "")).strip()
-        translation = clean_translation(str(item.get("zh", "")))
+        translation = normalize_translation_display(str(item.get("zh", "")))
         if should_skip_render(source, translation):
             continue
         segments.append(
@@ -260,6 +290,7 @@ def build_page_assignment(input_pdf: Path, structured: dict) -> tuple[dict[int, 
                 "source_type": item.get("sourceType"),
                 "render_mode": item.get("renderMode"),
                 "confidence": item.get("confidence"),
+                "page_layout_type": item.get("pageLayoutType"),
                 "bbox": (
                     {
                         "x0": item["bbox"]["x"],
@@ -381,6 +412,20 @@ def choose_inline_note_width(page_width: float, bbox: dict, translation: str) ->
     return max(INLINE_NOTE_MIN_WIDTH, min(desired, page_width * 0.2))
 
 
+def choose_sketch_inline_note_width(page_width: float, bbox: dict, translation: str) -> float:
+    desired = min(
+        INLINE_NOTE_SKETCH_MAX_WIDTH,
+        max(INLINE_NOTE_SKETCH_MIN_WIDTH, pdfmetrics.stringWidth(translation, "STSong-Light", 9.6) + 6),
+    )
+    remaining_right = page_width - bbox["x1"] - PAGE_PADDING - 6
+    if remaining_right >= desired:
+        return desired
+    remaining_left = bbox["x0"] - PAGE_PADDING - 6
+    if remaining_left >= desired:
+        return desired
+    return max(INLINE_NOTE_SKETCH_MIN_WIDTH, min(desired, page_width * 0.16))
+
+
 def iter_inline_scan_offsets(limit: int, step: int = INLINE_NOTE_SCAN_STEP) -> list[int]:
     offsets = [0]
     for delta in range(step, limit + step, step):
@@ -395,6 +440,7 @@ def choose_inline_note_candidate(
     bbox: dict,
     note_width: float,
     note_height: float,
+    prefer_side_only: bool = False,
 ) -> list[tuple[float, float, float]]:
     wide_source = (bbox["x1"] - bbox["x0"]) >= 72
     tall_source = (bbox["bottom"] - bbox["top"]) >= INLINE_NOTE_TALL_SOURCE_THRESHOLD
@@ -406,9 +452,15 @@ def choose_inline_note_candidate(
     base_specs: list[tuple[float, float, float, list[int], list[int]]] = [
         (bbox["x1"] + 8, center_y - note_height / 2, 0.0, [0], iter_inline_scan_offsets(60)),
         (bbox["x0"] - note_width - 8, center_y - note_height / 2, 0.8, [0], iter_inline_scan_offsets(60)),
-        (center_x - note_width / 2, bbox["bottom"] + 8, 1.4, iter_inline_scan_offsets(48), [0, 12, 24]),
-        (center_x - note_width / 2, bbox["top"] - note_height - 8, 1.8, iter_inline_scan_offsets(48), [0, -12, -24]),
     ]
+
+    if not prefer_side_only:
+        base_specs.extend(
+            [
+                (center_x - note_width / 2, bbox["bottom"] + 8, 1.4, iter_inline_scan_offsets(48), [0, 12, 24]),
+                (center_x - note_width / 2, bbox["top"] - note_height - 8, 1.8, iter_inline_scan_offsets(48), [0, -12, -24]),
+            ]
+        )
 
     if wide_source:
         base_specs.extend(
@@ -484,15 +536,31 @@ def build_inline_note_layout(
 
     for note in ordered_notes:
         bbox = note["bbox"]
+        prefer_side_only = note.get("page_layout_type") == "sketch"
+        is_sketch = note.get("page_layout_type") == "sketch"
         translation = shorten_text(
             note["translation"],
             choose_inline_note_chars(
-                choose_inline_note_width(page_width, bbox, note["translation"]),
+                choose_sketch_inline_note_width(page_width, bbox, note["translation"])
+                if is_sketch
+                else choose_inline_note_width(page_width, bbox, note["translation"]),
                 bbox,
             ),
         )
-        note_width = choose_inline_note_width(page_width, bbox, translation)
-        para = Paragraph(translation, translation_style)
+        note_width = (
+            choose_sketch_inline_note_width(page_width, bbox, translation)
+            if is_sketch
+            else choose_inline_note_width(page_width, bbox, translation)
+        )
+        para_style = translation_style
+        if is_sketch:
+            para_style = ParagraphStyle(
+                "inline-translation-sketch",
+                parent=translation_style,
+                fontSize=9.6,
+                leading=11.0,
+            )
+        para = Paragraph(translation, para_style)
         _, note_height = para.wrap(note_width, 1000)
         note_height += 2
         placed_rect = None
@@ -504,6 +572,7 @@ def build_inline_note_layout(
             bbox,
             note_width,
             note_height,
+            prefer_side_only=prefer_side_only,
         ):
             rect = {
                 "x0": max(PAGE_PADDING, min(candidate_x, page_width - PAGE_PADDING - note_width)),
@@ -1319,11 +1388,31 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
 
         inline_overlay = None
         inline_overflow: list[dict] = []
-        if USE_INLINE_NOTES:
+        sketch_inline_notes = [
+            note
+            for note in notes_for_page
+            if note.get("render_mode") == "inline" and note.get("page_layout_type") == "sketch"
+        ]
+        inline_candidates = [
+            note
+            for note in notes_for_page
+            if note.get("bbox")
+            and (
+                note.get("render_mode") == "inline"
+                or (
+                    len((note.get("translation") or "").strip()) <= 28
+                    and (
+                        note.get("page_layout_type") in {"sketch", "mixed"}
+                        or note.get("source_type") == "vision"
+                    )
+                )
+            )
+        ]
+        if USE_INLINE_NOTES and inline_candidates:
             inline_overlay, inline_overflow = create_inline_note_overlay(
                 float(page.mediabox.width),
                 float(page.mediabox.height),
-                notes_for_page,
+                inline_candidates,
                 render_styles,
             )
             if inline_overlay and not inline_overflow:
@@ -1335,10 +1424,28 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                 new_page.merge_page(inline_overlay.pages[0])
                 continue
 
-        dense_page = should_use_dense_layout(notes_for_page)
+        non_inline_notes = [
+            *[
+                note
+                for note in notes_for_page
+                if note not in inline_candidates and note.get("render_mode") != "inline"
+            ],
+            *[note for note in sketch_inline_notes if note not in inline_candidates],
+        ]
+        sketch_only_page = bool(non_inline_notes) and all(
+            note.get("page_layout_type") == "sketch" for note in non_inline_notes
+        )
+        side_fit_preview = None
+        if non_inline_notes:
+            side_fit_preview = fit_notes_single_page(float(page.mediabox.height), non_inline_notes, render_styles)
+        side_panel_can_fit = bool(
+            side_fit_preview and side_fit_preview[1].get("used_height", 10_000)
+            <= float(page.mediabox.height) - PAGE_PADDING * 2 - 28
+        )
+        dense_page = False if (sketch_only_page or side_panel_can_fit) else should_use_dense_layout(non_inline_notes)
 
         if dense_page:
-            dense_rows = build_dense_page_rows(notes_for_page)
+            dense_rows = build_dense_page_rows(non_inline_notes)
             new_page = writer.add_blank_page(
                 width=float(page.mediabox.width),
                 height=float(page.mediabox.height),
@@ -1365,7 +1472,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                         float(page.mediabox.width),
                         float(page.mediabox.height),
                         page_number,
-                        [note for note in notes_for_page if note.get("note_number") in {num for row in overflow_rows for num in row.get("note_numbers", [])}],
+                        [note for note in non_inline_notes if note.get("note_number") in {num for row in overflow_rows for num in row.get("note_numbers", [])}],
                         render_styles,
                     ):
                         writer.add_page(review_page.pages[0])
@@ -1381,7 +1488,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                         float(page.mediabox.width),
                         float(page.mediabox.height),
                         page_number,
-                        notes_for_page,
+                        non_inline_notes,
                         render_styles,
                     ):
                         writer.add_page(review_page.pages[0])
@@ -1394,7 +1501,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
             )
             new_page.merge_transformed_page(page, Transformation().translate(0, 0))
             new_page.merge_page(inline_overlay.pages[0])
-            if inline_overflow:
+            if inline_overflow or non_inline_notes:
                 overflow_page = writer.add_blank_page(
                     width=float(page.mediabox.width) + PANEL_WIDTH,
                     height=float(page.mediabox.height),
@@ -1404,7 +1511,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                     float(page.mediabox.width),
                     float(page.mediabox.height),
                     page_number,
-                    inline_overflow,
+                    [*non_inline_notes, *inline_overflow],
                     render_styles,
                 )
                 overflow_page.merge_page(overlay_reader.pages[0])
@@ -1419,7 +1526,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
             float(page.mediabox.width),
             float(page.mediabox.height),
             page_number,
-            notes_for_page,
+            non_inline_notes if non_inline_notes else notes_for_page,
             render_styles,
         )
         new_page.merge_page(overlay_reader.pages[0])

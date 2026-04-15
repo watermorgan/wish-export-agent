@@ -1,0 +1,198 @@
+{
+  "$comment": "核心术语库 - 已审核、生产使用。完整术语从 normalizeFashionTranslation 迁移中，当前为种子集。",
+  "version": "0.1.0",
+  "updatedAt": "2026-04-15",
+  "entries": [
+    {
+      "en": "back elasticated waistband",
+      "zh": "后腰部橡筋",
+      "aliases": ["elastic waistband", "elasticated waist"],
+      "forbidden": ["弹性腰带", "松紧腰带"],
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "chino pocket + pleat",
+      "zh": "斜插侧袋",
+      "forbidden": ["奇诺口袋"],
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "dart",
+      "zh": "省",
+      "forbidden": ["飞镖", "箭头"],
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "piped pocket",
+      "zh": "单开线口袋",
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "pocketing",
+      "zh": "袋布：涤棉磨毛斜纹，配色同面布",
+      "context": "fabric_material",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "autoblock zipper",
+      "zh": "自动锁头闭尾拉链",
+      "context": "trim_accessory",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "reverse coil zipper",
+      "zh": "尼龙反装拉链",
+      "context": "trim_accessory",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "coil zipper",
+      "zh": "尼龙拉链",
+      "context": "trim_accessory",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "invisible zipper",
+      "zh": "隐形拉链",
+      "context": "trim_accessory",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "plastic snap",
+      "zh": "塑料四合扣",
+      "forbidden": ["塑料按扣"],
+      "context": "trim_accessory",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "new logo label",
+      "zh": "新主标",
+      "forbidden": ["新标识标签"],
+      "context": "packaging_labeling",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "matching color with outshell fabric",
+      "zh": "顺色",
+      "aliases": ["matching color with shell fabric", "matching color with shell fabric color"],
+      "forbidden": ["与外壳面料相匹配的颜色"],
+      "context": "color",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "perforation laser",
+      "zh": "激光打孔",
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "elbow seam",
+      "zh": "肘缝",
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "flat collar",
+      "zh": "平领",
+      "context": "garment_construction",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "body lining",
+      "zh": "身里",
+      "forbidden": ["身体衬里"],
+      "context": "fabric_material",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "inside cuff knit rib",
+      "zh": "袖口1X1尼龙罗纹",
+      "context": "fabric_material",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "inside collar knit rib",
+      "zh": "1X1罗纹内领",
+      "context": "fabric_material",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "proto #1",
+      "zh": "OP1",
+      "aliases": ["proto 1", "proto#1"],
+      "context": "general",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    },
+    {
+      "en": "proto #2",
+      "zh": "OP2",
+      "aliases": ["proto 2", "proto#2"],
+      "context": "general",
+      "source": "normalize_rule_migration",
+      "confidence": 1.0,
+      "reviewStatus": "approved",
+      "addedAt": "2026-04-15"
+    }
+  ]
+}

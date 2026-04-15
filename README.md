@@ -52,7 +52,7 @@ npm run db:init
 
 ### A/B 模型拆分
 
-当前 PDF 意见翻译链按两类模型拆分：
+当前 PDF 意见翻译链按两类模型拆分，并建议采用“本地优先、线上兜底”的低维护路由：
 
 - A 模型：视觉/OCR/多模态辅助识别
 - B 模型：结构化 segment 翻译
@@ -60,38 +60,42 @@ npm run db:init
 推荐环境变量：
 
 ```bash
-A_MODEL_NAME=Qwen/Qwen3.5-35B-A3B
-A_MODEL_API_URL=https://api-inference.modelscope.cn/v1
+A_MODEL_NAME=Gemma-4-31B-it
+A_MODEL_API_URL=http://172.16.71.201:8001/v1
 A_MODEL_API_KEY=
 
-B_MODEL_NAME=qwen3.5-27b
-B_MODEL_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+B_MODEL_NAME=Gemma-4-31B-it
+B_MODEL_API_URL=http://172.16.71.201:8001/v1
 B_MODEL_API_KEY=
 
+B_MODEL_FALLBACK_NAME=openrouter/free
+B_MODEL_FALLBACK_API_URL=https://openrouter.ai/api/v1
+B_MODEL_FALLBACK_API_KEY=your-openrouter-key
+
 VISION_API_KEY=...
-VISION_API_URL=https://api-inference.modelscope.cn/v1
-VISION_MODEL=Qwen/Qwen3.5-35B-A3B
+VISION_API_URL=http://172.16.71.201:8001/v1
+VISION_MODEL=Gemma-4-31B-it
 
 TRANSLATION_API_KEY=
-TRANSLATION_API_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-TRANSLATION_MODEL=qwen3.5-27b
+TRANSLATION_API_URL=http://172.16.71.201:8001/v1
+TRANSLATION_MODEL=Gemma-4-31B-it
 ```
 
-当前已验证的 B 模型备选：
+当前建议的底层路由：
 
-- `qwen3.5-27b`（百炼 compatible-mode，当前主推）
-- `Qwen3.5-35B-A3B`（本地 OpenAI-compatible，默认优先）
-- `Qwen/Qwen3.5-397B-A17B`
-- `MiniMax/MiniMax-M2.1`
+1. A 模型：只走本地 `Gemma-4-31B-it`
+2. B 模型：优先本地 `Gemma-4-31B-it`
+3. 若本地 B 超时、空内容、整轮 0 翻译，则自动切 `openrouter/free`
 
 说明：
 
 - 当前仓库已支持私网 OpenAI-compatible 端点无鉴权直连；若无法连接 `172.16.71.201:8001`，会明确提示先连接 VPN。
 - 当前建议组合：
-  - A：`ModelScope Qwen/Qwen3.5-35B-A3B`
-  - B：`DashScope compatible-mode qwen3.5-27b`
-- `DashScope` 的 compatible-mode 必须使用 `https://dashscope.aliyuncs.com/compatible-mode/v1`，不能继续使用旧的 `api/v2/apps/protocols/compatible-mode/v1` 路径。
-- 当前这台本地实例不满足稳定主链接入条件，因此只建议继续做联调，不作为默认 A/B。
+  - A：`Gemma-4-31B-it`（本地 OpenAI-compatible）
+  - B：`Gemma-4-31B-it`（本地 OpenAI-compatible）
+  - B fallback：`openrouter/free`
+- 这样 A 不依赖外部配额，B 只有在本地失败或空翻译时才消耗线上额度。
+- 当前本地实例已经作为默认 A/B 联调入口；OpenRouter 仅保留为自动兜底补充。
 - 页面里选择的 `translationModelOverride` 必须真正传递到 PDF pipeline，而不只是 UI 展示。
 - 若 `qwen3.5-27b` 后续额度或稳定性不足，再切 `Qwen/Qwen3.5-397B-A17B` 或 `MiniMax/MiniMax-M2.1` 做线上验证。
 

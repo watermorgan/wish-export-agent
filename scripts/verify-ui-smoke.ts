@@ -11,6 +11,28 @@ type StepResult = {
   detail?: string;
 };
 
+const FALLBACK_CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+async function launchBrowser() {
+  try {
+    return await chromium.launch({ headless: true });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Executable doesn't exist") &&
+      existsSync(FALLBACK_CHROME_PATH)
+    ) {
+      console.warn(`[verify:ui] fallback to system Chrome: ${FALLBACK_CHROME_PATH}`);
+      return chromium.launch({
+        executablePath: FALLBACK_CHROME_PATH,
+        headless: true
+      });
+    }
+
+    throw error;
+  }
+}
+
 async function waitForServer(url: string, timeoutMs = 90_000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -86,7 +108,7 @@ async function main() {
     }
 
     console.log('[verify:ui] launching browser');
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchBrowser();
     const context = await browser.newContext();
     const page = await context.newPage();
     const consoleErrors: string[] = [];

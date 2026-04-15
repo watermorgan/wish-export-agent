@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GlossaryEntry",
+  "description": "服装工艺翻译术语条目",
+  "type": "object",
+  "required": ["en", "zh", "context", "source", "reviewStatus"],
+  "properties": {
+    "en": {
+      "type": "string",
+      "description": "英文原词/短语（小写归一）"
+    },
+    "zh": {
+      "type": "string",
+      "description": "标准中文译法"
+    },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "英文别名/变体，如 ['elastic waistband', 'elasticated waist']"
+    },
+    "forbidden": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "禁止使用的中文译法"
+    },
+    "context": {
+      "type": "string",
+      "enum": [
+        "garment_construction",
+        "fabric_material",
+        "trim_accessory",
+        "color",
+        "sizing_fit",
+        "packaging_labeling",
+        "general"
+      ],
+      "description": "适用场景/领域"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "human_review",
+        "feedback_extraction",
+        "sample_alignment",
+        "external_import",
+        "normalize_rule_migration"
+      ],
+      "description": "术语来源"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "置信度。human_review=1.0, feedback=0.8, external=0.5"
+    },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["approved", "pending", "rejected"],
+      "description": "审核状态"
+    },
+    "addedAt": {
+      "type": "string",
+      "format": "date",
+      "description": "添加日期"
+    },
+    "reviewedBy": {
+      "type": "string",
+      "description": "审核人"
+    },
+    "notes": {
+      "type": "string",
+      "description": "备注"
+    }
+  }
+}

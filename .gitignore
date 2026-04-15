@@ -58,3 +58,7 @@ data/20260315/
 data/20260324/
 data/test 2/
 data/test/sample-sketch.pdf
+
+# Local one-off diagnostics
+test-mcp-client.mjs
+OPTIMIZATION_CONTEXT.md

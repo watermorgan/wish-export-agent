@@ -16,6 +16,7 @@ import type {
   ArtifactField,
   ArtifactSection,
   AssistantReply,
+  AssistantReplyMetadata,
   AssistantRequest,
   ExecutionPlanStep,
   PendingConfirmation,
@@ -39,6 +40,17 @@ export interface CumulativeContext {
   previousResults: StepResult[];
   structuredSource?: FeedbackSourceReference | null;
 }
+
+export type PreparedAssistantExecution = {
+  taskType: TaskType;
+  taskTypeLabel: string;
+  selectedSkills: SkillDefinition[];
+  selectedTemplate: WorkflowTemplate | null;
+  validationIssues: ValidationIssue[];
+  blocked: boolean;
+  executionPlan: ExecutionPlanStep[];
+  pendingConfirmations: PendingConfirmation[];
+};
 
 const taskTypeKeywordMap: Record<TaskType, string[]> = {
   bom: ['bom', '工艺单', '面辅料', '辅料', '料号', '规格'],
@@ -83,6 +95,30 @@ function pickSelectedSkills(
   return {
     selectedSkills,
     selectedTemplate
+  };
+}
+
+export function prepareAssistantExecution(
+  request: AssistantRequest
+): PreparedAssistantExecution {
+  const taskType = request.taskType ?? inferTaskType(request.question);
+  const taskTypeLabel =
+    taskTypeOptions.find((option) => option.id === taskType)?.label ?? '客户回复草拟';
+  const { selectedSkills, selectedTemplate } = pickSelectedSkills(request, taskType);
+  const validationIssues = buildValidationIssues(taskType, request.files, selectedSkills);
+  const blocked = validationIssues.some((issue) => issue.severity === 'blocking');
+  const executionPlan = buildExecutionPlan(selectedSkills, validationIssues);
+  const pendingConfirmations = buildPendingConfirmations(taskType);
+
+  return {
+    taskType,
+    taskTypeLabel,
+    selectedSkills,
+    selectedTemplate,
+    validationIssues,
+    blocked,
+    executionPlan,
+    pendingConfirmations
   };
 }
 
@@ -451,7 +487,10 @@ function shouldBypassLegacyTranslatorStep(
   taskType: TaskType,
   skillId: string
 ) {
-  if (taskType !== 'feedback' || skillId !== 'comment-translator') {
+  if (
+    taskType !== 'feedback' ||
+    !['comment-translator', 'comment-merger'].includes(skillId)
+  ) {
     return false;
   }
 
@@ -537,48 +576,120 @@ function buildExecutionBaseReply(options: {
   };
 }
 
+export function buildBlockedExecutionReply(
+  request: AssistantRequest,
+  prepared: PreparedAssistantExecution
+): AssistantReply {
+  const { taskType, taskTypeLabel, selectedSkills, selectedTemplate, executionPlan, pendingConfirmations, validationIssues } =
+    prepared;
+
+  return {
+    intent: taskType,
+    intentLabel: taskTypeLabel,
+    role: request.role,
+    status: 'blocked',
+    statusLabel: '已阻断',
+    reviewStatus: 'not_submitted',
+    reviewStatusLabel: '未提交审核',
+    summary: `已按“${taskTypeLabel}”生成执行计划，但当前输入仍存在阻断项，系统不会继续生成可用完成稿。`,
+    nextActions: buildNextActions(taskType, validationIssues),
+    riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
+    draftDirection: buildDraftDirection(taskType),
+    taskType,
+    taskTypeLabel,
+    skillCatalog,
+    templates: workflowTemplates,
+    selectedSkills,
+    selectedTemplate,
+    executionPlan,
+    pendingConfirmations,
+    blockingIssues: validationIssues.filter((issue) => issue.severity === 'blocking'),
+    validationIssues,
+    artifacts: buildArtifacts(taskType, request.question, request.files),
+    auditTrail: buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
+    metadata: {
+      needsHumanReview: true,
+      providerHits: [],
+      modelHits: [],
+      translationMode: 'fixture'
+    }
+  };
+}
+
+export function buildValidatingExecutionReply(
+  request: AssistantRequest,
+  prepared: PreparedAssistantExecution,
+  progress: NonNullable<AssistantReplyMetadata['asyncProgress']>
+): AssistantReply {
+  const { taskType, taskTypeLabel, selectedSkills, selectedTemplate, executionPlan, pendingConfirmations, validationIssues } =
+    prepared;
+
+  return {
+    intent: taskType,
+    intentLabel: taskTypeLabel,
+    role: request.role,
+    status: 'validating',
+    statusLabel: '校验中',
+    reviewStatus: 'not_submitted',
+    reviewStatusLabel: '未提交审核',
+    summary: `已创建“${taskTypeLabel}”任务，系统正在后台执行中。`,
+    nextActions: ['可稍后刷新任务状态，等待翻译结果生成。'],
+    riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
+    draftDirection: buildDraftDirection(taskType),
+    taskType,
+    taskTypeLabel,
+    skillCatalog,
+    templates: workflowTemplates,
+    selectedSkills,
+    selectedTemplate,
+    executionPlan: executionPlan.map((step, index) => ({
+      ...step,
+      status: index === 0 ? 'ready' : step.status
+    })),
+    pendingConfirmations,
+    blockingIssues: [],
+    validationIssues: validationIssues.filter((issue) => issue.severity !== 'blocking'),
+    artifacts: [],
+    auditTrail: [
+      ...buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
+      {
+        label: '异步执行已排队',
+        detail: '当前任务已创建，后台将继续执行翻译管线。'
+      }
+    ],
+    metadata: {
+      needsHumanReview: true,
+      providerHits: [],
+      modelHits: [],
+      translationMode: 'real',
+      asyncProgress: progress
+    }
+  };
+}
+
 export async function runAssistant(request: AssistantRequest): Promise<AssistantReply> {
-  const taskType = request.taskType ?? inferTaskType(request.question);
-  const taskTypeLabel =
-    taskTypeOptions.find((option) => option.id === taskType)?.label ?? '客户回复草拟';
-  const { selectedSkills, selectedTemplate } = pickSelectedSkills(request, taskType);
-  const validationIssues = buildValidationIssues(taskType, request.files, selectedSkills);
-  const blocked = validationIssues.some((issue) => issue.severity === 'blocking');
-  const executionPlan = buildExecutionPlan(selectedSkills, validationIssues);
-  const pendingConfirmations = buildPendingConfirmations(taskType);
+  const {
+    taskType,
+    taskTypeLabel,
+    selectedSkills,
+    selectedTemplate,
+    validationIssues,
+    blocked,
+    executionPlan,
+    pendingConfirmations
+  } = prepareAssistantExecution(request);
 
   if (blocked) {
-    return {
-      intent: taskType,
-      intentLabel: taskTypeLabel,
-      role: request.role,
-      status: 'blocked',
-      statusLabel: '已阻断',
-      reviewStatus: 'not_submitted',
-      reviewStatusLabel: '未提交审核',
-      summary: `已按“${taskTypeLabel}”生成执行计划，但当前输入仍存在阻断项，系统不会继续生成可用完成稿。`,
-      nextActions: buildNextActions(taskType, validationIssues),
-      riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
-      draftDirection: buildDraftDirection(taskType),
+    return buildBlockedExecutionReply(request, {
       taskType,
       taskTypeLabel,
-      skillCatalog,
-      templates: workflowTemplates,
       selectedSkills,
       selectedTemplate,
-      executionPlan,
-      pendingConfirmations,
-      blockingIssues: validationIssues.filter((issue) => issue.severity === 'blocking'),
       validationIssues,
-      artifacts: buildArtifacts(taskType, request.question, request.files),
-      auditTrail: buildAuditTrail(selectedSkills, selectedTemplate, validationIssues),
-      metadata: {
-        needsHumanReview: true,
-        providerHits: [],
-        modelHits: [],
-        translationMode: 'fixture'
-      }
-    };
+      blocked,
+      executionPlan,
+      pendingConfirmations
+    });
   }
 
   if (

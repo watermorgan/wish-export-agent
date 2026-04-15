@@ -831,7 +831,7 @@ flowchart LR
 
 ### 设计原则
 
-1. 页面、skill、OpenClaw 后续都应消费同一份 `humanReviewGuide`。
+1. 页面、skill、Ting 外贸助手后续都应消费同一份 `humanReviewGuide`。
 2. `humanReviewGuide` 不能靠渲染层臆造，必须来自主链识别/翻译结果。
 3. 如果未来 skill 输出也要给 HITL 建议，应直接复用这套结构，而不是重新写 prompt 文案。
 
@@ -851,7 +851,7 @@ flowchart LR
 
 1. 页面仍直接使用已有 metadata 字段渲染。
 2. 预览页与工作台现在都能看到同一份 `humanReviewGuide`。
-3. 后续 skill/OpenClaw 接入时，优先直接复用 `pdf_translation_skill_v1`，而不是再自己拼装 `pdfArtifactLinks + snapshot + hints`。
+3. 后续 skill/Ting 外贸助手接入时，优先直接复用 `pdf_translation_skill_v1`，而不是再自己拼装 `pdfArtifactLinks + snapshot + hints`。
 
 ### 当前最小适配入口
 
@@ -860,9 +860,9 @@ flowchart LR
 - helper：`src/lib/assistant/pdf-translation-skill.ts`
 - route：`GET /api/tasks/[taskId]/skill-payload`
 
-当前返回的是 `openclaw_pdf_translation_v1`，其中 `result` 字段直接承载 `pdf_translation_skill_v1`。
+当前返回的是 `ting_pdf_translation_v1`，其中 `result` 字段直接承载 `pdf_translation_skill_v1`。
 
-这样 OpenClaw 或其他外部代理不需要理解完整 `AssistantReply`，只需要：
+这样 Ting 外贸助手或其他外部代理不需要理解完整 `AssistantReply`，只需要：
 
 1. 先拿 task id
 2. 再读取 `/api/tasks/:id/skill-payload`

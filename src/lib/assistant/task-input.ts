@@ -64,6 +64,32 @@ function parseModelOverride(raw: FormDataEntryValue | null) {
   return String(raw).trim();
 }
 
+const assistantJsonBodySchema = z.object({
+  channel: z.enum(['web', 'feishu', 'slack', 'wecom']).default('web'),
+  role: assistantRoleSchema,
+  question: formQuestionSchema,
+  files: z.array(uploadedFileSchema).default([]),
+  taskType: taskTypeSchema,
+  selectedTemplateId: selectedTemplateSchema.nullable().optional(),
+  selectedSkillIds: z.array(z.string().trim().min(1)).default([]),
+  modelOverride: z.string().trim().min(1).optional(),
+  visionModelOverride: z.string().trim().min(1).optional(),
+  translationModelOverride: z.string().trim().min(1).optional(),
+  conversationId: z.string().trim().min(1).optional(),
+  userId: z.string().trim().min(1).optional(),
+  rawPayload: z.unknown().optional()
+});
+
+export function parseAssistantJsonPayload(payload: unknown): AssistantRequest {
+  const parsed = assistantJsonBodySchema.parse(payload);
+
+  if (parsed.files.length > MAX_FILES) {
+    throw new Error(`一次最多上传 ${MAX_FILES} 个文件。`);
+  }
+
+  return parsed;
+}
+
 export async function readAssistantRequest(request: Request): Promise<AssistantRequest> {
   const contentType = request.headers.get('content-type') ?? '';
 
@@ -92,30 +118,7 @@ export async function readAssistantRequest(request: Request): Promise<AssistantR
     };
   }
 
-  const payload = await request.json();
-  const bodySchema = z.object({
-    channel: z.enum(['web', 'feishu', 'slack', 'wecom']).default('web'),
-    role: assistantRoleSchema,
-    question: formQuestionSchema,
-    files: z.array(uploadedFileSchema).default([]),
-    taskType: taskTypeSchema,
-    selectedTemplateId: selectedTemplateSchema.nullable().optional(),
-    selectedSkillIds: z.array(z.string().trim().min(1)).default([]),
-    modelOverride: z.string().trim().min(1).optional(),
-    visionModelOverride: z.string().trim().min(1).optional(),
-    translationModelOverride: z.string().trim().min(1).optional(),
-    conversationId: z.string().trim().min(1).optional(),
-    userId: z.string().trim().min(1).optional(),
-    rawPayload: z.unknown().optional()
-  });
-
-  const parsed = bodySchema.parse(payload);
-
-  if (parsed.files.length > MAX_FILES) {
-    throw new Error(`一次最多上传 ${MAX_FILES} 个文件。`);
-  }
-
-  return parsed;
+  return parseAssistantJsonPayload(await request.json());
 }
 
 export function readTaskPatch(payload: unknown) {

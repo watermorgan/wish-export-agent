@@ -47,7 +47,6 @@ async function runCheck(name, command, args, timeoutMs = 20000) {
 
 async function main() {
   const claudeBin = process.env.CLAUDE_BIN || 'claude';
-  const geminiBin = process.env.GEMINI_BIN || path.join(path.dirname(process.execPath), 'gemini');
   const codexBin = process.env.CODEX_BIN || 'codex';
   const modelScopeApiKey = process.env.MODELSCOPE_API_KEY;
   const modelScopeUrl =
@@ -111,16 +110,6 @@ async function main() {
       ],
       Number(process.env.CLAUDE_CLI_TIMEOUT_MS || '90000')
     ),
-    runCheck('gemini-cli', process.execPath, [
-      geminiBin,
-      '-p',
-      'Reply with exactly HELLO',
-      '-o',
-      'text',
-      '--approval-mode',
-      'plan',
-      ...splitExtraArgs(process.env.GEMINI_CLI_EXTRA_ARGS)
-    ]),
     runCheck('codex-cli', codexBin, [
       'exec',
       'Reply with exactly HELLO',

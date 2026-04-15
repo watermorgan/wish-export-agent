@@ -11,13 +11,6 @@ function firstNonEmpty(...values: Array<string | undefined>) {
   return values.find((value) => value && value.trim())?.trim() ?? '';
 }
 
-function buildLocalModelsUrl(baseUrl: string) {
-  const trimmed = baseUrl.replace(/\/+$/, '');
-  return trimmed.endsWith('/chat/completions')
-    ? trimmed.replace(/\/chat\/completions$/i, '/models')
-    : `${trimmed}/models`;
-}
-
 async function checkLocalOpenAi(): Promise<ProviderHealth> {
   const baseUrl = firstNonEmpty(process.env.LOCAL_OPENAI_API_URL, process.env.LOCAL_MODEL_API_URL);
   const localLabel =
@@ -37,8 +30,11 @@ async function checkLocalOpenAi(): Promise<ProviderHealth> {
   }
 
   try {
-    const response = await fetch(buildLocalModelsUrl(baseUrl), {
+    const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         ...(firstNonEmpty(process.env.LOCAL_OPENAI_API_KEY, process.env.LOCAL_MODEL_API_KEY)
           ? {
               Authorization: `Bearer ${firstNonEmpty(
@@ -48,15 +44,27 @@ async function checkLocalOpenAi(): Promise<ProviderHealth> {
             }
           : {})
       },
+      body: JSON.stringify({
+        model: localLabel,
+        messages: [
+          { role: 'system', content: 'You are a health check.' },
+          { role: 'user', content: 'reply with ok' }
+        ],
+        stream: false,
+        enable_thinking: false,
+        max_tokens: 32,
+        temperature: 0.1
+      }),
       signal: AbortSignal.timeout(5000)
     });
 
     if (!response.ok) {
+      const raw = await response.text();
       return {
         provider: 'local-openai',
         label: localLabel,
         status: 'error',
-        detail: `本地模型服务返回 ${response.status}。`
+        detail: `本地模型聊天接口返回 ${response.status}${raw ? `：${raw.slice(0, 160)}` : ''}`
       };
     }
 
@@ -139,10 +147,11 @@ async function checkDashScope(): Promise<ProviderHealth> {
 }
 
 async function checkModelScope(): Promise<ProviderHealth> {
+  const modelLabel = process.env.MODELSCOPE_MODEL ?? 'Qwen/Qwen3.5-35B-A3B';
   if (!process.env.MODELSCOPE_API_KEY) {
     return {
       provider: 'modelscope',
-      label: 'Qwen 3.5 397B A17B',
+      label: modelLabel,
       status: 'warning',
       detail: '未配置 ModelScope API Key。'
     };
@@ -161,7 +170,7 @@ async function checkModelScope(): Promise<ProviderHealth> {
           Authorization: `Bearer ${process.env.MODELSCOPE_API_KEY}`
         },
         body: JSON.stringify({
-          model: process.env.MODELSCOPE_MODEL ?? 'Qwen/Qwen3.5-397B-A17B',
+          model: modelLabel,
           messages: [
             { role: 'system', content: 'You are a health check.' },
             { role: 'user', content: 'reply with ok' }
@@ -175,7 +184,7 @@ async function checkModelScope(): Promise<ProviderHealth> {
     if (response.ok) {
       return {
         provider: 'modelscope',
-        label: 'Qwen 3.5 397B A17B',
+        label: modelLabel,
         status: 'ok',
         detail: 'ModelScope 当前可用。'
       };
@@ -184,7 +193,7 @@ async function checkModelScope(): Promise<ProviderHealth> {
     const raw = await response.text();
     return {
       provider: 'modelscope',
-      label: 'Qwen 3.5 397B A17B',
+      label: modelLabel,
       status: 'error',
       detail: raw.includes('Authentication failed')
         ? 'ModelScope token 无效。'
@@ -193,7 +202,7 @@ async function checkModelScope(): Promise<ProviderHealth> {
   } catch {
     return {
       provider: 'modelscope',
-      label: 'Qwen 3.5 397B A17B',
+      label: modelLabel,
       status: 'error',
       detail: 'ModelScope 连接失败。'
     };

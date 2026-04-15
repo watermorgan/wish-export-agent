@@ -30,6 +30,7 @@ const VISION_LOCAL_MAX_RENDER_SIZE = Math.max(
   512,
   Number(process.env.VISION_LOCAL_MAX_RENDER_SIZE ?? String(VISION_MAX_RENDER_SIZE))
 );
+const VISION_CONCURRENCY = Math.max(1, Number(process.env.VISION_CONCURRENCY ?? '2'));
 
 export type ExtractedBlockSourceType = 'text_layer' | 'vision' | 'merged';
 
@@ -72,6 +73,35 @@ export type VisionExtractionResult = {
 export type VisionExtractionProvider = (
   input: VisionExtractionInput
 ) => Promise<VisionExtractionResult>;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+) {
+  if (items.length === 0) {
+    return [] as R[];
+  }
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const current = nextIndex;
+        nextIndex += 1;
+        if (current >= items.length) {
+          return;
+        }
+        results[current] = await worker(items[current], current);
+      }
+    })
+  );
+
+  return results;
+}
 
 function normalizeBlockText(text: string) {
   return text.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -142,6 +172,24 @@ function shouldPrioritizeBusinessCrop(pageBlocks: ExtractedBlock[]) {
     return false;
   }
   return nonEmptyBlocks.length <= 8;
+}
+
+function toVisionErrorMode(plan: { focused: boolean; cropMode: 'full' | 'business_crop' | 'detail_crop' | 'right_panel_crop' | 'lower_panel_crop' }) {
+  return plan.cropMode === 'business_crop' ? 'business_crop' : plan.focused ? 'focused' : 'full';
+}
+
+function buildVisionPageError(params: {
+  pageNumber: number;
+  stage: 'primary' | 'fallback';
+  mode: 'full' | 'focused' | 'business_crop';
+  error: unknown;
+}) {
+  return {
+    pageNumber: params.pageNumber,
+    stage: params.stage,
+    mode: params.mode,
+    error: params.error instanceof Error ? params.error.message : 'vision request failed'
+  };
 }
 
 function toTokenSet(text: string) {
@@ -859,11 +907,23 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
         return parsed;
       }
 
-      for (const pageNumber of targetPages) {
+      const pageResults = await mapWithConcurrency(targetPages, VISION_CONCURRENCY, async (pageNumber) => {
         const pageBlocks = (input.textLayerBlocks ?? []).filter(
           (block) => block.pageNumber === pageNumber
         );
         let parsedForPage: ExtractedBlock[] = [];
+        let filteredPageBlocks: ExtractedBlock[] = [];
+        let pageModelExecuted = false;
+        let pageFallbackProviderUsed = false;
+        let pageProvider = activeProvider;
+        const rawCounts: Array<{ pageNumber: number; blockCount: number }> = [];
+        const errors: Array<{
+          pageNumber: number;
+          stage: 'primary' | 'fallback';
+          mode: 'full' | 'focused' | 'business_crop';
+          error: string;
+        }> = [];
+
         for (let attempt = 0; attempt <= VISION_PAGE_RETRY_LIMIT; attempt += 1) {
           try {
             const primaryPlans = [
@@ -874,7 +934,7 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
               { focused: true, cropMode: 'right_panel_crop' as const },
               { focused: true, cropMode: 'lower_panel_crop' as const }
             ];
-            let filteredPageBlocks: ExtractedBlock[] = [];
+            filteredPageBlocks = [];
             for (const plan of primaryPlans) {
               try {
                 parsedForPage = await callPageWithConfig(
@@ -884,9 +944,9 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
                   plan.focused,
                   plan.cropMode
                 );
-                modelExecuted = true;
-                activeProvider = getVisionModelName();
-                pageRawBlockCounts.push({ pageNumber, blockCount: parsedForPage.length });
+                pageModelExecuted = true;
+                pageProvider = getVisionModelName();
+                rawCounts.push({ pageNumber, blockCount: parsedForPage.length });
                 const planBlocks = filterVisionBlocks(parsedForPage, pageBlocks);
                 if (planBlocks.length > 0) {
                   filteredPageBlocks = dedupeBlocks([...filteredPageBlocks, ...planBlocks]);
@@ -895,29 +955,22 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
                   break;
                 }
               } catch (error) {
-                pageErrors.push({
-                  pageNumber,
-                  stage: 'primary',
-                  mode: plan.cropMode === 'business_crop' ? 'business_crop' : plan.focused ? 'focused' : 'full',
-                  error: error instanceof Error ? error.message : 'primary full-page vision request failed'
-                });
+                errors.push(
+                  buildVisionPageError({
+                    pageNumber,
+                    stage: 'primary',
+                    mode: toVisionErrorMode(plan),
+                    error
+                  })
+                );
                 if (isNonRetryableVisionError(error)) {
                   break;
                 }
               }
             }
-            pageBlockCounts.push({ pageNumber, blockCount: filteredPageBlocks.length });
-            for (const block of filteredPageBlocks) {
-              const key = `${block.pageNumber}:${normalizeBlockText(block.text)}`;
-              if (!existingKeys.has(key)) {
-                novelVisionBlockCount += 1;
-                existingKeys.add(key);
-              }
-              mergedBlocks.push(block);
-            }
             break;
           } catch (error) {
-            pageErrors.push({
+            errors.push({
               pageNumber,
               stage: 'primary',
               mode: 'full',
@@ -929,29 +982,30 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
             await delay(VISION_PAGE_RETRY_DELAY_MS);
           }
         }
+
         if (parsedForPage.length === 0 && fallbackConfig) {
           const preferBusinessCropFirst =
             isLocalRuntimeConfig(fallbackConfig) && shouldPrioritizeBusinessCrop(pageBlocks);
           const fallbackPlan = preferBusinessCropFirst
             ? ([
-              { focused: true, cropMode: 'business_crop' as const },
-              { focused: true, cropMode: 'full' as const },
-              { focused: true, cropMode: 'detail_crop' as const },
-              { focused: true, cropMode: 'right_panel_crop' as const },
-              { focused: true, cropMode: 'lower_panel_crop' as const },
-              { focused: false, cropMode: 'full' as const }
-            ] as const)
+                { focused: true, cropMode: 'business_crop' as const },
+                { focused: true, cropMode: 'full' as const },
+                { focused: true, cropMode: 'detail_crop' as const },
+                { focused: true, cropMode: 'right_panel_crop' as const },
+                { focused: true, cropMode: 'lower_panel_crop' as const },
+                { focused: false, cropMode: 'full' as const }
+              ] as const)
             : ([
-              { focused: false, cropMode: 'full' as const },
-              { focused: true, cropMode: 'full' as const },
-              { focused: true, cropMode: 'business_crop' as const },
-              { focused: true, cropMode: 'detail_crop' as const },
-              { focused: true, cropMode: 'right_panel_crop' as const },
-              { focused: true, cropMode: 'lower_panel_crop' as const }
-            ] as const);
+                { focused: false, cropMode: 'full' as const },
+                { focused: true, cropMode: 'full' as const },
+                { focused: true, cropMode: 'business_crop' as const },
+                { focused: true, cropMode: 'detail_crop' as const },
+                { focused: true, cropMode: 'right_panel_crop' as const },
+                { focused: true, cropMode: 'lower_panel_crop' as const }
+              ] as const);
           for (let attempt = 0; attempt <= VISION_PAGE_RETRY_LIMIT; attempt += 1) {
             try {
-              let filteredPageBlocks: ExtractedBlock[] = [];
+              filteredPageBlocks = [];
               const aggregatedPageBlocks: ExtractedBlock[] = [];
               for (const plan of fallbackPlan) {
                 try {
@@ -962,39 +1016,32 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
                     plan.focused,
                     plan.cropMode
                   );
-                  modelExecuted = true;
-                  fallbackProviderUsed = true;
-                  activeProvider = getVisionModelName(fallbackConfig);
-                  pageRawBlockCounts.push({ pageNumber, blockCount: parsedForPage.length });
+                  pageModelExecuted = true;
+                  pageFallbackProviderUsed = true;
+                  pageProvider = getVisionModelName(fallbackConfig);
+                  rawCounts.push({ pageNumber, blockCount: parsedForPage.length });
                   const planBlocks = filterVisionBlocks(parsedForPage, pageBlocks);
                   if (planBlocks.length > 0) {
                     aggregatedPageBlocks.push(...planBlocks);
                     filteredPageBlocks = dedupeBlocks(aggregatedPageBlocks);
-                  }
-                } catch (error) {
-                  pageErrors.push({
-                    pageNumber,
-                    stage: 'fallback',
-                    mode: plan.cropMode === 'business_crop' ? 'business_crop' : plan.focused ? 'focused' : 'full',
-                    error: error instanceof Error ? error.message : 'fallback full-page vision request failed'
-                  });
+                }
+              } catch (error) {
+                  errors.push(
+                    buildVisionPageError({
+                      pageNumber,
+                      stage: 'fallback',
+                      mode: toVisionErrorMode(plan),
+                      error
+                    })
+                  );
                   if (isNonRetryableVisionError(error)) {
                     break;
                   }
                 }
               }
-              pageBlockCounts.push({ pageNumber, blockCount: filteredPageBlocks.length });
-              for (const block of filteredPageBlocks) {
-                const key = `${block.pageNumber}:${normalizeBlockText(block.text)}`;
-                if (!existingKeys.has(key)) {
-                  novelVisionBlockCount += 1;
-                  existingKeys.add(key);
-                }
-                mergedBlocks.push(block);
-              }
               break;
             } catch (error) {
-              pageErrors.push({
+              errors.push({
                 pageNumber,
                 stage: 'fallback',
                 mode: 'full',
@@ -1006,6 +1053,38 @@ export function createQwenVisionProvider(): VisionExtractionProvider {
               await delay(VISION_PAGE_RETRY_DELAY_MS);
             }
           }
+        }
+
+        return {
+          pageNumber,
+          filteredPageBlocks,
+          rawCounts,
+          errors,
+          modelExecuted: pageModelExecuted,
+          fallbackProviderUsed: pageFallbackProviderUsed,
+          provider: pageProvider
+        };
+      });
+
+      for (const pageResult of pageResults.sort((left, right) => left.pageNumber - right.pageNumber)) {
+        modelExecuted = modelExecuted || pageResult.modelExecuted;
+        fallbackProviderUsed = fallbackProviderUsed || pageResult.fallbackProviderUsed;
+        if (pageResult.provider) {
+          activeProvider = pageResult.provider;
+        }
+        pageRawBlockCounts.push(...pageResult.rawCounts);
+        pageErrors.push(...pageResult.errors);
+        pageBlockCounts.push({
+          pageNumber: pageResult.pageNumber,
+          blockCount: pageResult.filteredPageBlocks.length
+        });
+        for (const block of pageResult.filteredPageBlocks) {
+          const key = `${block.pageNumber}:${normalizeBlockText(block.text)}`;
+          if (!existingKeys.has(key)) {
+            novelVisionBlockCount += 1;
+            existingKeys.add(key);
+          }
+          mergedBlocks.push(block);
         }
       }
 

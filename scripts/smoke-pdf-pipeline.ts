@@ -41,7 +41,10 @@ function defaultMaxSegmentsForMode(mode: SmokeMode) {
 }
 
 function defaultSampleTimeoutMs(mode: SmokeMode) {
-  return mode === 'full' ? 180_000 : 120_000;
+  if (mode === 'full') {
+    return 180_000;
+  }
+  return 120_000;
 }
 
 function resolveRepoPath(input: string) {

@@ -189,8 +189,8 @@
     - 先看哪几页
     - 哪些类型的细项最值得人工核对（如颜色/顺色、标类、口袋/拉链、结构说明）
     - 为什么这些项存在业务风险
-  - 这类结构化 HITL 建议必须从同一份 pipeline/snapshot 主链结果生成，并可被页面、skill 与后续 OpenClaw 适配层复用；不得页面一套文案、skill 一套文案
-  - 对外暴露给页面 / skill / OpenClaw 的 PDF 结果协议应收敛到单一稳定对象（当前为 `pdf_translation_skill_v1`），至少包含：
+  - 这类结构化 HITL 建议必须从同一份 pipeline/snapshot 主链结果生成，并可被页面、skill 与后续 Ting 外贸助手适配层复用；不得页面一套文案、skill 一套文案
+  - 对外暴露给页面 / skill / Ting 外贸助手的 PDF 结果协议应收敛到单一稳定对象（当前为 `pdf_translation_skill_v1`），至少包含：
     - summary
     - artifact links
     - `humanReviewGuide`
