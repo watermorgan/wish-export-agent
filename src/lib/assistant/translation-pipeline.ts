@@ -3573,23 +3573,17 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     translationCoveragePct: coverage.translationCoveragePct,
     businessPreviewReady: coverage.isBusinessPreviewReady
   });
-  const outputs: PipelineResult['outputs'] =
-    outputStrategy === 'bilingual_table_bundle'
-      ? {
-          bilingualTableBundle: (() => {
-            const bundle = buildBilingualTableBundle(bilingualBundleSegments);
-            return bundle;
-          })()
-        }
-      : (() => {
-          return {
-            annotatedPdf: buildAnnotatedPdfOutput(segments, documentMainType),
-            bilingualTableBundle:
-              bilingualBundleSegments.length > 0
-                ? buildBilingualTableBundle(bilingualBundleSegments)
-                : undefined
-          };
-        })();
+  const outputs: PipelineResult['outputs'] = (() => {
+    const annotatedPdf = buildAnnotatedPdfOutput(segments, documentMainType);
+    const bilingualTableBundle =
+      outputStrategy === 'bilingual_table_bundle' || bilingualBundleSegments.length > 0
+        ? buildBilingualTableBundle(bilingualBundleSegments)
+        : undefined;
+    return {
+      annotatedPdf,
+      bilingualTableBundle
+    };
+  })();
   if (outputs.bilingualTableBundle) {
     try {
       outputs.bilingualTableBundle.downloadable = await materializeBilingualXlsx(
