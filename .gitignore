@@ -48,3 +48,13 @@ data/test02/reviews/*
 data/test02/runs/*
 !data/test02/runs/README.md
 docs/project/pdf-pipeline-smoke-report*.json
+
+# Local agent runtime state and temporary outputs
+.omx/
+tmp/
+
+# Local ad-hoc datasets (keep test02 rules above)
+data/20260315/
+data/20260324/
+data/test 2/
+data/test/sample-sketch.pdf
