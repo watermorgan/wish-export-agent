@@ -1,4 +1,6 @@
 import type { PoolClient } from 'pg';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import {
   getSkillById,
   getTemplateById,
@@ -112,10 +114,74 @@ type ReviewRow = {
 
 const taskStore = new Map<string, StoredTask>();
 const UI_FIXTURE_TASK_ID = 'task_ui_fixture_preview';
+const TASK_STORE_FALLBACK_PATH = path.join(process.cwd(), '.tmp', 'task-store-fallback.json');
+let memoryStoreLoaded = false;
+let memoryStoreLoadInFlight: Promise<void> | null = null;
+let memoryStoreFlushInFlight: Promise<void> = Promise.resolve();
 
 function logTaskStoreFallback(stage: string, error: unknown) {
   const detail = error instanceof Error ? error.message : String(error);
   console.warn(`[task-store] ${stage} fallback to memory store: ${detail}`);
+}
+
+async function ensureMemoryStoreLoaded() {
+  if (memoryStoreLoaded) {
+    return;
+  }
+  if (!memoryStoreLoadInFlight) {
+    memoryStoreLoadInFlight = (async () => {
+      try {
+        const raw = await readFile(TASK_STORE_FALLBACK_PATH, 'utf8');
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+          memoryStoreLoaded = true;
+          return;
+        }
+        for (const item of parsed) {
+          if (
+            typeof item === 'object' &&
+            item !== null &&
+            'record' in item &&
+            'request' in item &&
+            'reply' in item
+          ) {
+            const stored = item as StoredTask;
+            if (stored.record?.id) {
+              taskStore.set(stored.record.id, stored);
+            }
+          }
+        }
+      } catch {
+        // ignore missing/invalid fallback file
+      } finally {
+        memoryStoreLoaded = true;
+      }
+    })();
+  }
+  await memoryStoreLoadInFlight;
+}
+
+function queuePersistMemoryStore() {
+  memoryStoreFlushInFlight = memoryStoreFlushInFlight
+    .catch(() => {
+      // keep queue alive
+    })
+    .then(async () => {
+      await mkdir(path.dirname(TASK_STORE_FALLBACK_PATH), { recursive: true });
+      const serializable = [...taskStore.values()].filter((item) => item.record.id !== UI_FIXTURE_TASK_ID);
+      await writeFile(TASK_STORE_FALLBACK_PATH, JSON.stringify(serializable, null, 2), 'utf8');
+    })
+    .catch((error) => {
+      console.warn(
+        `[task-store] persist memory store failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+}
+
+async function persistMemoryStoreNow() {
+  await mkdir(path.dirname(TASK_STORE_FALLBACK_PATH), { recursive: true });
+  const serializable = [...taskStore.values()].filter((item) => item.record.id !== UI_FIXTURE_TASK_ID);
+  await writeFile(TASK_STORE_FALLBACK_PATH, JSON.stringify(serializable, null, 2), 'utf8');
 }
 
 function ensureUiFixtureTask(taskId: string) {
@@ -162,6 +228,7 @@ function ensureUiFixtureTask(taskId: string) {
     outputStrategy: 'annotated_pdf',
     summary: 'UI 预览样例已生成，可用于页面与 skill 输出验证。',
     reviewRequired: true,
+    deliveryPdfUrl: '/api/tasks/task_ui_fixture_preview/translation-pdf?download=1',
     artifactLinks: [
       {
         fileName: 'fixture-translation.pdf',
@@ -170,6 +237,7 @@ function ensureUiFixtureTask(taskId: string) {
         primary: 'annotated_preview',
         bilingualXlsxUrl: null,
         annotatedPreviewUrl: '/preview/task/task_ui_fixture_preview',
+        annotatedPdfUrl: '/api/tasks/task_ui_fixture_preview/translation-pdf?download=1',
         tableStylePdfUrl: null
       }
     ],
@@ -467,6 +535,7 @@ function createStoredTask(
 
 function setStoredTask(stored: StoredTask) {
   taskStore.set(stored.record.id, stored);
+  queuePersistMemoryStore();
   return stored;
 }
 
@@ -1051,8 +1120,10 @@ export async function createTaskFromExecution(
   request: AssistantRequest,
   reply: AssistantReply
 ): Promise<TaskSnapshot> {
+  await ensureMemoryStoreLoaded();
   const id = createTaskId();
   const snapshot = storeSnapshot(id, request, reply);
+  await persistMemoryStoreNow();
 
   if (!hasDatabaseConfig()) {
     return snapshot;
@@ -1085,6 +1156,7 @@ export async function updateTaskFromExecution(
   request: AssistantRequest,
   reply: AssistantReply
 ): Promise<TaskSnapshot | null> {
+  await ensureMemoryStoreLoaded();
   const existing = taskStore.get(taskId);
 
   if (!hasDatabaseConfig()) {
@@ -1102,6 +1174,7 @@ export async function updateTaskFromExecution(
   }
 
   const snapshot = replaceStoredTask(taskId, request, reply, stored.record.createdAt);
+  await persistMemoryStoreNow();
 
   try {
     await withDbTransaction(async (client) => {
@@ -1129,6 +1202,7 @@ export async function updateTaskFromExecution(
 }
 
 export async function listTasks(): Promise<TaskRecord[]> {
+  await ensureMemoryStoreLoaded();
   if (!hasDatabaseConfig()) {
     return listMemoryTasks();
   }
@@ -1142,6 +1216,7 @@ export async function listTasks(): Promise<TaskRecord[]> {
 }
 
 export async function getTask(taskId: string): Promise<StoredTask | null> {
+  await ensureMemoryStoreLoaded();
   ensureUiFixtureTask(taskId);
 
   if (taskId === UI_FIXTURE_TASK_ID) {
@@ -1161,8 +1236,13 @@ export async function getTask(taskId: string): Promise<StoredTask | null> {
 }
 
 export async function deleteTask(taskId: string): Promise<boolean> {
+  await ensureMemoryStoreLoaded();
   if (!hasDatabaseConfig()) {
-    return taskStore.delete(taskId);
+    const deleted = taskStore.delete(taskId);
+    if (deleted) {
+      await persistMemoryStoreNow();
+    }
+    return deleted;
   }
 
   const existing = await getStoredTaskFromDb(taskId);
@@ -1177,6 +1257,7 @@ export async function deleteTask(taskId: string): Promise<boolean> {
   });
 
   taskStore.delete(taskId);
+  await persistMemoryStoreNow();
   return true;
 }
 
@@ -1184,6 +1265,7 @@ export async function deleteTasks(taskIds: string[]): Promise<{
   deletedIds: string[];
   recentTasks: TaskRecord[];
 }> {
+  await ensureMemoryStoreLoaded();
   const uniqueTaskIds = [...new Set(taskIds.filter(Boolean))];
 
   if (uniqueTaskIds.length === 0) {
@@ -1195,6 +1277,9 @@ export async function deleteTasks(taskIds: string[]): Promise<{
 
   if (!hasDatabaseConfig()) {
     const deletedIds = uniqueTaskIds.filter((taskId) => taskStore.delete(taskId));
+    if (deletedIds.length > 0) {
+      await persistMemoryStoreNow();
+    }
     return {
       deletedIds,
       recentTasks: listMemoryTasks()
@@ -1212,6 +1297,7 @@ export async function deleteTasks(taskIds: string[]): Promise<{
   uniqueTaskIds.forEach((taskId) => {
     taskStore.delete(taskId);
   });
+  await persistMemoryStoreNow();
 
   return {
     deletedIds: uniqueTaskIds,
@@ -1222,6 +1308,7 @@ export async function deleteTasks(taskIds: string[]): Promise<{
 export async function submitTaskForReview(
   taskId: string
 ): Promise<{ record: TaskRecord; reply: AssistantReply } | null> {
+  await ensureMemoryStoreLoaded();
   const existing = hasDatabaseConfig()
     ? await getStoredTaskFromDb(taskId)
     : (taskStore.get(taskId) ?? null);
@@ -1266,6 +1353,7 @@ export async function reviewTask(
   reviewer: AssistantRole,
   comment?: string
 ): Promise<{ record: TaskRecord; reply: AssistantReply } | null> {
+  await ensureMemoryStoreLoaded();
   const existing = hasDatabaseConfig()
     ? await getStoredTaskFromDb(taskId)
     : (taskStore.get(taskId) ?? null);
@@ -1329,6 +1417,7 @@ export async function reviewTask(
 export async function exportTask(
   taskId: string
 ): Promise<{ record: TaskRecord; reply: AssistantReply } | null> {
+  await ensureMemoryStoreLoaded();
   const existing = hasDatabaseConfig()
     ? await getStoredTaskFromDb(taskId)
     : (taskStore.get(taskId) ?? null);
@@ -1382,6 +1471,7 @@ export async function updateTaskConfirmation(
   updates: { status: PendingConfirmation['status'] },
   updaterRole?: AssistantRole
 ): Promise<{ record: TaskRecord; reply: AssistantReply } | null> {
+  await ensureMemoryStoreLoaded();
   const existing = hasDatabaseConfig()
     ? await getStoredTaskFromDb(taskId)
     : (taskStore.get(taskId) ?? null);
@@ -1422,6 +1512,7 @@ export async function updateTaskConfirmation(
 
   if (!hasDatabaseConfig()) {
     taskStore.set(result.stored.record.id, result.stored);
+    await persistMemoryStoreNow();
     return {
       record: result.stored.record,
       reply: result.stored.reply

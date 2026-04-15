@@ -4,6 +4,8 @@ let pool: Pool | null = null;
 let schemaReady = false;
 /** 保证全进程只跑一次迁移，避免并发请求在冷启动时并行 DDL 互相阻塞。 */
 let schemaEnsureInFlight: Promise<void> | null = null;
+let poolResetInFlight: Promise<void> | null = null;
+let dbCooldownUntilMs = 0;
 
 function isDbDebugEnabled() {
   return process.env.ASSISTANT_DEBUG_DB === '1';
@@ -20,6 +22,20 @@ function logDbDebug(message: string, meta?: Record<string, unknown>) {
   }
 
   console.log(`[assistant-db] ${message}`);
+}
+
+function isDbCoolingDown() {
+  return Date.now() < dbCooldownUntilMs;
+}
+
+function markDbCooldown(reason: string, error?: unknown) {
+  const cooldownMs = Math.max(1000, Number(process.env.PG_RECONNECT_COOLDOWN_MS ?? 120000));
+  dbCooldownUntilMs = Date.now() + cooldownMs;
+  logDbDebug('db cooldown activated', {
+    reason,
+    cooldownMs,
+    error: error instanceof Error ? error.message : error ? String(error) : undefined
+  });
 }
 
 const TASK_SCHEMA_SQL = `
@@ -323,7 +339,7 @@ function getPoolConfig(): PoolConfig | null {
 }
 
 export function hasDatabaseConfig() {
-  return getPoolConfig() !== null;
+  return getPoolConfig() !== null && !isDbCoolingDown();
 }
 
 function getPool() {
@@ -336,17 +352,78 @@ function getPool() {
   if (!pool) {
     const max = Number(process.env.PG_POOL_MAX ?? 20);
     const connectionTimeoutMillis = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 15000);
+    const idleTimeoutMillis = Number(process.env.PG_IDLE_TIMEOUT_MS ?? 30000);
+    const keepAliveInitialDelayMillis = Number(process.env.PG_KEEPALIVE_INITIAL_DELAY_MS ?? 10000);
     pool = new Pool({
       ...config,
       max: Number.isFinite(max) && max > 0 ? max : 20,
+      idleTimeoutMillis:
+        Number.isFinite(idleTimeoutMillis) && idleTimeoutMillis >= 0 ? idleTimeoutMillis : 30000,
       connectionTimeoutMillis:
         Number.isFinite(connectionTimeoutMillis) && connectionTimeoutMillis > 0
           ? connectionTimeoutMillis
-          : 15000
+          : 15000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis:
+        Number.isFinite(keepAliveInitialDelayMillis) && keepAliveInitialDelayMillis >= 0
+          ? keepAliveInitialDelayMillis
+          : 10000
+    });
+    pool.on('error', (error) => {
+      logDbDebug('pool client error', {
+        error: error.message
+      });
+      // Let in-flight requests fail fast; next request path will re-create pool.
+      void resetPool('pool-error', error);
     });
   }
 
   return pool;
+}
+
+function shouldResetPool(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const code = (error as { code?: string } | undefined)?.code?.toString().toUpperCase() ?? '';
+  return (
+    message.includes('connection terminated unexpectedly') ||
+    message.includes('terminating connection') ||
+    message.includes('server closed the connection unexpectedly') ||
+    message.includes('connection ended unexpectedly') ||
+    message.includes('connection reset') ||
+    message.includes('econnreset') ||
+    code === '57P01' ||
+    code === 'ECONNRESET' ||
+    code === 'EPIPE'
+  );
+}
+
+async function resetPool(reason: string, error?: unknown) {
+  if (poolResetInFlight) {
+    await poolResetInFlight;
+    return;
+  }
+  poolResetInFlight = (async () => {
+    const existing = pool;
+    pool = null;
+    schemaReady = false;
+    schemaEnsureInFlight = null;
+    if (existing) {
+      try {
+        await existing.end();
+      } catch {
+        // ignore end errors during reset
+      }
+    }
+    logDbDebug('pool reset', {
+      reason,
+      error: error instanceof Error ? error.message : error ? String(error) : undefined
+    });
+  })();
+  try {
+    await poolResetInFlight;
+  } finally {
+    poolResetInFlight = null;
+  }
 }
 
 async function runTaskSchemaMigrationOnce() {
@@ -393,6 +470,7 @@ export async function ensureTaskSchema() {
         await runTaskSchemaMigrationOnce();
         schemaReady = true;
       } catch (error) {
+        markDbCooldown('ensureTaskSchema', error);
         schemaEnsureInFlight = null;
         throw error;
       }
@@ -406,43 +484,83 @@ export async function queryDb<T = unknown>(
   text: string,
   values?: unknown[]
 ): Promise<{ rows: T[] }> {
-  await ensureTaskSchema();
-  const currentPool = getPool();
-  const result = await currentPool.query(text, values);
-  return {
-    rows: result.rows as T[]
+  const runQuery = async () => {
+    await ensureTaskSchema();
+    const currentPool = getPool();
+    const result = await currentPool.query(text, values);
+    return {
+      rows: result.rows as T[]
+    };
   };
+
+  try {
+    return await runQuery();
+  } catch (error) {
+    if (!shouldResetPool(error)) {
+      markDbCooldown('queryDb-non-retryable', error);
+      throw error;
+    }
+    await resetPool('queryDb', error);
+    try {
+      return await runQuery();
+    } catch (retryError) {
+      markDbCooldown('queryDb-retry-failed', retryError);
+      throw retryError;
+    }
+  }
 }
 
 export async function withDbTransaction<T>(
   run: (client: PoolClient) => Promise<T>
 ): Promise<T> {
-  await ensureTaskSchema();
-  const connectStartedAt = Date.now();
-  const client = await getPool().connect();
-  const lockTimeoutMs = Number(process.env.PG_LOCK_TIMEOUT_MS ?? 10000);
-  const statementTimeoutMs = Number(process.env.PG_STATEMENT_TIMEOUT_MS ?? 60000);
-  const txStartedAt = Date.now();
+  const runTxOnce = async () => {
+    await ensureTaskSchema();
+    const connectStartedAt = Date.now();
+    const client = await getPool().connect();
+    const lockTimeoutMs = Number(process.env.PG_LOCK_TIMEOUT_MS ?? 10000);
+    const statementTimeoutMs = Number(process.env.PG_STATEMENT_TIMEOUT_MS ?? 60000);
+    const txStartedAt = Date.now();
+
+    try {
+      logDbDebug('transaction client acquired', {
+        connectElapsedMs: txStartedAt - connectStartedAt
+      });
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '${Math.max(1, lockTimeoutMs)}ms'`);
+      await client.query(`SET LOCAL statement_timeout = '${Math.max(1, statementTimeoutMs)}ms'`);
+      const result = await run(client);
+      await client.query('COMMIT');
+      logDbDebug('transaction committed', { elapsedMs: Date.now() - txStartedAt });
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // ignore rollback failure on broken connections
+      }
+      logDbDebug('transaction rolled back', {
+        elapsedMs: Date.now() - txStartedAt,
+        error: error instanceof Error ? error.message : 'unknown error'
+      });
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
 
   try {
-    logDbDebug('transaction client acquired', {
-      connectElapsedMs: txStartedAt - connectStartedAt
-    });
-    await client.query('BEGIN');
-    await client.query(`SET LOCAL lock_timeout = '${Math.max(1, lockTimeoutMs)}ms'`);
-    await client.query(`SET LOCAL statement_timeout = '${Math.max(1, statementTimeoutMs)}ms'`);
-    const result = await run(client);
-    await client.query('COMMIT');
-    logDbDebug('transaction committed', { elapsedMs: Date.now() - txStartedAt });
-    return result;
+    return await runTxOnce();
   } catch (error) {
-    await client.query('ROLLBACK');
-    logDbDebug('transaction rolled back', {
-      elapsedMs: Date.now() - txStartedAt,
-      error: error instanceof Error ? error.message : 'unknown error'
-    });
-    throw error;
-  } finally {
-    client.release();
+    if (!shouldResetPool(error)) {
+      markDbCooldown('withDbTransaction-non-retryable', error);
+      throw error;
+    }
+    await resetPool('withDbTransaction', error);
+    try {
+      return await runTxOnce();
+    } catch (retryError) {
+      markDbCooldown('withDbTransaction-retry-failed', retryError);
+      throw retryError;
+    }
   }
 }

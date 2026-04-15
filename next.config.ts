@@ -10,6 +10,8 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // pdfkit 依赖包内 AFM 度量文件；被打进 .next/server/chunks 后会 ENOENT，表格 PDF materialize 会整段失败。
+  serverExternalPackages: ['pdfkit'],
   images: {
     remotePatterns: [
       {

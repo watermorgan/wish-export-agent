@@ -30,8 +30,8 @@ export function getPdfTranslationSkillPayload(
   return null;
 }
 
-export type OpenClawPdfTranslationPayload = {
-  kind: 'openclaw_pdf_translation_v1';
+export type TingPdfTranslationPayload = {
+  kind: 'ting_pdf_translation_v1';
   task: {
     id: string;
     taskType: string;
@@ -42,18 +42,25 @@ export type OpenClawPdfTranslationPayload = {
   result: PdfTranslationSkillPayload;
 };
 
-export function buildOpenClawPdfTranslationPayload(
+export function buildTingPdfTranslationPayload(
   task: TaskRecord,
   reply: AssistantReply
-): OpenClawPdfTranslationPayload | null {
+): TingPdfTranslationPayload | null {
   const result = getPdfTranslationSkillPayload(reply);
 
   if (!result) {
     return null;
   }
 
+  const annotatedPdfUrl = `/api/tasks/${encodeURIComponent(task.id)}/translation-pdf?download=1`;
+  const artifactLinks = result.artifactLinks.map((link) => ({
+    ...link,
+    annotatedPdfUrl
+  }));
+  const deliveryPdfUrl = annotatedPdfUrl;
+
   return {
-    kind: 'openclaw_pdf_translation_v1',
+    kind: 'ting_pdf_translation_v1',
     task: {
       id: task.id,
       taskType: task.taskType,
@@ -61,6 +68,10 @@ export function buildOpenClawPdfTranslationPayload(
       reviewStatus: task.reviewStatus,
       fileName: result.fileName
     },
-    result
+    result: {
+      ...result,
+      deliveryPdfUrl,
+      artifactLinks
+    }
   };
 }

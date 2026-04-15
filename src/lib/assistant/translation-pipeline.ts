@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import PDFDocument from 'pdfkit';
 import * as XLSX from 'xlsx';
@@ -14,6 +14,7 @@ import {
   isTranslationModelConfigured
 } from '@/lib/assistant/qwen-client';
 import type { ModelRuntimeConfig } from '@/lib/assistant/qwen-client';
+import { claudeCliProvider } from '@/lib/assistant/llm/providers/claude-cli';
 import {
   createQwenVisionProvider,
   extractWithVisionFallback,
@@ -179,9 +180,15 @@ const BUSINESS_PREVIEW_THRESHOLD_PCT = Number(
   process.env.BUSINESS_PREVIEW_THRESHOLD_PCT ?? '30'
 );
 const PDF_CJK_FONT_CANDIDATES = [
+  process.env.ASSISTANT_PDF_CJK_FONT?.trim() || '',
   '/Library/Fonts/Arial Unicode.ttf',
-  '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'
-];
+  '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+  '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf',
+  '/usr/share/fonts/truetype/noto/NotoSansSC-Regular.otf',
+  '/usr/share/fonts/google-noto/NotoSansSC-Regular.otf',
+  '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+  '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
+].filter(Boolean);
 
 type TranslationCoverageStats = {
   totalSegments: number;
@@ -205,8 +212,34 @@ function resolvePdfCjkFontPath() {
     return resolvedPdfCjkFontPath;
   }
   resolvedPdfCjkFontPath =
-    PDF_CJK_FONT_CANDIDATES.find((candidate) => existsSync(candidate)) ?? null;
+    PDF_CJK_FONT_CANDIDATES.find((candidate) => candidate && existsSync(candidate)) ?? null;
   return resolvedPdfCjkFontPath;
+}
+
+/** 当 materialize 未写入 downloadableTableStylePdf 时，从导出目录回填同名前缀的最新 table-style PDF（仅用于 UAT/容错）。 */
+export async function resolveLatestTableStylePdfForSource(fileName: string): Promise<string | null> {
+  const safeBase = path.basename(fileName).replace(/[^\w.-]+/g, '_');
+  try {
+    const names = await readdir(EXPORT_ROOT);
+    const matches = names.filter(
+      (name) => name.endsWith('.table-style.pdf') && name.startsWith(`${safeBase}.`)
+    );
+    if (matches.length === 0) {
+      return null;
+    }
+    const scored = await Promise.all(
+      matches.map(async (name) => {
+        const abs = path.join(EXPORT_ROOT, name);
+        const s = await stat(abs);
+        return { name, mtimeMs: s.mtimeMs };
+      })
+    );
+    scored.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    const abs = path.join(EXPORT_ROOT, scored[0].name);
+    return path.relative(process.cwd(), abs);
+  } catch {
+    return null;
+  }
 }
 
 function summarizeTranslationCoverage(
@@ -272,9 +305,65 @@ function buildCoverageNotice(
   return `${base}，低于业务预览阈值 ${coverage.businessPreviewThresholdPct}%；当前仅展示已译出条目，不建议视为完整翻译稿。`;
 }
 
-function delay(ms: number) {
-  if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function delayWithSignal(ms: number, signal?: AbortSignal) {
+  if (ms <= 0) {
+    return true;
+  }
+  if (signal?.aborted) {
+    return false;
+  }
+
+  return await new Promise<boolean>((resolve) => {
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      resolve(true);
+    }, ms);
+
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      cleanup();
+      resolve(false);
+    };
+
+    const cleanup = () => {
+      signal?.removeEventListener('abort', onAbort);
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>,
+  shouldStop?: () => boolean
+) {
+  if (items.length === 0) {
+    return [] as R[];
+  }
+
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.max(1, Math.min(concurrency, items.length));
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (true) {
+        if (shouldStop?.()) {
+          return;
+        }
+        const current = nextIndex;
+        nextIndex += 1;
+        if (current >= items.length) {
+          return;
+        }
+        results[current] = await worker(items[current], current);
+      }
+    })
+  );
+
+  return results.filter((value): value is R => value !== undefined);
 }
 
 function computePageLevelLayoutCounts(
@@ -802,6 +891,22 @@ function selectMixedSupplementTableSegments(segments: PipelineResult['segments']
   );
 }
 
+function selectBilingualBundleSegments(
+  segments: PipelineResult['segments'],
+  documentMainType: DocumentMainType,
+  outputStrategy: OutputStrategy
+) {
+  if (outputStrategy === 'bilingual_table_bundle') {
+    return segments;
+  }
+
+  if (documentMainType === 'mixed') {
+    return selectMixedSupplementTableSegments(segments);
+  }
+
+  return segments;
+}
+
 async function materializeBilingualXlsx(
   fileName: string,
   bundle: ReturnType<typeof buildBilingualTableBundle>,
@@ -862,8 +967,14 @@ async function materializeBilingualXlsx(
 }
 
 function escapePdfText(input: string) {
-  // pdfkit renders strings as-is; keep minimal sanitization for safety.
-  return input.replace(/\u0000/g, '');
+  // Keep text PDF-safe: strip control chars, unpaired surrogates and
+  // normalize punctuation variants to reduce pdfkit/font encoding failures.
+  return input
+    .normalize('NFKC')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
+    .replace(/[\uD800-\uDFFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 async function materializeTableStylePdf(
@@ -1102,12 +1213,13 @@ async function materializeTableStylePdf(
     doc.text('当前未生成任何可展示的中文结果，请在配额更稳定的环境下重试。', startX, y + 12, {
       width: pageWidth
     });
-    doc.end();
 
-    const emptyBuffer = await new Promise<Buffer>((resolve, reject) => {
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
+    const emptyBufferPromise = new Promise<Buffer>((resolve, reject) => {
+      doc.once('end', () => resolve(Buffer.concat(chunks)));
+      doc.once('error', reject);
     });
+    doc.end();
+    const emptyBuffer = await emptyBufferPromise;
     await writeFile(absolutePath, emptyBuffer);
 
     return {
@@ -1202,12 +1314,12 @@ async function materializeTableStylePdf(
     y += rowHeight;
   }
 
-  doc.end();
-
-  const buffer = await new Promise<Buffer>((resolve, reject) => {
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  const bufferPromise = new Promise<Buffer>((resolve, reject) => {
+    doc.once('end', () => resolve(Buffer.concat(chunks)));
+    doc.once('error', reject);
   });
+  doc.end();
+  const buffer = await bufferPromise;
   await writeFile(absolutePath, buffer);
 
   return {
@@ -1339,8 +1451,7 @@ function buildAnnotatedPdfOutput(
         renderMode: 'footnote' as const
       };
     }
-    // Inline bilingual first; fallback to footnote when text is long.
-    if (segment.text.length + zh.length <= 220) {
+    if (shouldUseInlineAnnotatedNote(segment, zh, documentMainType)) {
       return {
         id: segment.id,
         pageNumber: segment.pageNumber,
@@ -1516,6 +1627,126 @@ type BModelBatchStats = {
   visionSecondStageSegmentCount: number;
 };
 
+function shouldAttemptTranslationFallback(
+  translatedCount: number,
+  stats: Pick<BModelBatchStats, 'batchAttempts' | 'batchJsonOk' | 'lastErrorKind'>
+) {
+  return (
+    translatedCount === 0 &&
+    (stats.batchAttempts > 0 || stats.batchJsonOk > 0 || stats.lastErrorKind !== 'none')
+  );
+}
+
+type BModelBatchExecutionResult = {
+  translated: Map<string, string>;
+  attempts: number;
+  jsonOk: number;
+  lastErrorKind: BModelBatchStats['lastErrorKind'];
+  providerHits: string[];
+  activeModel?: string;
+  stopDueRateLimit: boolean;
+};
+
+type BatchPromptMode = 'default' | 'retranslate' | 'vision_recover';
+
+function computeDefaultBModelMaxTokens(batchSize: number, reasoningHeavyLocalModel: boolean) {
+  if (reasoningHeavyLocalModel) {
+    return 1600;
+  }
+  return Math.min(Math.max(320, Math.round((450 * batchSize) / 2)), 4000);
+}
+
+function computeAdaptiveBatchSize(
+  primaryBatchSize: number,
+  attempts: number,
+  jsonOk: number,
+  parseFailureThreshold: number
+) {
+  if (attempts <= 0) {
+    return 1;
+  }
+  const parseFailureRate = 1 - jsonOk / attempts;
+  return parseFailureRate > parseFailureThreshold ? 1 : Math.max(1, primaryBatchSize);
+}
+
+function mergeBModelBatchExecutionResult(
+  translated: Map<string, string>,
+  stats: BModelBatchStats,
+  result: BModelBatchExecutionResult
+) {
+  for (const [id, zh] of result.translated) {
+    translated.set(id, zh);
+  }
+  stats.batchAttempts += result.attempts;
+  stats.batchJsonOk += result.jsonOk;
+  if (result.lastErrorKind !== 'none') {
+    stats.lastErrorKind = result.lastErrorKind;
+  } else if (result.jsonOk > 0) {
+    stats.lastErrorKind = 'none';
+  }
+  stats.providerHits.push(...result.providerHits);
+  if (result.activeModel) {
+    stats.activeModel = result.activeModel;
+  }
+}
+
+function buildTranslationBatchPrompt(
+  batch: PipelineResult['segments'],
+  segTextMaxChars: number,
+  promptMode: BatchPromptMode
+) {
+  const payload = JSON.stringify(
+    batch.map((segment) => ({
+      id: segment.id,
+      text:
+        segment.text.length > segTextMaxChars
+          ? segment.text.slice(0, segTextMaxChars)
+          : segment.text
+    }))
+  );
+
+  if (promptMode === 'retranslate') {
+    return [
+      '你是服装工艺单补翻模型(B-retry)。下面是上轮未成功翻译的片段，请只补翻这些片段。',
+      '只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+      '不要解释，不要补充备注，不要遗漏 id。',
+      '如果只有 1 个片段，也必须返回 translations 数组。',
+      '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+      '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+      '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+      '',
+      '未译片段：',
+      payload
+    ].join('\n');
+  }
+
+  if (promptMode === 'vision_recover') {
+    return [
+      '你是服装工艺单视觉补翻模型(B-vision-recover)。下面片段来自 OCR/视觉补强，但尚未进入首轮翻译结果。',
+      '请只补翻这些片段，只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+      '不要解释，不要补充备注，不要遗漏 id。',
+      '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+      '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+      '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+      '',
+      '视觉补强片段：',
+      payload
+    ].join('\n');
+  }
+
+  return [
+    '你是服装工艺单翻译模型(B)。仅翻译结构化片段，不做结构识别，不做内容合并。',
+    '输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
+    '请保留每个 id，不要新增或删除。',
+    '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
+    '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
+    '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+    '',
+    '片段：',
+    payload
+  ].join('\n');
+}
+
 function classifyBModelError(
   error: unknown
 ): 'timeout' | 'http' | 'rate_limited' | 'parse' {
@@ -1557,6 +1788,39 @@ function selectVisionRecoverySegments(
         !scopedSegmentIds.has(segment.id) &&
         !translated.has(segment.id)
     )
+    .map((segment) => ({
+      segment,
+      score: scoreSegmentForTranslation(segment.text, segment, documentMainType),
+      confidence:
+        Math.max(
+          segment.extractionMeta.layoutConfidence || 0,
+          segment.extractionMeta.mergeConfidence || 0
+        ) || 0
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+      if (a.segment.pageNumber !== b.segment.pageNumber) {
+        return a.segment.pageNumber - b.segment.pageNumber;
+      }
+      return a.segment.text.localeCompare(b.segment.text);
+    })
+    .map((item) => item.segment);
+
+  pickSegmentsRoundRobin(candidates, limit, picked, seenNormalized);
+  return candidates.filter((segment) => picked.has(segment.id));
+}
+
+function selectHighValueSegments(
+  segments: PipelineResult['segments'],
+  limit: number,
+  documentMainType?: DocumentMainType
+) {
+  if (limit <= 0) return [] as PipelineResult['segments'];
+
+  const picked = new Map<string, PipelineResult['segments'][number]>();
+  const seenNormalized = new Set<string>();
+  const candidates = segments
     .map((segment) => ({
       segment,
       score: scoreSegmentForTranslation(segment.text, segment, documentMainType),
@@ -1669,9 +1933,30 @@ function normalizeSourceText(value: string) {
   return value.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+function normalizeTraditionalApparelChinese(value: string) {
+  return value
+    .replace(/拉鍊/g, '拉链')
+    .replace(/鍊/g, '链')
+    .replace(/門/g, '门')
+    .replace(/邊/g, '边')
+    .replace(/線/g, '线')
+    .replace(/綫/g, '线')
+    .replace(/車/g, '车')
+    .replace(/針/g, '针')
+    .replace(/領/g, '领')
+    .replace(/裡/g, '里')
+    .replace(/號/g, '号')
+    .replace(/開/g, '开')
+    .replace(/閉/g, '闭')
+    .replace(/裝/g, '装')
+    .replace(/雙/g, '双')
+    .replace(/帶/g, '带')
+    .replace(/顏色/g, '颜色');
+}
+
 export function normalizeFashionTranslation(source: string, zh: string) {
   const normalizedSource = normalizeSourceText(source);
-  let text = zh.replace(/\s+/g, ' ').trim();
+  let text = normalizeTraditionalApparelChinese(zh.replace(/\s+/g, ' ').trim());
 
   if (!text) return text;
 
@@ -1770,6 +2055,14 @@ export function normalizeFashionTranslation(source: string, zh: string) {
 
   if (/reverse coil zipper/i.test(source) && /black/i.test(source) && /inside pocket/i.test(source)) {
     return '3#尼龙反装拉链黑色';
+  }
+
+  if (/coil zipper/i.test(normalizedSource) && /middle front facing opening/i.test(normalizedSource)) {
+    return '前中止口位尼龙拉链';
+  }
+
+  if (/coil zipper/i.test(normalizedSource) && /pocket entrance/i.test(normalizedSource)) {
+    return '口袋开口位尼龙拉链';
   }
 
   if (/^\s*71694\s*$/i.test(normalizedSource)) {
@@ -2024,7 +2317,8 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/^nm 120 4,?5pts ?\/1cm t\/t$/i.test(normalizedSource)) {
-    return '款号：NM 120; 纱支：4.5pts/1cm; 付款方式：T/T';
+    // T/T 在工艺行中常见为缝制参数缩写，避免误判成付款条件。
+    return '车缝参数：NM 120 4.5pts/1cm T/T';
   }
 
   if (/^84851 gun metal finishing$/i.test(normalizedSource)) {
@@ -2486,6 +2780,33 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   return text;
 }
 
+function shouldUseInlineAnnotatedNote(
+  segment: PipelineResult['segments'][number],
+  zh: string,
+  documentMainType: DocumentMainType
+) {
+  if (documentMainType === 'sketch_comment') {
+    return false;
+  }
+
+  const bbox = segment.extractionMeta.bbox;
+  const layoutType = segment.extractionMeta.pageLayoutType;
+  const combinedLength = segment.text.length + zh.length;
+
+  if (combinedLength > 140 || zh.length > 26) {
+    return false;
+  }
+
+  if (bbox) {
+    const area = bbox.w * bbox.h;
+    if (layoutType === 'sketch' || area >= 3200 || bbox.h >= 48 || bbox.w >= 180) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function isReasoningHeavyLocalBModel(modelOverride?: string) {
   const candidate = (
     modelOverride?.trim() ||
@@ -2494,6 +2815,17 @@ function isReasoningHeavyLocalBModel(modelOverride?: string) {
     ''
   ).toLowerCase();
   return candidate === 'qwen3.5-35b-a3b' || candidate.startsWith('qwen3.5-35b-a3b');
+}
+
+function shouldUseConservativeBModelScheduling(
+  documentMainType: DocumentMainType | undefined,
+  scopedSegmentCount: number
+) {
+  return (
+    documentMainType === 'mixed' ||
+    documentMainType === 'tp_bom_table_heavy' ||
+    scopedSegmentCount > 80
+  );
 }
 
 async function translateSegmentsWithModelB(
@@ -2530,16 +2862,45 @@ async function translateSegmentsWithModelB(
     documentMainType
   );
   const reasoningHeavyLocalModel = isReasoningHeavyLocalBModel(translationModelOverride);
+  const conservativeScheduling = shouldUseConservativeBModelScheduling(
+    documentMainType,
+    scopedSegments.length
+  );
 
-  const batchSize = Number(process.env.B_MODEL_BATCH_SIZE ?? (reasoningHeavyLocalModel ? '2' : '1'));
+  const batchSize = Math.max(
+    1,
+    Number(process.env.B_MODEL_BATCH_SIZE ?? (reasoningHeavyLocalModel ? '2' : '4'))
+  );
   const baseMaxTokens = Number(
-    process.env.B_MODEL_MAX_TOKENS ?? (reasoningHeavyLocalModel ? '1600' : '450')
+    process.env.B_MODEL_MAX_TOKENS ??
+      String(computeDefaultBModelMaxTokens(batchSize, reasoningHeavyLocalModel))
   );
   const segTextMaxChars = Number(process.env.B_MODEL_SEG_TEXT_MAX_CHARS ?? '800');
   const batchDelayMs = Number(process.env.B_MODEL_BATCH_DELAY_MS ?? '0');
-  const rateLimitRetryLimit = Number(process.env.B_MODEL_RATE_LIMIT_RETRY_LIMIT ?? '0');
+  const rateLimitRetryLimit = Number(
+    process.env.B_MODEL_RATE_LIMIT_RETRY_LIMIT ?? (conservativeScheduling ? '2' : '0')
+  );
   const rateLimitBackoffMs = Number(process.env.B_MODEL_RATE_LIMIT_BACKOFF_MS ?? '4000');
+  const rateLimitRecoveryEnabled = process.env.B_MODEL_RATE_LIMIT_RECOVERY_ENABLED !== '0';
+  const rateLimitRecoveryDelayMs = Number(
+    process.env.B_MODEL_RATE_LIMIT_RECOVERY_DELAY_MS ??
+      String(conservativeScheduling ? 12000 : Math.max(8000, rateLimitBackoffMs * 2))
+  );
+  const rateLimitRecoveryBatchSize = Math.max(
+    1,
+    Number(process.env.B_MODEL_RATE_LIMIT_RECOVERY_BATCH_SIZE ?? '1')
+  );
   const transportRetryLimit = Number(process.env.B_MODEL_TRANSPORT_RETRY_LIMIT ?? '1');
+  const cliFallbackEnabled = process.env.B_MODEL_CLI_FALLBACK_ENABLED !== '0';
+  const cliFallbackTimeoutMs = Number(process.env.B_MODEL_CLI_FALLBACK_TIMEOUT_MS ?? '120000');
+  const cliFallbackMaxSegments = Math.max(
+    1,
+    Number(process.env.B_MODEL_CLI_FALLBACK_MAX_SEGMENTS ?? '24')
+  );
+  const cliFallbackBatchSize = Math.max(
+    1,
+    Number(process.env.B_MODEL_CLI_FALLBACK_BATCH_SIZE ?? '4')
+  );
   const retranslateEnabled = process.env.B_MODEL_RETRANSLATE_ENABLED !== '0';
   const retranslateMaxPasses = Number(process.env.B_MODEL_RETRANSLATE_MAX_PASSES ?? '2');
   const retranslateBatchDelayMs = Number(process.env.B_MODEL_RETRANSLATE_DELAY_MS ?? '1200');
@@ -2557,6 +2918,11 @@ async function translateSegmentsWithModelB(
     process.env.B_MODEL_VISION_SECOND_STAGE_MAX_TOKENS ?? String(retranslateMaxTokens)
   );
   const scopedSegmentIds = new Set(scopedSegments.map((segment) => segment.id));
+  const concurrency = Math.max(
+    1,
+    Number(process.env.B_MODEL_CONCURRENCY ?? (conservativeScheduling ? '1' : '3'))
+  );
+  const parseFailureThreshold = Number(process.env.B_MODEL_PARSE_FAILURE_THRESHOLD ?? '0.4');
   async function executeTranslationStrategy(strategy: {
     modelOverride?: string;
     runtimeConfigOverride?: ModelRuntimeConfig;
@@ -2568,6 +2934,183 @@ async function translateSegmentsWithModelB(
       stats.activeModel;
     let stopDueRateLimit = false;
 
+    function emptyBatchExecutionResult(
+      lastErrorKind: BModelBatchStats['lastErrorKind'] = 'none',
+      activeModelForBatch?: string
+    ): BModelBatchExecutionResult {
+      return {
+        translated: new Map(),
+        attempts: 0,
+        jsonOk: 0,
+        lastErrorKind,
+        providerHits: [],
+        activeModel: activeModelForBatch,
+        stopDueRateLimit: true
+      };
+    }
+
+    async function executeBatch(
+      batch: PipelineResult['segments'],
+      batchIndex: number,
+      totalBatches: number,
+      options: {
+        delayMs: number;
+        maxTokens: number;
+        promptMode: 'default' | 'retranslate' | 'vision_recover';
+      },
+      signal?: AbortSignal
+    ): Promise<BModelBatchExecutionResult> {
+      if (signal?.aborted) {
+        return emptyBatchExecutionResult();
+      }
+
+      const wave = Math.floor(batchIndex / Math.max(1, concurrency));
+      if (wave > 0 && options.delayMs > 0) {
+        const continued = await delayWithSignal(options.delayMs * wave, signal);
+        if (!continued) {
+          return emptyBatchExecutionResult();
+        }
+      }
+
+      const prompt = buildTranslationBatchPrompt(batch, segTextMaxChars, options.promptMode);
+
+      let attempts = 0;
+      let jsonOk = 0;
+      let transportRetriesUsed = 0;
+      let rateLimitRetriesUsed = 0;
+      let lastErrorKind: BModelBatchStats['lastErrorKind'] = 'none';
+      const batchTranslated = new Map<string, string>();
+      let activeModelForBatch: string | undefined;
+
+      while (true) {
+        if (signal?.aborted) {
+          return {
+            ...emptyBatchExecutionResult(lastErrorKind, activeModelForBatch),
+            translated: batchTranslated,
+            attempts,
+            jsonOk
+          };
+        }
+        attempts += 1;
+        try {
+          const result = await callTranslationModelChat({
+            messages: [
+              {
+                role: 'system',
+                content:
+                  options.promptMode === 'retranslate'
+                    ? 'You are a precise retry translation model for untranslated segments.'
+                    : options.promptMode === 'vision_recover'
+                      ? 'You are a precise recovery translation model for OCR/vision supplement segments.'
+                      : 'You are a precise segment translation model.'
+              },
+              { role: 'user', content: prompt }
+            ],
+            temperature: 0.1,
+            modelOverride: strategy.modelOverride,
+            runtimeConfigOverride: strategy.runtimeConfigOverride,
+            maxTokens:
+              transportRetriesUsed === 0
+                ? options.maxTokens
+                : Math.max(220, Math.floor(options.maxTokens * 0.7))
+          });
+          const parsed = safeParseTranslationResponse(result.text);
+          jsonOk += 1;
+          lastErrorKind = 'none';
+          activeModelForBatch =
+            result.model || strategy.runtimeConfigOverride?.model || activeModelForBatch;
+          const sourceById = new Map(batch.map((segment) => [segment.id, segment.text]));
+          for (const item of parsed) {
+            if (item.id && item.zh) {
+              batchTranslated.set(
+                item.id,
+                normalizeFashionTranslation(sourceById.get(item.id) ?? '', item.zh)
+              );
+            }
+          }
+          return {
+            translated: batchTranslated,
+            attempts,
+            jsonOk,
+            lastErrorKind,
+            providerHits: [
+              options.promptMode === 'retranslate'
+                ? `${strategy.providerPrefix}:retranslate`
+                : options.promptMode === 'vision_recover'
+                  ? `${strategy.providerPrefix}:vision-recover`
+                  : strategy.providerPrefix
+            ],
+            activeModel: activeModelForBatch,
+            stopDueRateLimit: false
+          };
+        } catch (error) {
+          const kind = classifyBModelError(error);
+          lastErrorKind = kind;
+          logPipelineDebug('pipeline.b_model_batch_error', {
+            batchIndex,
+            totalBatches,
+            kind,
+            promptMode: options.promptMode,
+            providerPrefix: strategy.providerPrefix,
+            retry:
+              kind === 'rate_limited'
+                ? `rate-limit-${rateLimitRetriesUsed + 1}`
+                : transportRetriesUsed === 0
+                  ? 'first'
+                  : 'second'
+          });
+          if (kind === 'rate_limited') {
+            if (rateLimitRetriesUsed < rateLimitRetryLimit) {
+              const backoffMs = rateLimitBackoffMs * Math.max(1, 2 ** rateLimitRetriesUsed);
+              rateLimitRetriesUsed += 1;
+              const continued = await delayWithSignal(backoffMs, signal);
+              if (!continued) {
+                return {
+                  ...emptyBatchExecutionResult(lastErrorKind, activeModelForBatch),
+                  translated: batchTranslated,
+                  attempts,
+                  jsonOk
+                };
+              }
+              continue;
+            }
+            return {
+              translated: batchTranslated,
+              attempts,
+              jsonOk,
+              lastErrorKind,
+              providerHits: [],
+              activeModel: activeModelForBatch,
+              stopDueRateLimit: true
+            };
+          }
+          if (kind !== 'timeout' && kind !== 'http') {
+            return {
+              translated: batchTranslated,
+              attempts,
+              jsonOk,
+              lastErrorKind,
+              providerHits: [],
+              activeModel: activeModelForBatch,
+              stopDueRateLimit: false
+            };
+          }
+          if (transportRetriesUsed >= transportRetryLimit) {
+            return {
+              translated: batchTranslated,
+              attempts,
+              jsonOk,
+              lastErrorKind,
+              providerHits: [],
+              activeModel: activeModelForBatch,
+              stopDueRateLimit: false
+            };
+          }
+          transportRetriesUsed += 1;
+        }
+      }
+    }
+
     async function runPass(
       passSegments: PipelineResult['segments'],
       options: {
@@ -2575,148 +3118,55 @@ async function translateSegmentsWithModelB(
         delayMs: number;
         maxTokens: number;
         promptMode: 'default' | 'retranslate' | 'vision_recover';
+        concurrencyOverride?: number;
       }
     ) {
-      for (let i = 0; i < passSegments.length; i += options.batchSize) {
-        if (stopDueRateLimit) break;
-        if (options.delayMs > 0 && i > 0) {
-          await delay(options.delayMs);
-        }
-        const batch = passSegments.slice(i, i + options.batchSize);
-        const prompt =
-          options.promptMode === 'retranslate'
-            ? [
-                '你是服装工艺单补翻模型(B-retry)。下面是上轮未成功翻译的片段，请只补翻这些片段。',
-                '只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
-                '不要解释，不要补充备注，不要遗漏 id。',
-                '如果只有 1 个片段，也必须返回 translations 数组。',
-                '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
-                '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
-                '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
-                '',
-                '未译片段：',
-                JSON.stringify(
-                  batch.map((s) => ({
-                    id: s.id,
-                    text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
-                  }))
-                )
-              ].join('\n')
-            : options.promptMode === 'vision_recover'
-              ? [
-                  '你是服装工艺单视觉补翻模型(B-vision-recover)。下面片段来自 OCR/视觉补强，但尚未进入首轮翻译结果。',
-                  '请只补翻这些片段，只输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
-                  '不要解释，不要补充备注，不要遗漏 id。',
-                  '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
-                  '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
-                  '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
-                  '',
-                  '视觉补强片段：',
-                  JSON.stringify(
-                    batch.map((s) => ({
-                      id: s.id,
-                      text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
-                    }))
-                  )
-                ].join('\n')
-              : [
-                  '你是服装工艺单翻译模型(B)。仅翻译结构化片段，不做结构识别，不做内容合并。',
-                  '输出 JSON：{"translations":[{"id":"...","zh":"..."}]}。',
-                  '请保留每个 id，不要新增或删除。',
-                  '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
-                  '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
-                  '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
-                  '',
-                  '片段：',
-                  JSON.stringify(
-                    batch.map((s) => ({
-                      id: s.id,
-                      text: s.text.length > segTextMaxChars ? s.text.slice(0, segTextMaxChars) : s.text
-                    }))
-                  )
-                ].join('\n');
+      const batches: Array<PipelineResult['segments']> = [];
+      for (let index = 0; index < passSegments.length; index += options.batchSize) {
+        batches.push(passSegments.slice(index, index + options.batchSize));
+      }
 
-        let transportRetriesUsed = 0;
-        let rateLimitRetriesUsed = 0;
-        while (true) {
-          stats.batchAttempts += 1;
-          try {
-            const result = await callTranslationModelChat({
-              messages: [
-                {
-                  role: 'system',
-                  content:
-                    options.promptMode === 'retranslate'
-                      ? 'You are a precise retry translation model for untranslated segments.'
-                      : options.promptMode === 'vision_recover'
-                        ? 'You are a precise recovery translation model for OCR/vision supplement segments.'
-                        : 'You are a precise segment translation model.'
-                },
-                { role: 'user', content: prompt }
-              ],
-              temperature: 0.1,
-              modelOverride: strategy.modelOverride,
-              runtimeConfigOverride: strategy.runtimeConfigOverride,
-              maxTokens:
-                transportRetriesUsed === 0
-                  ? options.maxTokens
-                  : Math.max(220, Math.floor(options.maxTokens * 0.7))
-            });
-            const parsed = safeParseTranslationResponse(result.text);
-            stats.batchJsonOk += 1;
-            stats.lastErrorKind = 'none';
-            stats.activeModel = result.model || strategy.runtimeConfigOverride?.model || stats.activeModel;
-            stats.providerHits.push(
-              options.promptMode === 'retranslate'
-                ? `${strategy.providerPrefix}:retranslate`
-                : options.promptMode === 'vision_recover'
-                  ? `${strategy.providerPrefix}:vision-recover`
-                  : strategy.providerPrefix
-            );
-            const sourceById = new Map(batch.map((segment) => [segment.id, segment.text]));
-            for (const item of parsed) {
-              if (item.id && item.zh) {
-                translated.set(
-                  item.id,
-                  normalizeFashionTranslation(sourceById.get(item.id) ?? '', item.zh)
-                );
-              }
-            }
-            break;
-          } catch (error) {
-            const kind = classifyBModelError(error);
-            stats.lastErrorKind = kind;
-            logPipelineDebug('pipeline.b_model_batch_error', {
-              batchIndex: stats.batchAttempts,
-              kind,
-              promptMode: options.promptMode,
-              providerPrefix: strategy.providerPrefix,
-              retry:
-                kind === 'rate_limited'
-                  ? `rate-limit-${rateLimitRetriesUsed + 1}`
-                  : transportRetriesUsed === 0
-                    ? 'first'
-                    : 'second'
-            });
-            if (kind === 'rate_limited') {
-              if (rateLimitRetriesUsed < rateLimitRetryLimit) {
-                const backoffMs = rateLimitBackoffMs * Math.max(1, 2 ** rateLimitRetriesUsed);
-                rateLimitRetriesUsed += 1;
-                await delay(backoffMs);
-                continue;
-              }
-              stopDueRateLimit = true;
-              break;
-            }
-            if (kind !== 'timeout' && kind !== 'http') break;
-            if (transportRetriesUsed >= transportRetryLimit) break;
-            transportRetriesUsed += 1;
+      const passAbortController = new AbortController();
+      const passConcurrency =
+        options.concurrencyOverride ??
+        (options.promptMode === 'default' ? concurrency : 1);
+      const results = await mapWithConcurrency(
+        batches,
+        passConcurrency,
+        async (batch, batchIndex) => {
+          const result = await executeBatch(
+            batch,
+            batchIndex,
+            batches.length,
+            options,
+            passAbortController.signal
+          );
+          if (result.stopDueRateLimit) {
+            passAbortController.abort();
           }
+          return result;
+        },
+        () => passAbortController.signal.aborted
+      );
+
+      let passAttempts = 0;
+      let passJsonOk = 0;
+      for (const result of results) {
+        mergeBModelBatchExecutionResult(translated, stats, result);
+        passAttempts += result.attempts;
+        passJsonOk += result.jsonOk;
+        if (result.stopDueRateLimit) {
+          stopDueRateLimit = true;
         }
       }
+
+      return {
+        attempts: passAttempts,
+        jsonOk: passJsonOk
+      };
     }
 
-    await runPass(scopedSegments, {
+    const primaryPass = await runPass(scopedSegments, {
       batchSize,
       delayMs: batchDelayMs,
       maxTokens: baseMaxTokens,
@@ -2725,7 +3175,9 @@ async function translateSegmentsWithModelB(
 
     const primaryExhaustedWithoutOutput =
       stats.batchAttempts > 0 && stats.batchJsonOk === 0 && stats.lastErrorKind !== 'none';
-    if (primaryExhaustedWithoutOutput) {
+    const rateLimitedWithoutOutput =
+      stats.batchAttempts > 0 && stats.batchJsonOk === 0 && stats.lastErrorKind === 'rate_limited';
+    if (primaryExhaustedWithoutOutput && !rateLimitedWithoutOutput) {
       logPipelineDebug('pipeline.b_model_primary_exhausted', {
         providerPrefix: strategy.providerPrefix,
         batchAttempts: stats.batchAttempts,
@@ -2735,6 +3187,79 @@ async function translateSegmentsWithModelB(
       return { stopDueRateLimit: stats.lastErrorKind === 'rate_limited' };
     }
 
+    if (rateLimitRecoveryEnabled && stopDueRateLimit) {
+      const untranslatedSegments = scopedSegments.filter((segment) => !translated.has(segment.id));
+      if (untranslatedSegments.length > 0) {
+        stopDueRateLimit = false;
+        logPipelineDebug('pipeline.b_model_rate_limit_recovery', {
+          providerPrefix: strategy.providerPrefix,
+          untranslatedSegments: untranslatedSegments.length,
+          delayMs: rateLimitRecoveryDelayMs,
+          batchSize: rateLimitRecoveryBatchSize
+        });
+        await runPass(untranslatedSegments, {
+          batchSize: rateLimitRecoveryBatchSize,
+          delayMs: rateLimitRecoveryDelayMs,
+          maxTokens: retranslateMaxTokens,
+          promptMode: 'default',
+          concurrencyOverride: 1
+        });
+      }
+    }
+
+    if (
+      cliFallbackEnabled &&
+      claudeCliProvider.isAvailable() &&
+      translated.size === 0 &&
+      stats.lastErrorKind === 'rate_limited'
+    ) {
+      const untranslatedSegments = selectHighValueSegments(
+        scopedSegments.filter((segment) => !translated.has(segment.id)),
+        cliFallbackMaxSegments,
+        documentMainType
+      );
+      if (untranslatedSegments.length > 0) {
+        logPipelineDebug('pipeline.b_model_cli_fallback_start', {
+          providerPrefix: strategy.providerPrefix,
+          untranslatedSegments: untranslatedSegments.length
+        });
+        stopDueRateLimit = false;
+        const sourceById = new Map(untranslatedSegments.map((segment) => [segment.id, segment.text]));
+        for (let index = 0; index < untranslatedSegments.length; index += cliFallbackBatchSize) {
+          const batch = untranslatedSegments.slice(index, index + cliFallbackBatchSize);
+          const prompt = buildTranslationBatchPrompt(batch, segTextMaxChars, 'default');
+          stats.batchAttempts += 1;
+          try {
+            const result = await claudeCliProvider.generate({
+              system: 'You are a precise segment translation model.',
+              user: prompt,
+              timeoutMs: cliFallbackTimeoutMs
+            });
+            const parsed = safeParseTranslationResponse(result.text);
+            stats.batchJsonOk += 1;
+            stats.lastErrorKind = 'none';
+            stats.providerHits.push('claude-cli:fallback');
+            stats.activeModel = result.model ?? 'claude-cli';
+            for (const item of parsed) {
+              if (item.id && item.zh) {
+                translated.set(
+                  item.id,
+                  normalizeFashionTranslation(sourceById.get(item.id) ?? '', item.zh)
+                );
+              }
+            }
+          } catch (error) {
+            stats.lastErrorKind = classifyBModelError(error);
+            logPipelineDebug('pipeline.b_model_cli_fallback_error', {
+              providerPrefix: strategy.providerPrefix,
+              batchIndex: index / cliFallbackBatchSize,
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
+        }
+      }
+    }
+
     if (retranslateEnabled && !stopDueRateLimit) {
       for (let pass = 1; pass <= retranslateMaxPasses; pass += 1) {
         const untranslatedSegments = scopedSegments.filter((segment) => !translated.has(segment.id));
@@ -2742,8 +3267,14 @@ async function translateSegmentsWithModelB(
           break;
         }
         stats.retranslatePasses += 1;
+        const retranslateBatchSize = computeAdaptiveBatchSize(
+          batchSize,
+          primaryPass.attempts,
+          primaryPass.jsonOk,
+          parseFailureThreshold
+        );
         await runPass(untranslatedSegments, {
-          batchSize: 1,
+          batchSize: retranslateBatchSize,
           delayMs: retranslateBatchDelayMs,
           maxTokens: retranslateMaxTokens,
           promptMode: 'retranslate'
@@ -2778,8 +3309,14 @@ async function translateSegmentsWithModelB(
       );
       if (recoverySegments.length > 0) {
         stats.visionSecondStagePasses += 1;
+        const recoveryBatchSize = computeAdaptiveBatchSize(
+          batchSize,
+          primaryPass.attempts,
+          primaryPass.jsonOk,
+          parseFailureThreshold
+        );
         await runPass(recoverySegments, {
-          batchSize: 1,
+          batchSize: recoveryBatchSize,
           delayMs: visionSecondStageDelayMs,
           maxTokens: visionSecondStageMaxTokens,
           promptMode: 'vision_recover'
@@ -2805,8 +3342,7 @@ async function translateSegmentsWithModelB(
 
   const shouldTryFallback =
     Boolean(fallbackConfig) &&
-    translated.size === 0 &&
-    (stats.batchAttempts === 0 || stats.batchJsonOk === 0 || stats.lastErrorKind !== 'none');
+    shouldAttemptTranslationFallback(translated.size, stats);
 
   if (fallbackConfig && shouldTryFallback) {
     stats.fallbackUsed = true;
@@ -2824,6 +3360,18 @@ async function translateSegmentsWithModelB(
   }
   return { map: translated, stats };
 }
+
+export const __translationPipelineInternals = {
+  delayWithSignal,
+  mapWithConcurrency,
+  computeDefaultBModelMaxTokens,
+  computeAdaptiveBatchSize,
+  mergeBModelBatchExecutionResult,
+  selectBilingualBundleSegments,
+  shouldAttemptTranslationFallback,
+  normalizeFashionTranslation,
+  shouldUseInlineAnnotatedNote
+};
 
 export async function runPdfTranslationPipeline(input: PipelineInput): Promise<PipelineResult> {
   const pipelineId = `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -3008,6 +3556,11 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     if (zh) segment.zh = zh;
   }
   const coverage = summarizeTranslationCoverage(segments, documentMainType);
+  const bilingualBundleSegments = selectBilingualBundleSegments(
+    segments,
+    documentMainType,
+    outputStrategy
+  );
   logPipelineDebug('pipeline.b_model_result', {
     pipelineId,
     fileName: input.fileName,
@@ -3024,18 +3577,16 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     outputStrategy === 'bilingual_table_bundle'
       ? {
           bilingualTableBundle: (() => {
-            const bundle = buildBilingualTableBundle(segments);
+            const bundle = buildBilingualTableBundle(bilingualBundleSegments);
             return bundle;
           })()
         }
       : (() => {
-          const mixedSupplementSegments =
-            documentMainType === 'mixed' ? selectMixedSupplementTableSegments(segments) : [];
           return {
             annotatedPdf: buildAnnotatedPdfOutput(segments, documentMainType),
             bilingualTableBundle:
-              mixedSupplementSegments.length > 0
-                ? buildBilingualTableBundle(mixedSupplementSegments)
+              bilingualBundleSegments.length > 0
+                ? buildBilingualTableBundle(bilingualBundleSegments)
                 : undefined
           };
         })();
@@ -3046,16 +3597,17 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
         outputs.bilingualTableBundle,
         coverage
       );
+    } catch (err) {
+      console.warn('[assistant:pipeline] bilingual xlsx materialize failed', err);
+    }
+    try {
       outputs.bilingualTableBundle.downloadableTableStylePdf = await materializeTableStylePdf(
         path.basename(input.fileName),
         outputs.bilingualTableBundle,
         coverage
       );
     } catch (err) {
-      if (DEBUG_PIPELINE) {
-        console.error('[assistant:pipeline] table-style pdf materialize failed', err);
-      }
-      // keep structure available even when file write fails
+      console.warn('[assistant:pipeline] table-style pdf materialize failed', err);
     }
   }
   if (outputs.annotatedPdf) {

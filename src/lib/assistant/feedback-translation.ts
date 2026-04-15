@@ -14,6 +14,7 @@ import { buildExtractedPdfResultFromText, extractPdfTextFromPath } from '@/lib/a
 import { generateWithAvailableProvider } from '@/lib/assistant/llm/router';
 import { loadSkillPrompt } from '@/lib/assistant/prompt-loader';
 import {
+  resolveLatestTableStylePdfForSource,
   runPdfTranslationPipeline,
   type TranslationSnapshot
 } from '@/lib/assistant/translation-pipeline';
@@ -1050,6 +1051,7 @@ function buildPdfTranslationSkillPayload(options: {
     outputStrategy: pipelineResult.outputStrategy,
     summary,
     reviewRequired: true,
+    deliveryPdfUrl: null,
     artifactLinks: pdfArtifactLinks,
     humanReviewGuide,
     snapshot: snapshot
@@ -1111,6 +1113,11 @@ async function buildPipelineFallbackReply(
   }
 
   if (pipelineResult.outputs.bilingualTableBundle) {
+    let tableStyleRel =
+      pipelineResult.outputs.bilingualTableBundle.downloadableTableStylePdf?.relativePath ?? null;
+    if (!tableStyleRel) {
+      tableStyleRel = await resolveLatestTableStylePdfForSource(pipelineResult.fileName);
+    }
     pdfArtifactLinks.push({
       fileName: pipelineResult.fileName,
       documentMainType: pipelineResult.documentMainType,
@@ -1120,9 +1127,7 @@ async function buildPipelineFallbackReply(
         pipelineResult.outputs.bilingualTableBundle.downloadable?.relativePath
       ),
       annotatedPreviewUrl: null,
-      tableStylePdfUrl: buildArtifactUrl(
-        pipelineResult.outputs.bilingualTableBundle.downloadableTableStylePdf?.relativePath
-      )
+      tableStylePdfUrl: buildArtifactUrl(tableStyleRel)
     });
   }
 
@@ -1186,7 +1191,7 @@ async function buildPipelineFallbackReply(
   const skillArtifact: ArtifactSection = {
     title: 'Skill 输出协议',
     kind: 'list',
-    summary: '供页面、后续 skill 和 OpenClaw 复用的稳定 PDF 翻译结果包。',
+    summary: '供页面、后续 skill 和 Ting 外贸助手复用的稳定 PDF 翻译结果包。',
     fields: [
       {
         label: 'pdf_translation_skill_v1',

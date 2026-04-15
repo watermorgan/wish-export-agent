@@ -143,6 +143,8 @@ export type PdfArtifactLinkEntry = {
   primary: 'bilingual_xlsx' | 'annotated_preview';
   bilingualXlsxUrl: string | null;
   annotatedPreviewUrl: string | null;
+  /** 原文档标注式翻译 PDF（非列表表格 PDF），供 Ting/UAT 直接交付。 */
+  annotatedPdfUrl?: string | null;
   tableStylePdfUrl?: string | null;
 };
 
@@ -170,6 +172,8 @@ export type PdfTranslationSkillPayload = {
   outputStrategy: string;
   summary: string;
   reviewRequired: boolean;
+  /** 唯一正式交付入口：原文档标注式翻译 PDF。 */
+  deliveryPdfUrl?: string | null;
   artifactLinks: PdfArtifactLinkEntry[];
   humanReviewGuide?: HumanReviewGuide;
   snapshot?: {
@@ -198,13 +202,21 @@ export type AssistantReplyMetadata = {
   activeProvider?: string;
   activeModel?: string;
   translationMode?: 'fixture' | 'whole-document' | 'section-chunked' | 'real';
+  asyncProgress?: {
+    phase: 'queued' | 'running' | 'completed' | 'failed';
+    stage?: string;
+    submittedAt: string;
+    startedAt?: string;
+    updatedAt?: string;
+    completedAt?: string;
+  };
   /** 页面可直接渲染的下载/预览入口（与 finalArtifact 中 artifactLinks 一致） */
   pdfArtifactLinks?: PdfArtifactLinkEntry[];
   /** 脱敏说明：为何 A/B 可能 fallback（不含密钥与原始响应） */
   pipelineFallbackHints?: string[];
-  /** 给业务员的结构化人工复核建议，供页面/skill/OpenClaw 共用。 */
+  /** 给业务员的结构化人工复核建议，供页面/skill/Ting 外贸助手共用。 */
   humanReviewGuide?: HumanReviewGuide;
-  /** 稳定的 PDF skill 输出协议，供页面/skill/OpenClaw 共用。 */
+  /** 稳定的 PDF skill 输出协议，供页面/skill/Ting 外贸助手共用。 */
   skillPayload?: PdfTranslationSkillPayload;
   translationTiming?: {
     totalMs: number;
