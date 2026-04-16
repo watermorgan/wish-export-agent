@@ -1,8 +1,15 @@
 # 反馈闭环设计
 
+## 0. 部署边界
+
+- **export-agent**（本仓库）是独立产品，拥有 Web 工作台、任务状态机、PDF 翻译 pipeline、反馈存储等全部能力。
+- **Ting 外贸助手** 是 OpenClaw 平台上的业务智能体，属于 export-agent 的**外部消费方**之一，通过 MCP / REST 调用 export-agent 的 API。
+- Ting **不能**直接读写 export-agent 的文件系统。所有数据交互必须通过 HTTP 接口完成。
+- Web 工作台的用户直接使用 export-agent 本身，不经过 Ting。
+
 ## 1. 原则
 
-- Ting 外贸助手（业务智能体）只负责**收集**反馈，不负责**处理**反馈
+- 业务侧（Ting / Web 工作台）只负责**收集**反馈，不负责**处理**反馈
 - 反馈的消费方是开发智能体（阿呆）、离线脚本、或开发者本人
 - 反馈闭环的核心输出是：术语更新、归一规则更新、布局参数校准、prompt 调优
 
@@ -66,7 +73,10 @@ scripts/
 2. 在 humanReviewGuide 的 hint 上标记"已确认/有问题"
 3. 审核退回时附带 reviewComment
 
-Ting 外贸助手将反馈结构化为 `FeedbackCase` 并写入 `data/feedback-cases/`。
+反馈写入路径：
+- **Web 工作台用户**：前端直接调用 `POST /api/feedback`，由 export-agent 服务端落盘到 `data/feedback-cases/`。
+- **Ting 外贸助手**：Ting 在 OpenClaw 侧通过 MCP 工具调用 `POST /api/feedback`，同样由 export-agent 服务端落盘。Ting 不直接写 export-agent 文件系统。
+- **人工补录**：开发者可以直接在 `data/feedback-cases/` 下按 schema 手写 JSON 文件。
 
 ### 5.2 消费阶段（开发侧）
 

@@ -164,6 +164,7 @@ export async function getAssistantTaskSnapshot(taskId: string): Promise<Assistan
   };
 }
 
+// DESIGN DEBT: "Ting" prefix — see pdf-translation-skill.ts and AGENTS.md.
 export async function getTingPdfTranslationTaskPayload(taskId: string) {
   const task = await getTask(taskId);
 

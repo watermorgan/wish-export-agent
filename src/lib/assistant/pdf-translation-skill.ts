@@ -30,6 +30,9 @@ export function getPdfTranslationSkillPayload(
   return null;
 }
 
+// DESIGN DEBT: "Ting" prefix is historical. This is a generic external consumption
+// wrapper, not Ting-specific. Rename to ExternalPdfTranslationPayload / ext_pdf_*
+// when a second consumer appears. See AGENTS.md "Deployment Boundary".
 export type TingPdfTranslationPayload = {
   kind: 'ting_pdf_translation_v1';
   task: {
