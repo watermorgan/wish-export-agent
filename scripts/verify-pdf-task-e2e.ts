@@ -31,6 +31,21 @@ async function allocatePort() {
   });
 }
 
+function resolveNextBinPath() {
+  const candidates = [
+    path.resolve(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next'),
+    path.resolve(process.cwd(), '..', 'node_modules', 'next', 'dist', 'bin', 'next'),
+    path.resolve(process.cwd(), '..', '..', 'node_modules', 'next', 'dist', 'bin', 'next')
+  ];
+  const resolved = candidates.find((candidate) => existsSync(candidate));
+  if (!resolved) {
+    throw new Error(
+      'Cannot locate next binary in node_modules. Run npm install in the current workspace or repo root.'
+    );
+  }
+  return resolved;
+}
+
 async function waitForServer(url: string, timeoutMs = 90_000) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
@@ -83,7 +98,7 @@ async function main() {
 
   const port = await allocatePort();
   const baseUrl = `http://127.0.0.1:${port}`;
-  const nextBin = path.resolve(process.cwd(), 'node_modules', 'next', 'dist', 'bin', 'next');
+  const nextBin = resolveNextBinPath();
   const logsDir = path.resolve(process.cwd(), '.tmp', 'verify-pdf-task-e2e');
   const serverLogPath = path.join(logsDir, 'server.log');
   await mkdir(logsDir, { recursive: true });
