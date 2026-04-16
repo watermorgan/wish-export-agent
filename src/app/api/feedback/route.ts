@@ -120,8 +120,11 @@ export async function POST(request: Request) {
     resolution: null,
   };
 
-  await handle.writeFile(JSON.stringify(record, null, 2), 'utf-8');
-  await handle.close();
+  try {
+    await handle.writeFile(JSON.stringify(record, null, 2), 'utf-8');
+  } finally {
+    await handle.close();
+  }
 
   return NextResponse.json(
     { id, path: `data/feedback-cases/${id}.json` },
