@@ -33,6 +33,16 @@ test('normalizeFashionTranslation keeps simplified Chinese and nylon zipper term
   assert.equal(normalized, '前中止口位尼龙拉链');
 });
 
+test('normalizeFashionTranslation glossary exact-match for dart', () => {
+  const normalized = __translationPipelineInternals.normalizeFashionTranslation(
+    'dart',
+    '省'
+  );
+
+  // Core glossary: dart -> 省道
+  assert.equal(normalized, '省道');
+});
+
 test('sketch comment notes default to footnote mode instead of inline overlay', () => {
   const segment = makeSegment();
   const shouldInline = __translationPipelineInternals.shouldUseInlineAnnotatedNote(

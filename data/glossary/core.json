@@ -26,7 +26,7 @@
     },
     {
       "en": "dart",
-      "zh": "省",
+      "zh": "省道",
       "forbidden": ["飞镖", "箭头"],
       "context": "garment_construction",
       "source": "normalize_rule_migration",

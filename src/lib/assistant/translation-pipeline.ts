@@ -2287,7 +2287,7 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   }
 
   if (/^\s*dart\s*$/i.test(source)) {
-    return '省';
+    return '省道';
   }
 
   const pipedPocketMatch = source.match(/(\d+)\s*mm\s*piped pocket/i);
