@@ -1410,20 +1410,13 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
             for note in notes_for_page
             if note.get("render_mode") == "inline" and note.get("page_layout_type") == "sketch"
         ]
+        # Only notes explicitly marked as `render_mode=inline` are allowed to use the blue inline overlay.
+        # This prevents footnote notes (even if translation is short) from being placed near the English bbox,
+        # which can visually cover the original English in certain bbox estimation scenarios.
         inline_candidates = [
             note
             for note in notes_for_page
-            if note.get("bbox")
-            and (
-                note.get("render_mode") == "inline"
-                or (
-                    len((note.get("translation") or "").strip()) <= 28
-                    and (
-                        note.get("page_layout_type") in {"sketch", "mixed"}
-                        or note.get("source_type") == "vision"
-                    )
-                )
-            )
+            if note.get("bbox") and note.get("render_mode") == "inline"
         ]
         if USE_INLINE_NOTES and inline_candidates:
             inline_overlay, inline_overflow = create_inline_note_overlay(
