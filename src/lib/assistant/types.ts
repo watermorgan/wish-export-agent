@@ -1,3 +1,5 @@
+import type { FeedbackCategory, FeedbackPriority } from '@/lib/feedback/types';
+
 export type AssistantChannel = 'web' | 'feishu' | 'slack' | 'wecom';
 
 export type ChannelMessageKind = 'text' | 'markdown' | 'card';
@@ -14,6 +16,26 @@ export type ChannelMessage = {
 export type AssistantRole = 'sales' | 'supervisor';
 
 export type TaskType = 'bom' | 'feedback' | 'reply';
+
+export type WorkspaceFeedbackSource = {
+  taskId?: string | null;
+  fileName: string;
+  pageNumber?: number;
+  segmentId?: string;
+  sourceText?: string;
+  currentTranslation?: string;
+};
+
+export type WorkspaceFeedbackDraft = {
+  category: FeedbackCategory;
+  priority: FeedbackPriority;
+  source: WorkspaceFeedbackSource & {
+    taskId?: string;
+    expectedTranslation?: string;
+  };
+  reporter: string;
+  tags: string[];
+};
 
 export type UploadedFile = {
   name: string;
@@ -176,12 +198,26 @@ export type PdfTranslationSkillPayload = {
   deliveryPdfUrl?: string | null;
   artifactLinks: PdfArtifactLinkEntry[];
   humanReviewGuide?: HumanReviewGuide;
+  /** 页面反馈预填的唯一主链来源，优先来自 translation snapshot。 */
+  feedbackSource?: WorkspaceFeedbackSource;
   snapshot?: {
     version: 'translation_snapshot_v1';
     fileName: string;
     documentMainType: string;
     outputStrategy: 'annotated_pdf';
     generatedAt: string;
+    items?: Array<{
+      id: string;
+      pageNumber: number;
+      regionId: string;
+      en: string;
+      zh?: string;
+      renderMode: 'inline' | 'footnote';
+      bbox?: { x: number; y: number; w: number; h: number };
+      sourceType: string;
+      confidence: number;
+      pageLayoutType?: string;
+    }>;
   };
   diagnostics: {
     translatedSegmentCount: number;

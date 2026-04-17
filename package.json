@@ -34,6 +34,10 @@
     "verify:ting-skill-payload": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-skill-payload.ts",
     "verify:ting-service-cli": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-service-cli.ts",
     "verify:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02.ts",
+    "test:feedback": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node --import tsx --test src/lib/feedback/__tests__/*.test.ts",
+    "feedback:review": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/review-feedback-cases.ts",
+    "feedback:resolve": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/resolve-feedback-case.ts",
+    "feedback:promote-terms": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/promote-feedback-terms.ts",
     "test:translation-concurrency": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node --import tsx --test src/lib/assistant/__tests__/translation-concurrency.test.ts",
     "samples:business-review": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/generate-business-review-samples.ts"
   },

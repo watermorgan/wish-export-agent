@@ -3,7 +3,18 @@
   "title": "FeedbackCase",
   "description": "业务反馈记录，由 Ting/Web 工作台收集，开发侧消费处理",
   "type": "object",
-  "required": ["id", "category", "priority", "status", "source", "reporter", "reportedAt"],
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "category",
+    "priority",
+    "status",
+    "source",
+    "reporter",
+    "reportedAt",
+    "tags",
+    "resolution"
+  ],
   "properties": {
     "id": {
       "type": "string",
@@ -35,6 +46,7 @@
     "source": {
       "type": "object",
       "required": ["fileName"],
+      "additionalProperties": false,
       "properties": {
         "taskId": {
           "type": "string",
@@ -42,6 +54,8 @@
         },
         "fileName": {
           "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!.*(?:/|\\\\|\\.\\.))[^\\\\/]+$",
           "description": "原始 PDF 文件名"
         },
         "pageNumber": {
@@ -64,10 +78,6 @@
         "expectedTranslation": {
           "type": "string",
           "description": "用户期望的翻译（可选）"
-        },
-        "screenshotPath": {
-          "type": "string",
-          "description": "相关截图路径（可选）"
         }
       }
     },
@@ -87,6 +97,8 @@
     },
     "resolution": {
       "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["action", "detail", "resolvedAt", "resolvedBy"],
       "properties": {
         "action": {
           "type": "string",

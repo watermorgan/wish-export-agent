@@ -27,7 +27,8 @@ import type {
   HumanReviewGuide,
   PdfTranslationSkillPayload,
   PendingConfirmation,
-  UploadedFile
+  UploadedFile,
+  WorkspaceFeedbackSource
 } from '@/lib/assistant/types';
 
 type TranslationSegment = {
@@ -1042,6 +1043,10 @@ function buildPdfTranslationSkillPayload(options: {
   const { sourceFile, pipelineResult, summary, pipelineModelName, pdfArtifactLinks, humanReviewGuide } =
     options;
   const snapshot = pipelineResult.outputs.annotatedPdf?.snapshot;
+  const feedbackSource = buildWorkspaceFeedbackSourceFromSnapshot({
+    fileName: sourceFile.name,
+    snapshot
+  });
 
   return {
     kind: 'pdf_translation_skill_v1',
@@ -1054,6 +1059,7 @@ function buildPdfTranslationSkillPayload(options: {
     deliveryPdfUrl: null,
     artifactLinks: pdfArtifactLinks,
     humanReviewGuide,
+    feedbackSource,
     snapshot: snapshot
       ? {
           version: snapshot.version,
@@ -1073,6 +1079,42 @@ function buildPdfTranslationSkillPayload(options: {
       activeModel: pipelineModelName,
       activeProvider: 'pdf-pipeline'
     }
+  };
+}
+
+function buildWorkspaceFeedbackSourceFromSnapshot(options: {
+  fileName: string;
+  snapshot?: {
+    items?: Array<{
+      pageNumber: number;
+      regionId: string;
+      en: string;
+      zh?: string;
+    }>;
+  };
+}): WorkspaceFeedbackSource | undefined {
+  const item =
+    options.snapshot?.items?.find(
+      (candidate) =>
+        typeof candidate.en === 'string' &&
+        candidate.en.trim().length > 0 &&
+        typeof candidate.zh === 'string' &&
+        candidate.zh.trim().length > 0
+    ) ??
+    options.snapshot?.items?.find(
+      (candidate) => typeof candidate.en === 'string' && candidate.en.trim().length > 0
+    );
+
+  if (!item) {
+    return undefined;
+  }
+
+  return {
+    fileName: options.fileName,
+    pageNumber: item.pageNumber,
+    segmentId: item.regionId,
+    sourceText: item.en,
+    currentTranslation: item.zh
   };
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useDeferredValue, useEffect, useState, useTransition } from 'react';
+import { FeedbackCapture } from '@/components/feedback/feedback-capture';
 import {
   businessScenarioPresets,
   quickPrompts,
@@ -23,6 +24,7 @@ import type {
   SkillDefinition,
   TaskRecord,
   TaskType,
+  WorkspaceFeedbackSource,
   WorkflowTemplate
 } from '@/lib/assistant/types';
 
@@ -139,6 +141,41 @@ function buildTranslationHtmlDocument(title: string, bodyHtml: string) {
     </main>
   </body>
 </html>`;
+}
+
+function getCanonicalFeedbackSource(
+  reply: AssistantReply | null
+): WorkspaceFeedbackSource | null {
+  const feedbackSource = reply?.metadata?.skillPayload?.feedbackSource;
+  if (feedbackSource?.fileName) {
+    return feedbackSource;
+  }
+
+  const items = reply?.metadata?.skillPayload?.snapshot?.items ?? [];
+  const item =
+    items.find(
+      (candidate: (typeof items)[number]) =>
+        typeof candidate.en === 'string' &&
+        candidate.en.trim().length > 0 &&
+        typeof candidate.zh === 'string' &&
+        candidate.zh.trim().length > 0
+    ) ??
+    items.find(
+      (candidate: (typeof items)[number]) =>
+        typeof candidate.en === 'string' && candidate.en.trim().length > 0
+    );
+
+  if (!item) {
+    return null;
+  }
+
+  return {
+    fileName: reply?.metadata?.skillPayload?.fileName ?? reply?.task?.files[0]?.name ?? '',
+    pageNumber: item.pageNumber,
+    segmentId: item.regionId,
+    sourceText: item.en,
+    currentTranslation: item.zh
+  };
 }
 
 export function Workspace() {
@@ -384,6 +421,23 @@ export function Workspace() {
   const activeProvider = reply?.metadata?.activeProvider;
   const activeModel = reply?.metadata?.activeModel ?? translationModelOverride;
   const humanReviewGuide = reply?.metadata?.humanReviewGuide ?? null;
+  const feedbackSegmentContext = getCanonicalFeedbackSource(reply);
+  const feedbackSourceName =
+    feedbackSegmentContext?.fileName ??
+    reply?.metadata?.skillPayload?.fileName ??
+    currentTask?.files[0]?.name ??
+    files[0]?.name ??
+    null;
+  const feedbackContext: WorkspaceFeedbackSource | null = feedbackSourceName
+    ? {
+        taskId: activeTaskId ?? currentTask?.id ?? null,
+        fileName: feedbackSourceName,
+        pageNumber: feedbackSegmentContext?.pageNumber,
+        segmentId: feedbackSegmentContext?.segmentId,
+        sourceText: feedbackSegmentContext?.sourceText,
+        currentTranslation: feedbackSegmentContext?.currentTranslation
+      }
+    : null;
   const translationHtmlDocument = translationHtml
     ? buildTranslationHtmlDocument(
         translationArtifact?.title ?? '翻译结果预览',
@@ -1281,6 +1335,8 @@ export function Workspace() {
                 <p>翻译完成后，这里会优先展示双语结果预览。</p>
               )}
             </div>
+
+            {feedbackContext ? <FeedbackCapture context={feedbackContext} /> : null}
 
 	            <div className="answer-card">
 	              <h3>待确认项</h3>
