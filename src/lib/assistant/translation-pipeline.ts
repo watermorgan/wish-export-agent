@@ -2818,12 +2818,13 @@ function shouldUseInlineAnnotatedNote(
   zh: string,
   documentMainType: DocumentMainType
 ) {
-  if (documentMainType === 'sketch_comment') {
+  const layoutType = segment.extractionMeta.pageLayoutType;
+  // sketch_comment 默认仍走 footnote，只有 mixed 页允许尝试 inline（例如文字说明区）。
+  if (documentMainType === 'sketch_comment' && layoutType !== 'mixed') {
     return false;
   }
 
   const bbox = segment.extractionMeta.bbox;
-  const layoutType = segment.extractionMeta.pageLayoutType;
   const combinedLength = segment.text.length + zh.length;
 
   if (combinedLength > 140 || zh.length > 26) {

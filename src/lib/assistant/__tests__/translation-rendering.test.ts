@@ -43,7 +43,7 @@ test('normalizeFashionTranslation glossary exact-match for dart', () => {
   assert.equal(normalized, '省道');
 });
 
-test('sketch comment notes default to footnote mode instead of inline overlay', () => {
+test('sketch_comment + sketch page keeps footnote mode', () => {
   const segment = makeSegment();
   const shouldInline = __translationPipelineInternals.shouldUseInlineAnnotatedNote(
     segment,
@@ -52,4 +52,24 @@ test('sketch comment notes default to footnote mode instead of inline overlay', 
   );
 
   assert.equal(shouldInline, false);
+});
+
+test('sketch_comment + mixed page can use inline overlay for short notes', () => {
+  const segment = makeSegment({
+    text: 'Back elasticated waistband',
+    extractionMeta: {
+      sourceType: 'vision',
+      layoutConfidence: 1,
+      mergeConfidence: 1,
+      pageLayoutType: 'mixed',
+      bbox: { x: 240, y: 230, w: 150, h: 15 }
+    }
+  });
+  const shouldInline = __translationPipelineInternals.shouldUseInlineAnnotatedNote(
+    segment,
+    '后腰部橡筋',
+    'sketch_comment'
+  );
+
+  assert.equal(shouldInline, true);
 });

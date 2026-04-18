@@ -125,12 +125,12 @@ export async function ensureTranslationPdfArtifact(
 
   await writeFile(responseJsonPath, JSON.stringify(payload, null, 2), 'utf8');
 
-  await execFileAsync('python3', [
-    join(process.cwd(), 'scripts', 'render_feedback_pdf.py'),
-    resolvedSource.inputPath,
-    responseJsonPath,
-    outputPdfPath
-  ]);
+  // Use arch -arm64 on macOS to avoid x86_64/ARM64 .so mismatch in pdfplumber/charset_normalizer
+  const useArch = process.platform === 'darwin';
+  const execArgs = useArch
+    ? ['-arm64', 'python3', join(process.cwd(), 'scripts', 'render_feedback_pdf.py'), resolvedSource.inputPath, responseJsonPath, outputPdfPath]
+    : ['python3', join(process.cwd(), 'scripts', 'render_feedback_pdf.py'), resolvedSource.inputPath, responseJsonPath, outputPdfPath];
+  await execFileAsync(useArch ? 'arch' : 'python3', execArgs);
 
   return {
     pdfPath: outputPdfPath,

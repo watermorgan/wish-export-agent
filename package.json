@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH next build",
+    "start": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH next start",
     "service:start": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/manage-service.mjs start",
     "service:stop": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/manage-service.mjs stop",
     "service:restart": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/manage-service.mjs restart",

@@ -1,0 +1,22 @@
+{
+  "id": "fb-20260418-002",
+  "category": "translation_error",
+  "priority": "high",
+  "status": "open",
+  "source": {
+    "taskId": "task_1776253826742_gpt4iw",
+    "fileName": "ATA001 MENS SMOCK JACKET头样工艺单.pdf",
+    "pageNumber": 9,
+    "sourceText": "最后一页及大部分页面未翻译",
+    "expectedTranslation": "所有9页394个业务段均应翻译"
+  },
+  "reporter": "ting",
+  "reportedAt": "2026-04-18T01:17:59.560Z",
+  "tags": [
+    "ata034",
+    "coverage-low",
+    "last-page-missing",
+    "b-model-fallback"
+  ],
+  "resolution": null
+}
