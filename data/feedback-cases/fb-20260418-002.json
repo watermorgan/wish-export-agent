@@ -2,7 +2,7 @@
   "id": "fb-20260418-002",
   "category": "translation_error",
   "priority": "high",
-  "status": "open",
+  "status": "resolved",
   "source": {
     "taskId": "task_1776253826742_gpt4iw",
     "fileName": "ATA001 MENS SMOCK JACKET头样工艺单.pdf",
@@ -18,5 +18,11 @@
     "last-page-missing",
     "b-model-fallback"
   ],
-  "resolution": null
+  "resolution": {
+    "action": "prompt_update",
+    "detail": "根因:B模型配置在翻译执行时未生效(fallback到arcee-ai/trinity-large-preview:free)。修复:1)确认本地Gemma-4-31B-it可用 2)修复python3架构不兼容 3)修复build脚本node版本 4)重跑ATA034:覆盖率5%->98%(408/417),所有9页均有翻译",
+    "commitRef": "a2b5f57",
+    "resolvedAt": "2026-04-18T01:43:42.180Z",
+    "resolvedBy": "adae"
+  }
 }

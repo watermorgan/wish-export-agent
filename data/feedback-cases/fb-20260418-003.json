@@ -1,0 +1,24 @@
+{
+  "id": "fb-20260418-003",
+  "category": "translation_error",
+  "priority": "high",
+  "status": "open",
+  "source": {
+    "taskId": "task_1776476877313_3jz6mu",
+    "fileName": "ATA034_translation.pdf",
+    "pageNumber": 10,
+    "sourceText": "Page 8-10 images contain garment annotations not extracted by text layer",
+    "currentTranslation": "Only header text translated, image annotations ignored",
+    "expectedTranslation": "All image annotations on pages 8-10 should be OCR-extracted and translated"
+  },
+  "reporter": "ting",
+  "reportedAt": "2026-04-18T02:01:30.935Z",
+  "tags": [
+    "ata034",
+    "vision-miss",
+    "image-annotations",
+    "template-vs-content",
+    "page-confidence"
+  ],
+  "resolution": null
+}

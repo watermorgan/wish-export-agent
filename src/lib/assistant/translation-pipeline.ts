@@ -708,6 +708,30 @@ function selectVisionTargetPages(
         }
       }
     }
+
+       // Detect pages where text layer is dominated by spec-sheet header template
+    // (e.g. STYLE REF, BRAND, SPECIFICATION SHEET) but the page may contain
+    // embedded images with substantive annotations not captured by text extraction.
+    // These pages should also receive vision OCR even if earlyGate/lowConfidence missed them.
+    const HEADER_TEMPLATE_PATTERNS =
+      /\b(STYLE REF|DESCRIPTION|BRAND|DEPT|SEASON|DATE|SPECIFICATION SHEET|SUPPLIER|FABRIC|ALL RIGHTS RESERVED)\b/i;
+    for (const page of extracted.pages) {
+      if (targets.has(page.pageNumber)) continue;
+      const nonEmpty = page.lines.map((l) => l.trim()).filter(Boolean);
+      if (nonEmpty.length === 0) continue;
+      const headerLines = nonEmpty.filter((line) => HEADER_TEMPLATE_PATTERNS.test(line));
+      // If >35% of text lines are spec-sheet header template AND the page has
+      // few extracted segments, the page likely contains its real content in
+      // embedded images, not in the text layer.
+      const pageSegs = sections.filter((s) =>
+        s.segments.some((seg) => seg.pageNumber === page.pageNumber)
+      );
+      const segCount = pageSegs.reduce((sum, s) => sum + s.segments.length, 0);
+      if (headerLines.length / nonEmpty.length > 0.35 && segCount <= 12) {
+        targets.add(page.pageNumber);
+      }
+    }
+
     return Array.from(targets).sort((a, b) => a - b);
   }
 
