@@ -35,6 +35,11 @@
 
 其中 `result` 直接承载稳定结果协议 `pdf_translation_skill_v1`。
 
+必须明确：
+
+- `ting_pdf_translation_v1` 是外部消费包装层
+- canonical 业务 payload 是 `result.kind = pdf_translation_skill_v1`
+
 ## `pdf_translation_skill_v1` 当前关键字段
 
 - `summary`
@@ -65,6 +70,10 @@
 - `npm run ting:pdf-service -- submit --base-url http://127.0.0.1:3000 --stdin`
 - `npm run ting:pdf-service -- get-task --base-url http://127.0.0.1:3000 <taskId>`
 - `npm run ting:pdf-service -- get-skill-payload --base-url http://127.0.0.1:3000 <taskId>`
+- `npm run ting:pdf-service -- override --base-url http://127.0.0.1:3000 <taskId> --stdin`
+- `npm run ting:pdf-service -- rework --base-url http://127.0.0.1:3000 <taskId> --stdin`
+- `npm run ting:pdf-service -- get-revision --base-url http://127.0.0.1:3000 <taskId> <revisionId>`
+- `npm run ting:pdf-service -- submit-feedback --base-url http://127.0.0.1:3000 --stdin`
 
 当前 `/api/tasks` / CLI submit 语义：
 
@@ -90,6 +99,10 @@ round-1 MCP 形态：
 - `submit_pdf_translation_task`
 - `get_pdf_translation_task`
 - `get_pdf_translation_skill_payload`
+- `submit_task_overrides`
+- `request_task_rework`
+- `get_task_revision`
+- `submit_feedback_case`
 
 当前推荐轮询语义：
 

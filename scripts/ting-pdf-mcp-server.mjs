@@ -112,6 +112,96 @@ const tools = [
       },
       required: ['taskId']
     }
+  },
+  {
+    name: 'submit_task_overrides',
+    title: 'Submit Task Overrides',
+    description: 'Apply page-level overrides to an existing translation task.',
+    annotations: {
+      title: 'Submit Task Overrides',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        actor: { type: 'string', enum: ['sales', 'supervisor'] },
+        reason: { type: 'string' },
+        pageOverrides: { type: 'object' }
+      },
+      required: ['taskId', 'reason', 'pageOverrides']
+    }
+  },
+  {
+    name: 'request_task_rework',
+    title: 'Request Task Rework',
+    description: 'Request bounded rework for an existing translation task.',
+    annotations: {
+      title: 'Request Task Rework',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        actor: { type: 'string', enum: ['sales', 'supervisor'] },
+        scope: { type: 'string', enum: ['pages'] },
+        pageNumbers: { type: 'array', items: { type: 'number' } },
+        instruction: { type: 'string' },
+        note: { type: 'string' },
+        sourceFeedbackIds: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['taskId', 'scope', 'instruction']
+    }
+  },
+  {
+    name: 'get_task_revision',
+    title: 'Get Task Revision',
+    description: 'Read revision lineage for an existing translation task.',
+    annotations: {
+      title: 'Get Task Revision',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        revisionId: { type: 'string' }
+      },
+      required: ['taskId', 'revisionId']
+    }
+  },
+  {
+    name: 'submit_feedback_case',
+    title: 'Submit Feedback Case',
+    description: 'Submit a feedback case for long-term learning/governance.',
+    annotations: {
+      title: 'Submit Feedback Case',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string' },
+        priority: { type: 'string' },
+        source: { type: 'object' },
+        reporter: { type: 'string' },
+        tags: { type: 'array', items: { type: 'string' } }
+      },
+      required: ['category', 'source']
+    }
   }
 ];
 
@@ -435,6 +525,144 @@ async function handleGetSkillPayload(argumentsObject) {
   });
 }
 
+async function handleSubmitTaskOverrides(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  if (typeof args.taskId !== 'string' || !args.taskId.trim()) {
+    throw new Error('taskId 为必填项。');
+  }
+
+  const response = await requestService(`/api/tasks/${encodeURIComponent(args.taskId)}/overrides`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      actor: args.actor === 'supervisor' ? 'supervisor' : 'sales',
+      reason: typeof args.reason === 'string' ? args.reason : '',
+      pageOverrides: args.pageOverrides
+    })
+  });
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        ...(response.payload && typeof response.payload === 'object' ? response.payload : {}),
+        error:
+          typeof response.payload?.error === 'string' ? response.payload.error : '提交页面覆盖失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  return buildToolResult(response.payload);
+}
+
+async function handleRequestTaskRework(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  if (typeof args.taskId !== 'string' || !args.taskId.trim()) {
+    throw new Error('taskId 为必填项。');
+  }
+
+  const response = await requestService(`/api/tasks/${encodeURIComponent(args.taskId)}/rework`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      actor: args.actor === 'supervisor' ? 'supervisor' : 'sales',
+      reason: typeof args.reason === 'string' ? args.reason : undefined,
+      scope: args.scope,
+      pageNumbers: args.pageNumbers,
+      instruction: args.instruction,
+      note: args.note,
+      sourceFeedbackIds: args.sourceFeedbackIds
+    })
+  });
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        ...(response.payload && typeof response.payload === 'object' ? response.payload : {}),
+        error: typeof response.payload?.error === 'string' ? response.payload.error : '提交返工失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  return buildToolResult(response.payload);
+}
+
+async function handleGetTaskRevision(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  if (typeof args.taskId !== 'string' || !args.taskId.trim()) {
+    throw new Error('taskId 为必填项。');
+  }
+  if (typeof args.revisionId !== 'string' || !args.revisionId.trim()) {
+    throw new Error('revisionId 为必填项。');
+  }
+
+  const response = await requestService(
+    `/api/tasks/${encodeURIComponent(args.taskId)}/revisions/${encodeURIComponent(args.revisionId)}`
+  );
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        error: typeof response.payload?.error === 'string' ? response.payload.error : '读取 revision 失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  return buildToolResult(response.payload);
+}
+
+async function handleSubmitFeedbackCase(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  const response = await requestService('/api/feedback', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(args)
+  });
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        error: typeof response.payload?.error === 'string' ? response.payload.error : '提交反馈失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  return buildToolResult(response.payload);
+}
+
 async function handleCall(name, argumentsObject) {
   switch (name) {
     case 'submit_pdf_translation_task':
@@ -443,6 +671,14 @@ async function handleCall(name, argumentsObject) {
       return handleGetTask(argumentsObject);
     case 'get_pdf_translation_skill_payload':
       return handleGetSkillPayload(argumentsObject);
+    case 'submit_task_overrides':
+      return handleSubmitTaskOverrides(argumentsObject);
+    case 'request_task_rework':
+      return handleRequestTaskRework(argumentsObject);
+    case 'get_task_revision':
+      return handleGetTaskRevision(argumentsObject);
+    case 'submit_feedback_case':
+      return handleSubmitFeedbackCase(argumentsObject);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }

@@ -7,6 +7,12 @@
   - 意见翻译 / 归并
   - 客户回复草拟
 - 编辑输入内容、重新提交任务、处理待确认项。
+- 对 PDF 翻译任务执行当前任务内的页面级 override：
+  - `POST /api/tasks/:taskId/overrides`
+- 对 PDF 翻译任务执行当前任务内的有界 rework：
+  - `POST /api/tasks/:taskId/rework`
+- 查询任务当前或历史 revision：
+  - `GET /api/tasks/:taskId/revisions/:revisionId`
 - 在任务进入 `pending_user_confirmation` 或 `returned` 时继续确认 / 退回字段。
 - 在任务满足条件后提交主管审核。
 - 在任务已 `approved` 后执行导出。
@@ -26,6 +32,7 @@
 - 识别明显的待确认风险项，并生成 `pendingConfirmations`。
 - 生成审计留痕、任务状态、导出前结果预览。
 - 在 PDF 中生成编号和中文辅助说明，但仅作为内部确认材料。
+- 为 PDF 翻译任务维护 task 内部 revision lineage，用于区分 `base / override / rework`，但不改变 review object。
 
 ## 4. 系统绝不能自动执行的动作
 
@@ -56,6 +63,10 @@
   - `pending_user_confirmation`
   - `returned`
 
+- 当前 `override / rework` 与通用编辑共享同一状态门禁：
+  - 允许：`draft`、`validating`、`blocked`、`pending_user_confirmation`、`returned`
+  - 不允许：`pending_supervisor_review`、`approved`、`exported`、`archived`、`failed`
+
 - 系统允许更新确认项的状态：
   - `pending_user_confirmation`
   - `returned`
@@ -69,6 +80,9 @@
 
 - 系统允许导出的状态：
   - `approved`
+
+- `review` 仍然只作用于 task，不作用于 revision。
+- `skill-payload` 的 canonical 业务对象仍是 `pdf_translation_skill_v1`；`ting_pdf_translation_v1` 只是外部 wrapper。
 
 ## 8. 当前 V1 非目标
 

@@ -18,6 +18,10 @@ import {
   runPdfTranslationPipeline,
   type TranslationSnapshot
 } from '@/lib/assistant/translation-pipeline';
+import {
+  buildTaskRevisionSummary,
+  getActiveTaskExecutionControl
+} from '@/lib/assistant/task-iteration';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -1039,8 +1043,9 @@ function buildPdfTranslationSkillPayload(options: {
   pipelineModelName: string;
   pdfArtifactLinks: NonNullable<AssistantReplyMetadata['pdfArtifactLinks']>;
   humanReviewGuide?: HumanReviewGuide;
+  revisionSummary?: ReturnType<typeof buildTaskRevisionSummary>;
 }): PdfTranslationSkillPayload {
-  const { sourceFile, pipelineResult, summary, pipelineModelName, pdfArtifactLinks, humanReviewGuide } =
+  const { sourceFile, pipelineResult, summary, pipelineModelName, pdfArtifactLinks, humanReviewGuide, revisionSummary } =
     options;
   const snapshot = pipelineResult.outputs.annotatedPdf?.snapshot;
   const feedbackSource = buildWorkspaceFeedbackSourceFromSnapshot({
@@ -1060,6 +1065,15 @@ function buildPdfTranslationSkillPayload(options: {
     artifactLinks: pdfArtifactLinks,
     humanReviewGuide,
     feedbackSource,
+    revision: revisionSummary
+      ? {
+          id: revisionSummary.currentRevisionId,
+          kind: revisionSummary.latestRevision?.kind ?? 'base',
+          parentRevisionId: revisionSummary.latestRevision?.parentRevisionId ?? null,
+          revisionCount: revisionSummary.revisionCount,
+          currentControl: revisionSummary.currentControl ?? null
+        }
+      : undefined,
     snapshot: snapshot
       ? {
           version: snapshot.version,
@@ -1076,6 +1090,17 @@ function buildPdfTranslationSkillPayload(options: {
       translatedBusinessSegmentCount: pipelineResult.diagnostics.translatedBusinessSegmentCount,
       businessTranslationCoveragePct: pipelineResult.diagnostics.businessTranslationCoveragePct,
       businessPreviewReady: pipelineResult.diagnostics.isBusinessPreviewReady,
+      skippedTranslationPages: Array.from(
+        new Set([
+          ...(revisionSummary?.currentControl?.pageOverrides?.skipTranslationPages ?? []),
+          ...((revisionSummary?.currentControl?.pageOverrides?.pageDirectives ?? [])
+            .filter(
+              (directive) =>
+                directive.action === 'skip_translation' || directive.action === 'keep_original'
+            )
+            .map((directive) => directive.pageNumber))
+        ])
+      ).sort((left, right) => left - right),
       activeModel: pipelineModelName,
       activeProvider: 'pdf-pipeline'
     }
@@ -1135,7 +1160,8 @@ async function buildPipelineFallbackReply(
   const pipelineResult = await runPdfTranslationPipeline({
     filePath,
     fileName: sourceFile.name,
-    translationModelOverride: request.translationModelOverride ?? request.modelOverride
+    translationModelOverride: request.translationModelOverride ?? request.modelOverride,
+    executionControl: getActiveTaskExecutionControl(request)
   });
 
   const pdfArtifactLinks = [];
@@ -1208,7 +1234,8 @@ async function buildPipelineFallbackReply(
     summary: nextSummary,
     pipelineModelName,
     pdfArtifactLinks,
-    humanReviewGuide
+    humanReviewGuide,
+    revisionSummary: buildTaskRevisionSummary(request)
   });
 
   const fallbackField: ArtifactField = {
@@ -1295,6 +1322,7 @@ async function buildPipelineFallbackReply(
       pipelineFallbackHints,
       humanReviewGuide,
       skillPayload,
+      taskIteration: buildTaskRevisionSummary(request),
       translationTiming: {
         totalMs: Date.now() - startedAt,
         sourceBuildMs,
@@ -1371,6 +1399,7 @@ async function findGoldenFixture(sourceFileName: string) {
 }
 
 async function buildFixtureReply(
+  request: AssistantRequest,
   reply: AssistantReply,
   sourceFile: UploadedFile
 ): Promise<AssistantReply> {
@@ -1381,6 +1410,59 @@ async function buildFixtureReply(
 
   if (fixture.kind === 'structured') {
     const snapshot = toTranslationSnapshot(fixture.reference);
+    const revisionSummary = buildTaskRevisionSummary(request);
+    const skillPayload: PdfTranslationSkillPayload = {
+      kind: 'pdf_translation_skill_v1',
+      fileName: sourceFile.name,
+      taskType: 'feedback',
+      documentMainType: snapshot.documentMainType,
+      outputStrategy: snapshot.outputStrategy,
+      summary: '当前未连通正式模型，已使用结构化人工标准答案生成业务预览。',
+      reviewRequired: false,
+      deliveryPdfUrl: null,
+      artifactLinks: [],
+      revision: revisionSummary
+        ? {
+            id: revisionSummary.currentRevisionId,
+            kind: revisionSummary.latestRevision?.kind ?? 'base',
+            parentRevisionId: revisionSummary.latestRevision?.parentRevisionId ?? null,
+            revisionCount: revisionSummary.revisionCount,
+            currentControl: revisionSummary.currentControl ?? null
+          }
+        : undefined,
+      feedbackSource: buildWorkspaceFeedbackSourceFromSnapshot({
+        fileName: sourceFile.name,
+        snapshot
+      }),
+      snapshot: {
+        version: snapshot.version,
+        fileName: snapshot.fileName,
+        documentMainType: snapshot.documentMainType,
+        outputStrategy: snapshot.outputStrategy,
+        generatedAt: snapshot.generatedAt
+      },
+      diagnostics: {
+        translatedSegmentCount: snapshot.diagnostics.translatedSegmentCount,
+        translationCoveragePct: snapshot.diagnostics.translationCoveragePct,
+        businessSegmentCount: snapshot.items.length,
+        translatedBusinessSegmentCount: snapshot.items.filter((item) => Boolean(item.zh?.trim())).length,
+        businessTranslationCoveragePct: snapshot.diagnostics.translationCoveragePct,
+        businessPreviewReady: true,
+        skippedTranslationPages: Array.from(
+          new Set([
+            ...(revisionSummary?.currentControl?.pageOverrides?.skipTranslationPages ?? []),
+            ...((revisionSummary?.currentControl?.pageOverrides?.pageDirectives ?? [])
+              .filter(
+                (directive) =>
+                  directive.action === 'skip_translation' || directive.action === 'keep_original'
+              )
+              .map((directive) => directive.pageNumber))
+          ])
+        ).sort((left, right) => left - right),
+        activeModel: 'golden-fixture',
+        activeProvider: 'golden-fixture'
+      }
+    };
     return {
       ...reply,
       summary: '当前未连通正式模型，已使用结构化人工标准答案生成业务预览。',
@@ -1398,14 +1480,27 @@ async function buildFixtureReply(
           summary: '已按业务章节组织标准答案，适合对照预览和自动评测。',
           fields: [
           {
-            label: 'Golden Preview',
-            value: `已加载 ${fixture.name}`,
-            citation: fixture.name,
-            richTextHtml: buildStructuredFixtureHtml(fixture.reference),
-            structuredData: snapshot
-          }
-        ]
-      }
+              label: 'Golden Preview',
+              value: `已加载 ${fixture.name}`,
+              citation: fixture.name,
+              richTextHtml: buildStructuredFixtureHtml(fixture.reference),
+              structuredData: snapshot
+            }
+          ]
+        },
+        {
+          title: 'Skill 输出协议',
+          kind: 'list' as const,
+          summary: '结构化 golden fixture 也提供稳定 skill payload，便于外部适配层验证。',
+          fields: [
+            {
+              label: 'pdf_translation_skill_v1',
+              value: '已生成 fixture skill 输出协议',
+              citation: fixture.name,
+              structuredData: skillPayload
+            }
+          ]
+        }
       ],
       auditTrail: [
         ...reply.auditTrail,
@@ -1419,7 +1514,9 @@ async function buildFixtureReply(
         needsHumanReview: false,
         providerHits: [],
         modelHits: [],
-        translationMode: 'fixture' as const
+        translationMode: 'fixture' as const,
+        skillPayload,
+        taskIteration: revisionSummary
       }
     };
   }
@@ -1482,7 +1579,7 @@ export async function maybeRunRealFeedbackTranslation(
   const canRunPdfPipeline = Boolean(sourceFile && (sourceFile.storagePath || sourceFile.localPath));
 
   if (process.env.ASSISTANT_FORCE_GOLDEN === '1' && sourceFile) {
-    const goldenReply = await buildFixtureReply(reply, sourceFile);
+    const goldenReply = await buildFixtureReply(request, reply, sourceFile);
     if (goldenReply !== reply) {
       console.log(
         `[ASSISTANT_FORCE_GOLDEN] loaded fixture reply for ${sourceFile.name}`
@@ -1547,7 +1644,7 @@ export async function maybeRunRealFeedbackTranslation(
   }
 
   if (process.env.ASSISTANT_FORCE_GOLDEN === '1') {
-    return buildFixtureReply(reply, sourceFile);
+    return buildFixtureReply(request, reply, sourceFile);
   }
 
   const systemPrompt = loadSkillPrompt('comment-translator');

@@ -196,4 +196,16 @@
     - `humanReviewGuide`
     - snapshot 基本信息
     - 业务预览级诊断字段
+    - 当前 revision 元数据（至少 `revision.id`、`revision.kind`、`revisionCount`、`currentControl`）
   - 若外部代理按 task 读取结果，仓库必须提供最小适配入口；当前最小入口为 `GET /api/tasks/[taskId]/skill-payload`，不得要求外部代理自己遍历 `artifacts[].fields[].structuredData`
+  - 当前已实现 task 内部 revision 闭环：
+    - base revision 在任务创建时建立
+    - `POST /api/tasks/:taskId/overrides` 创建 `override` revision
+    - `POST /api/tasks/:taskId/rework` 创建 `rework` revision
+    - `GET /api/tasks/:taskId/revisions/:revisionId` 可读取 lineage
+    - review/submit/export 仍只绑定 task
+  - 当前 L0 页面级 override 已落地：
+    - `forceVisionPages`
+    - `skipTranslationPages`
+    - overlap 视为无效请求
+  - 当前 L1 rework 已落地的安全基线是页级目标输入和 revision 审计；当前只承诺 `pageNumbers`，不承诺 segment 级局部重算。当前执行仍以“目标页优先 + 全任务重跑主链”实现，不宣称已经做到底层 extractor 的真正局部计算

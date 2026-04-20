@@ -41,6 +41,14 @@
 
 当前对外接口命名使用了 `ting_` 前缀（如 `ting_pdf_translation_v1`），这是历史命名，实质是通用的外部消费包装层。后续如有第二个外部消费方接入，应将协议名改为中性命名。
 
+当前已落地的 PDF 翻译闭环扩展遵循同一边界：
+
+- canonical 业务对象：`pdf_translation_skill_v1`
+- Ting 适配 wrapper：`ting_pdf_translation_v1`
+- review object 仍为 task
+- task 内部允许 `base / override / rework` revision lineage
+- Ting 只通过 HTTP / MCP 调用这些能力，不拥有仓库内部状态写权限
+
 ## 6. 非目标
 - 不做开放式泛聊天机器人
 - 不做自动报价与自动对外发送

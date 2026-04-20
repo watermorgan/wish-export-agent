@@ -5,20 +5,35 @@ import {
 } from '@/lib/assistant/service';
 import { parseAssistantJsonPayload } from '@/lib/assistant/task-input';
 
-type Command = 'submit' | 'get-task' | 'get-skill-payload';
+type Command =
+  | 'submit'
+  | 'get-task'
+  | 'get-skill-payload'
+  | 'override'
+  | 'rework'
+  | 'get-revision'
+  | 'submit-feedback';
 const USAGE =
-  '用法: submit --base-url <url> --json-file <path>|--stdin | get-task --base-url <url> <taskId> | get-skill-payload --base-url <url> <taskId>';
+  '用法: submit --base-url <url> --json-file <path>|--stdin | get-task --base-url <url> <taskId> | get-skill-payload --base-url <url> <taskId> | override --base-url <url> <taskId> --json-file <path>|--stdin | rework --base-url <url> <taskId> --json-file <path>|--stdin | get-revision --base-url <url> <taskId> <revisionId> | submit-feedback --base-url <url> --json-file <path>|--stdin';
 
 function printJson(value: unknown) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
-function printError(status: number, message: string) {
+function printError(status: number, message: string, details?: unknown) {
+  const extra =
+    details && typeof details === 'object' && !Array.isArray(details)
+      ? (details as Record<string, unknown>)
+      : {};
   process.stderr.write(
     `${JSON.stringify(
       {
         status,
-        error: message
+        ...extra,
+        error:
+          typeof extra.error === 'string' && extra.error.length > 0
+            ? extra.error
+            : message
       },
       null,
       2
@@ -29,7 +44,15 @@ function printError(status: number, message: string) {
 function getCommand(argv: string[]): Command {
   const command = argv[0];
 
-  if (command === 'submit' || command === 'get-task' || command === 'get-skill-payload') {
+  if (
+    command === 'submit' ||
+    command === 'get-task' ||
+    command === 'get-skill-payload' ||
+    command === 'override' ||
+    command === 'rework' ||
+    command === 'get-revision' ||
+    command === 'submit-feedback'
+  ) {
     return command;
   }
 
@@ -67,10 +90,12 @@ async function requestRemote(baseUrl: string, path: string, init?: RequestInit) 
   const payload = await readJsonResponse(response);
 
   if (!response.ok) {
-    throw new AssistantTaskServiceError(
+    const error = new AssistantTaskServiceError(
       response.status,
       typeof payload?.error === 'string' ? payload.error : `请求失败: ${response.status}`
     );
+    (error as AssistantTaskServiceError & { payload?: unknown }).payload = payload;
+    throw error;
   }
 
   return payload;
@@ -102,6 +127,32 @@ async function readJsonInput(args: string[]) {
   throw new AssistantTaskServiceError(400, 'submit 需要 --json-file <path> 或 --stdin。');
 }
 
+async function readRawJsonInput(args: string[]) {
+  const jsonFileIndex = args.indexOf('--json-file');
+  if (jsonFileIndex >= 0) {
+    const filePath = args[jsonFileIndex + 1];
+    if (!filePath) {
+      throw new AssistantTaskServiceError(400, '--json-file 缺少路径。');
+    }
+
+    return JSON.parse(await readFile(filePath, 'utf8'));
+  }
+
+  if (args.includes('--stdin')) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+    }
+    const input = Buffer.concat(chunks).toString('utf8').trim();
+    if (!input) {
+      throw new AssistantTaskServiceError(400, '--stdin 未收到 JSON 输入。');
+    }
+    return JSON.parse(input);
+  }
+
+  throw new AssistantTaskServiceError(400, '需要 --json-file <path> 或 --stdin。');
+}
+
 async function main() {
   try {
     const [, , ...argv] = process.argv;
@@ -130,6 +181,20 @@ async function main() {
       return;
     }
 
+    if (command === 'submit-feedback') {
+      const input = await readRawJsonInput(commandArgs.slice(1));
+      printJson(
+        await requestRemote(baseUrl, '/api/feedback', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(input)
+        })
+      );
+      return;
+    }
+
     const taskId = commandArgs[1];
     if (!taskId) {
       throw new AssistantTaskServiceError(400, `${command} 缺少 taskId。`);
@@ -140,10 +205,51 @@ async function main() {
       return;
     }
 
+    if (command === 'override') {
+      const input = await readRawJsonInput(commandArgs.slice(2));
+      printJson(
+        await requestRemote(baseUrl, `/api/tasks/${taskId}/overrides`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(input)
+        })
+      );
+      return;
+    }
+
+    if (command === 'rework') {
+      const input = await readRawJsonInput(commandArgs.slice(2));
+      printJson(
+        await requestRemote(baseUrl, `/api/tasks/${taskId}/rework`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(input)
+        })
+      );
+      return;
+    }
+
+    if (command === 'get-revision') {
+      const revisionId = commandArgs[2];
+      if (!revisionId) {
+        throw new AssistantTaskServiceError(400, 'get-revision 缺少 revisionId。');
+      }
+      printJson(await requestRemote(baseUrl, `/api/tasks/${taskId}/revisions/${revisionId}`));
+      return;
+    }
+
     printJson(await requestRemote(baseUrl, `/api/tasks/${taskId}/skill-payload`));
   } catch (error) {
     if (error instanceof AssistantTaskServiceError) {
-      printError(error.status, error.message);
+      printError(
+        error.status,
+        error.message,
+        (error as AssistantTaskServiceError & { payload?: unknown }).payload
+      );
       process.exit(1);
     }
 

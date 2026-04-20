@@ -20,6 +20,7 @@ import {
   extractWithVisionFallback,
   type ExtractedBlock
 } from '@/lib/assistant/vision-extraction';
+import type { TaskExecutionControl } from '@/lib/assistant/types';
 
 const DEBUG_PIPELINE = process.env.ASSISTANT_DEBUG_PIPELINE === '1';
 
@@ -33,6 +34,7 @@ type PipelineInput = {
   fileName: string;
   maxSegmentsForTranslation?: number;
   translationModelOverride?: string;
+  executionControl?: TaskExecutionControl | null;
 };
 
 export type DocumentMainType = 'sketch_comment' | 'tp_bom_table_heavy' | 'mixed';
@@ -206,6 +208,40 @@ type TranslationCoverageStats = {
 };
 
 let resolvedPdfCjkFontPath: string | null | undefined;
+
+function getForcedVisionPages(control?: TaskExecutionControl | null) {
+  const forcedPages = new Set<number>();
+  for (const pageNumber of control?.pageOverrides?.forceVisionPages ?? []) {
+    if (Number.isInteger(pageNumber) && pageNumber > 0) {
+      forcedPages.add(pageNumber);
+    }
+  }
+  for (const directive of control?.pageOverrides?.pageDirectives ?? []) {
+    if (directive.action === 'force_vision' && Number.isInteger(directive.pageNumber) && directive.pageNumber > 0) {
+      forcedPages.add(directive.pageNumber);
+    }
+  }
+  return [...forcedPages].sort((left, right) => left - right);
+}
+
+function getSkippedTranslationPages(control?: TaskExecutionControl | null) {
+  const skippedPages = new Set<number>();
+  for (const pageNumber of control?.pageOverrides?.skipTranslationPages ?? []) {
+    if (Number.isInteger(pageNumber) && pageNumber > 0) {
+      skippedPages.add(pageNumber);
+    }
+  }
+  for (const directive of control?.pageOverrides?.pageDirectives ?? []) {
+    if (
+      (directive.action === 'skip_translation' || directive.action === 'keep_original') &&
+      Number.isInteger(directive.pageNumber) &&
+      directive.pageNumber > 0
+    ) {
+      skippedPages.add(directive.pageNumber);
+    }
+  }
+  return skippedPages;
+}
 
 function resolvePdfCjkFontPath() {
   if (resolvedPdfCjkFontPath !== undefined) {
@@ -1717,7 +1753,8 @@ function mergeBModelBatchExecutionResult(
 function buildTranslationBatchPrompt(
   batch: PipelineResult['segments'],
   segTextMaxChars: number,
-  promptMode: BatchPromptMode
+  promptMode: BatchPromptMode,
+  reworkInstruction?: string
 ) {
   const payload = JSON.stringify(
     batch.map((segment) => ({
@@ -1738,6 +1775,7 @@ function buildTranslationBatchPrompt(
       '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
       '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
       '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+      ...(reworkInstruction ? ['', `返工要求：${reworkInstruction}`] : []),
       '',
       '未译片段：',
       payload
@@ -1752,6 +1790,7 @@ function buildTranslationBatchPrompt(
       '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
       '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
       '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+      ...(reworkInstruction ? ['', `返工要求：${reworkInstruction}`] : []),
       '',
       '视觉补强片段：',
       payload
@@ -1765,6 +1804,7 @@ function buildTranslationBatchPrompt(
     '译文要求：使用服装工艺单常用中文短句，优先贴标签式表达，不写解释性废话。',
     '颜色/面料/辅料/洗水/车缝类片段尽量保持“项目：内容”结构。',
     '款号、物料码、成分比例、克重、幅宽、毫米、厘米等数字和单位原样保留，不要编造。',
+    ...(reworkInstruction ? ['', `返工要求：${reworkInstruction}`] : []),
     '',
     '片段：',
     payload
@@ -2890,7 +2930,9 @@ async function translateSegmentsWithModelB(
   segments: PipelineResult['segments'],
   maxSegmentsForTranslation?: number,
   translationModelOverride?: string,
-  documentMainType?: DocumentMainType
+  documentMainType?: DocumentMainType,
+  reworkInstruction?: string,
+  reworkTargetPages?: number[]
 ): Promise<{ map: Map<string, string>; stats: BModelBatchStats }> {
   const translated = new Map<string, string>();
   const configured = isTranslationModelConfigured(translationModelOverride);
@@ -2976,6 +3018,8 @@ async function translateSegmentsWithModelB(
     process.env.B_MODEL_VISION_SECOND_STAGE_MAX_TOKENS ?? String(retranslateMaxTokens)
   );
   const scopedSegmentIds = new Set(scopedSegments.map((segment) => segment.id));
+  const reworkTargetPageSet =
+    reworkInstruction && (reworkTargetPages?.length ?? 0) > 0 ? new Set(reworkTargetPages) : null;
   const concurrency = Math.max(
     1,
     Number(process.env.B_MODEL_CONCURRENCY ?? (conservativeScheduling ? '1' : '3'))
@@ -3015,6 +3059,7 @@ async function translateSegmentsWithModelB(
         delayMs: number;
         maxTokens: number;
         promptMode: 'default' | 'retranslate' | 'vision_recover';
+        reworkInstructionOverride?: string;
       },
       signal?: AbortSignal
     ): Promise<BModelBatchExecutionResult> {
@@ -3030,7 +3075,12 @@ async function translateSegmentsWithModelB(
         }
       }
 
-      const prompt = buildTranslationBatchPrompt(batch, segTextMaxChars, options.promptMode);
+      const prompt = buildTranslationBatchPrompt(
+        batch,
+        segTextMaxChars,
+        options.promptMode,
+        options.reworkInstructionOverride
+      );
 
       let attempts = 0;
       let jsonOk = 0;
@@ -3177,6 +3227,7 @@ async function translateSegmentsWithModelB(
         maxTokens: number;
         promptMode: 'default' | 'retranslate' | 'vision_recover';
         concurrencyOverride?: number;
+        reworkInstructionOverride?: string;
       }
     ) {
       const batches: Array<PipelineResult['segments']> = [];
@@ -3224,7 +3275,44 @@ async function translateSegmentsWithModelB(
       };
     }
 
-    const primaryPass = await runPass(scopedSegments, {
+    async function runPassWithScopedInstruction(
+      passSegments: PipelineResult['segments'],
+      options: {
+        batchSize: number;
+        delayMs: number;
+        maxTokens: number;
+        promptMode: 'default' | 'retranslate' | 'vision_recover';
+        concurrencyOverride?: number;
+      }
+    ) {
+      if (!reworkTargetPageSet || !reworkInstruction) {
+        return runPass(passSegments, options);
+      }
+
+      const targetedSegments = passSegments.filter((segment) =>
+        reworkTargetPageSet.has(segment.pageNumber)
+      );
+      const untargetedSegments = passSegments.filter(
+        (segment) => !reworkTargetPageSet.has(segment.pageNumber)
+      );
+
+      const targetedResult =
+        targetedSegments.length > 0
+          ? await runPass(targetedSegments, {
+              ...options,
+              reworkInstructionOverride: reworkInstruction
+            })
+          : { attempts: 0, jsonOk: 0 };
+      const untargetedResult =
+        untargetedSegments.length > 0 ? await runPass(untargetedSegments, options) : { attempts: 0, jsonOk: 0 };
+
+      return {
+        attempts: targetedResult.attempts + untargetedResult.attempts,
+        jsonOk: targetedResult.jsonOk + untargetedResult.jsonOk
+      };
+    }
+
+    const primaryPass = await runPassWithScopedInstruction(scopedSegments, {
       batchSize,
       delayMs: batchDelayMs,
       maxTokens: baseMaxTokens,
@@ -3255,7 +3343,7 @@ async function translateSegmentsWithModelB(
           delayMs: rateLimitRecoveryDelayMs,
           batchSize: rateLimitRecoveryBatchSize
         });
-        await runPass(untranslatedSegments, {
+        await runPassWithScopedInstruction(untranslatedSegments, {
           batchSize: rateLimitRecoveryBatchSize,
           delayMs: rateLimitRecoveryDelayMs,
           maxTokens: retranslateMaxTokens,
@@ -3285,7 +3373,14 @@ async function translateSegmentsWithModelB(
         const sourceById = new Map(untranslatedSegments.map((segment) => [segment.id, segment.text]));
         for (let index = 0; index < untranslatedSegments.length; index += cliFallbackBatchSize) {
           const batch = untranslatedSegments.slice(index, index + cliFallbackBatchSize);
-          const prompt = buildTranslationBatchPrompt(batch, segTextMaxChars, 'default');
+          const prompt = buildTranslationBatchPrompt(
+            batch,
+            segTextMaxChars,
+            'default',
+            reworkTargetPageSet && batch.every((segment) => reworkTargetPageSet.has(segment.pageNumber))
+              ? reworkInstruction
+              : undefined
+          );
           stats.batchAttempts += 1;
           try {
             const result = await claudeCliProvider.generate({
@@ -3331,7 +3426,7 @@ async function translateSegmentsWithModelB(
           primaryPass.jsonOk,
           parseFailureThreshold
         );
-        await runPass(untranslatedSegments, {
+        await runPassWithScopedInstruction(untranslatedSegments, {
           batchSize: retranslateBatchSize,
           delayMs: retranslateBatchDelayMs,
           maxTokens: retranslateMaxTokens,
@@ -3373,7 +3468,7 @@ async function translateSegmentsWithModelB(
           primaryPass.jsonOk,
           parseFailureThreshold
         );
-        await runPass(recoverySegments, {
+        await runPassWithScopedInstruction(recoverySegments, {
           batchSize: recoveryBatchSize,
           delayMs: visionSecondStageDelayMs,
           maxTokens: visionSecondStageMaxTokens,
@@ -3514,12 +3609,19 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     earlyGatePages: built.diagnostics.earlyGatePages,
     lowConfidencePages: built.diagnostics.lowConfidencePages
   });
-  const visionTargetPages = selectVisionTargetPages(
-    extracted,
-    built.reference.sections,
-    documentMainType,
-    built.diagnostics
-  );
+  const forcedVisionPages = getForcedVisionPages(input.executionControl);
+  const skippedTranslationPages = getSkippedTranslationPages(input.executionControl);
+  const visionTargetPages = Array.from(
+    new Set([
+      ...selectVisionTargetPages(
+        extracted,
+        built.reference.sections,
+        documentMainType,
+        built.diagnostics
+      ),
+      ...forcedVisionPages
+    ])
+  ).sort((left, right) => left - right);
   const lowConfidenceSegments = built.reference.sections
     .flatMap((section) => section.segments)
     .filter(
@@ -3607,15 +3709,21 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     segments,
     input.maxSegmentsForTranslation,
     input.translationModelOverride,
-    documentMainType
+    documentMainType,
+    input.executionControl?.rework?.instruction,
+    input.executionControl?.rework?.pageNumbers
   );
   for (const segment of segments) {
     const zh = translatedMap.get(segment.id);
     if (zh) segment.zh = zh;
   }
+  const filteredSegments =
+    skippedTranslationPages.size > 0
+      ? segments.filter((segment) => !skippedTranslationPages.has(segment.pageNumber))
+      : segments;
   const coverage = summarizeTranslationCoverage(segments, documentMainType);
   const bilingualBundleSegments = selectBilingualBundleSegments(
-    segments,
+    filteredSegments,
     documentMainType,
     outputStrategy
   );
@@ -3632,7 +3740,7 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     businessPreviewReady: coverage.isBusinessPreviewReady
   });
   const outputs: PipelineResult['outputs'] = (() => {
-    const annotatedPdf = buildAnnotatedPdfOutput(segments, documentMainType);
+    const annotatedPdf = buildAnnotatedPdfOutput(filteredSegments, documentMainType);
     const bilingualTableBundle =
       outputStrategy === 'bilingual_table_bundle' || bilingualBundleSegments.length > 0
         ? buildBilingualTableBundle(bilingualBundleSegments)
@@ -3667,7 +3775,7 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
       input.fileName,
       documentMainType,
       outputs.annotatedPdf,
-      segments,
+      filteredSegments,
       {
         translatedSegmentCount: coverage.translatedSegmentCount,
         translationCoveragePct: coverage.translationCoveragePct,

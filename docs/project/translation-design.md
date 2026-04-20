@@ -12,6 +12,35 @@
 
 本文只描述当前已实现或已验证的设计，不引入未来未落地的能力假设。
 
+## 2026-04-20 闭环控制面基线
+
+当前 PDF 翻译主链除了 `translation_snapshot_v1` 与 `pdf_translation_skill_v1` 之外，还新增了 task 内部的 revision 控制面：
+
+- review object 仍然是 task
+- revision 仅用于记录 `base / override / rework`
+- `POST /api/tasks/:taskId/overrides` 把页级控制写入当前 task revision
+- `POST /api/tasks/:taskId/rework` 把有界返工指令写入当前 task revision
+- `GET /api/tasks/:taskId/revisions/:revisionId` 暴露 lineage 查询
+
+当前 `pdf_translation_skill_v1` 已附带 revision 元数据：
+
+- `revision.id`
+- `revision.kind`
+- `revision.parentRevisionId`
+- `revision.revisionCount`
+- `revision.currentControl`
+
+当前 pipeline 已消费 revision control 的页级部分：
+
+- `forceVisionPages` 会并入 `visionTargetPages`
+- `skipTranslationPages` / `keep_original` 会在输出侧抑制对应页的中文翻译项
+
+当前 rework 的执行边界：
+
+- 服务端当前只接受 `pageNumbers`
+- route 会把页级目标写入 revision，并把 rework instruction 传入当前 B 翻译 prompt
+- 当前 pipeline 仍按整任务主链执行，未切到底层 extractor 级别的真正局部计算
+
 ## PDF 翻译链路架构图（评审落库，2026-03-29）
 
 本节将「入口层 / 识别与翻译主管线 / Web 版式 PDF 渲染 / 评测」分层关系固化为文档，与实现对照；后续演进以代码与 `plan.md` 为准。

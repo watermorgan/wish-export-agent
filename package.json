@@ -31,6 +31,7 @@
     "verify:async-task-submit": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-async-task-submit.ts",
     "verify:ui": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ui-smoke.ts",
     "verify:pdf-e2e": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-pdf-task-e2e.ts",
+    "verify:task-revision-flow": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-task-revision-flow.ts",
     "verify:ting-skill-payload": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-skill-payload.ts",
     "verify:ting-service-cli": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-service-cli.ts",
     "verify:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02.ts",

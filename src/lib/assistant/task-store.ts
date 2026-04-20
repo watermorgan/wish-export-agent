@@ -7,6 +7,11 @@ import {
   skillCatalog,
   workflowTemplates
 } from '@/lib/assistant/catalog';
+import {
+  applyTaskRevisionSummaryToRecord,
+  buildTaskRevisionSummary,
+  ensureBaseTaskRevision
+} from '@/lib/assistant/task-iteration';
 import { hasDatabaseConfig, queryDb, withDbTransaction } from '@/lib/assistant/db';
 import type { PdfTranslationSkillPayload } from '@/lib/assistant/types';
 import type {
@@ -450,7 +455,7 @@ function getReviewStatusLabel(reviewStatus: ReviewStatus) {
 }
 
 function toTaskRecordFromRow(row: TaskRow): TaskRecord {
-  return {
+  return applyTaskRevisionSummaryToRecord({
     id: row.id,
     title: row.title,
     role: row.role,
@@ -472,7 +477,7 @@ function toTaskRecordFromRow(row: TaskRow): TaskRecord {
     reviewedBy: row.reviewed_by ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at
-  };
+  }, row.request_payload);
 }
 
 function buildTaskRecord(
@@ -483,7 +488,7 @@ function buildTaskRecord(
   updatedAt: string,
   overrides: Partial<TaskRecord> = {}
 ): TaskRecord {
-  return {
+  return applyTaskRevisionSummaryToRecord({
     id,
     title: createTaskTitle(request.question, reply.taskTypeLabel),
     role: request.role,
@@ -510,7 +515,7 @@ function buildTaskRecord(
     createdAt,
     updatedAt,
     ...overrides
-  };
+  }, request);
 }
 
 function createStoredTask(
@@ -522,12 +527,19 @@ function createStoredTask(
   overrides: Partial<TaskRecord> = {}
 ): StoredTask {
   const record = buildTaskRecord(id, request, reply, createdAt, updatedAt, overrides);
+  const taskIteration = buildTaskRevisionSummary(request);
 
   return {
     record,
     request,
     reply: {
       ...reply,
+      metadata: taskIteration
+        ? {
+            ...(reply.metadata ?? { needsHumanReview: true }),
+            taskIteration
+          }
+        : reply.metadata,
       task: record
     }
   };
@@ -1122,7 +1134,9 @@ export async function createTaskFromExecution(
 ): Promise<TaskSnapshot> {
   await ensureMemoryStoreLoaded();
   const id = createTaskId();
-  const snapshot = storeSnapshot(id, request, reply);
+  const normalizedRequest =
+    reply.taskType === 'feedback' ? ensureBaseTaskRevision(request, id) : request;
+  const snapshot = storeSnapshot(id, normalizedRequest, reply);
   await persistMemoryStoreNow();
 
   if (!hasDatabaseConfig()) {
@@ -1132,7 +1146,7 @@ export async function createTaskFromExecution(
   try {
     await withDbTransaction(async (client) => {
       await acquireTaskWriteLock(client, snapshot.task.id);
-      await insertTaskRow(client, snapshot, request);
+      await insertTaskRow(client, snapshot, normalizedRequest);
       await replaceTaskChildren(
         client,
         snapshot.task.id,
@@ -1158,13 +1172,15 @@ export async function updateTaskFromExecution(
 ): Promise<TaskSnapshot | null> {
   await ensureMemoryStoreLoaded();
   const existing = taskStore.get(taskId);
+  const normalizedRequest =
+    reply.taskType === 'feedback' ? ensureBaseTaskRevision(request, taskId) : request;
 
   if (!hasDatabaseConfig()) {
     if (!existing) {
       return null;
     }
 
-    return replaceStoredTask(taskId, request, reply, existing.record.createdAt);
+    return replaceStoredTask(taskId, normalizedRequest, reply, existing.record.createdAt);
   }
 
   const stored = existing ?? (await getStoredTaskFromDb(taskId));
@@ -1173,13 +1189,13 @@ export async function updateTaskFromExecution(
     return null;
   }
 
-  const snapshot = replaceStoredTask(taskId, request, reply, stored.record.createdAt);
+  const snapshot = replaceStoredTask(taskId, normalizedRequest, reply, stored.record.createdAt);
   await persistMemoryStoreNow();
 
   try {
     await withDbTransaction(async (client) => {
       await acquireTaskWriteLock(client, taskId);
-      await updateTaskRow(client, snapshot, request);
+      await updateTaskRow(client, snapshot, normalizedRequest);
       await replaceTaskChildren(
         client,
         snapshot.task.id,

@@ -37,6 +37,52 @@ export type WorkspaceFeedbackDraft = {
   tags: string[];
 };
 
+export type TaskPageDirectiveAction = 'force_vision' | 'skip_translation' | 'keep_original';
+
+export type TaskPageDirective = {
+  pageNumber: number;
+  action: TaskPageDirectiveAction;
+  note?: string;
+};
+
+export type TaskPageOverrides = {
+  forceVisionPages?: number[];
+  skipTranslationPages?: number[];
+  pageDirectives?: TaskPageDirective[];
+};
+
+export type TaskReworkScope = 'pages';
+
+export type TaskReworkRequest = {
+  scope: TaskReworkScope;
+  pageNumbers?: number[];
+  instruction: string;
+  note?: string;
+  sourceFeedbackIds?: string[];
+};
+
+export type TaskExecutionControl = {
+  pageOverrides?: TaskPageOverrides;
+  rework?: TaskReworkRequest | null;
+};
+
+export type TaskRevisionKind = 'base' | 'override' | 'rework';
+export type TaskRevisionState = 'running' | 'ready' | 'failed' | 'superseded';
+
+export type TaskRevision = {
+  id: string;
+  taskId: string;
+  parentRevisionId?: string | null;
+  kind: TaskRevisionKind;
+  createdAt: string;
+  createdBy: AssistantRole | 'external_agent';
+  state: TaskRevisionState;
+  reason?: string;
+  control?: TaskExecutionControl;
+  targetPages?: number[];
+  sourceFeedbackIds?: string[];
+};
+
 export type UploadedFile = {
   name: string;
   size: number;
@@ -200,6 +246,13 @@ export type PdfTranslationSkillPayload = {
   humanReviewGuide?: HumanReviewGuide;
   /** 页面反馈预填的唯一主链来源，优先来自 translation snapshot。 */
   feedbackSource?: WorkspaceFeedbackSource;
+  revision?: {
+    id: string;
+    kind: TaskRevisionKind;
+    parentRevisionId?: string | null;
+    revisionCount?: number;
+    currentControl?: TaskExecutionControl | null;
+  };
   snapshot?: {
     version: 'translation_snapshot_v1';
     fileName: string;
@@ -226,6 +279,7 @@ export type PdfTranslationSkillPayload = {
     translatedBusinessSegmentCount?: number;
     businessTranslationCoveragePct?: number;
     businessPreviewReady?: boolean;
+    skippedTranslationPages?: number[];
     activeModel?: string;
     activeProvider?: string;
   };
@@ -254,6 +308,13 @@ export type AssistantReplyMetadata = {
   humanReviewGuide?: HumanReviewGuide;
   /** 稳定的 PDF skill 输出协议，供页面/skill/Ting 外贸助手共用。 */
   skillPayload?: PdfTranslationSkillPayload;
+  taskIteration?: {
+    currentRevisionId?: string;
+    baseRevisionId?: string;
+    revisionCount?: number;
+    currentControl?: TaskExecutionControl | null;
+    latestRevision?: TaskRevision;
+  };
   translationTiming?: {
     totalMs: number;
     sourceBuildMs?: number;
@@ -302,6 +363,10 @@ export type TaskRecord = {
   summary: string;
   pendingConfirmationCount: number;
   blockingIssueCount: number;
+  currentRevisionId?: string;
+  baseRevisionId?: string;
+  revisionCount?: number;
+  lineageMode?: 'in_task_revision';
   reviewComment?: string;
   reviewedBy?: AssistantRole;
   createdAt: string;

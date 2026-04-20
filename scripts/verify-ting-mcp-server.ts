@@ -202,6 +202,10 @@ async function main() {
       toolNames.includes('get_pdf_translation_skill_payload'),
       'get-skill-payload tool should be registered'
     );
+    assert(toolNames.includes('submit_task_overrides'), 'override tool should be registered');
+    assert(toolNames.includes('request_task_rework'), 'rework tool should be registered');
+    assert(toolNames.includes('get_task_revision'), 'get-revision tool should be registered');
+    assert(toolNames.includes('submit_feedback_case'), 'feedback tool should be registered');
 
     const happy = (await client.request('tools/call', {
       name: 'get_pdf_translation_skill_payload',
