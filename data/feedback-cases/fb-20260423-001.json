@@ -1,0 +1,18 @@
+{
+  "id": "fb-20260423-001",
+  "category": "missing_content",
+  "priority": "high",
+  "status": "open",
+  "source": {
+    "taskId": "task_1776947878363_f3c3xg",
+    "fileName": "dingtalk-file-1776947841470-x0uepw.pdf"
+  },
+  "reporter": "ting",
+  "reportedAt": "2026-04-23T12:53:49.874Z",
+  "tags": [
+    "rework-hang",
+    "missing-recognition",
+    "M445033"
+  ],
+  "resolution": null
+}

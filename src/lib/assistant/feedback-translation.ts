@@ -1159,7 +1159,8 @@ async function buildPipelineFallbackReply(
   sourceFile: UploadedFile,
   sourceBuildMs: number,
   startedAt: number,
-  mode: 'fallback' | 'primary' = 'fallback'
+  mode: 'fallback' | 'primary' = 'fallback',
+  signal?: AbortSignal
 ): Promise<AssistantReply | null> {
   const filePath = sourceFile.storagePath ?? sourceFile.localPath;
 
@@ -1171,7 +1172,8 @@ async function buildPipelineFallbackReply(
     filePath,
     fileName: sourceFile.name,
     translationModelOverride: request.translationModelOverride ?? request.modelOverride,
-    executionControl: getActiveTaskExecutionControl(request)
+    executionControl: getActiveTaskExecutionControl(request),
+    signal
   });
 
   const pdfArtifactLinks = [];
@@ -1576,7 +1578,8 @@ async function buildFixtureReply(
 
 export async function maybeRunRealFeedbackTranslation(
   request: AssistantRequest,
-  reply: AssistantReply
+  reply: AssistantReply,
+  signal?: AbortSignal
 ): Promise<AssistantReply> {
   const startedAt = Date.now();
   const isFeedbackTask = reply.taskType === 'feedback';
@@ -1606,7 +1609,8 @@ export async function maybeRunRealFeedbackTranslation(
       sourceFile,
       Date.now() - sourceBuildStartedAt,
       startedAt,
-      'primary'
+      'primary',
+      signal
     );
     if (pipelineReply) {
       return pipelineReply;
@@ -1744,7 +1748,9 @@ export async function maybeRunRealFeedbackTranslation(
         reply,
         sourceFile,
         sourceBuildMs,
-        startedAt
+        startedAt,
+        'fallback',
+        signal
       );
       if (fallbackReply) {
         return fallbackReply;

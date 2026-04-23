@@ -55,7 +55,7 @@ export async function POST(request: Request, context: RouteContext) {
     try {
       console.log(`[rework] calling runAssistant...`);
       const reply = await Promise.race([
-        runAssistant(nextRequest),
+        runAssistant(nextRequest, reworkController.signal),
         new Promise<never>((_, reject) => {
           const timer = setTimeout(() => {
             reworkController.abort();

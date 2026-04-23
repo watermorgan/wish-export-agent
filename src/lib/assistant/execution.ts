@@ -667,7 +667,7 @@ export function buildValidatingExecutionReply(
   };
 }
 
-export async function runAssistant(request: AssistantRequest): Promise<AssistantReply> {
+export async function runAssistant(request: AssistantRequest, signal?: AbortSignal): Promise<AssistantReply> {
   const {
     taskType,
     taskTypeLabel,
@@ -712,7 +712,8 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
         providerHits: [],
         modelHits: [],
         skippedLegacySteps: ['comment-translator']
-      })
+      }),
+      signal
     );
   }
 
@@ -814,5 +815,5 @@ export async function runAssistant(request: AssistantRequest): Promise<Assistant
     skippedLegacySteps
   });
 
-  return maybeRunRealFeedbackTranslation(request, baseReply);
+  return maybeRunRealFeedbackTranslation(request, baseReply, signal);
 }

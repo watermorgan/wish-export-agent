@@ -42,6 +42,7 @@ type PipelineInput = {
   translationModelOverride?: string;
   executionControl?: TaskExecutionControl | null;
   baselineSnapshot?: TranslationSnapshot | null;
+  signal?: AbortSignal;
 };
 
 export type DocumentMainType = 'sketch_comment' | 'tp_bom_table_heavy' | 'mixed';
@@ -126,6 +127,7 @@ export type PipelineResult = {
       | 'coverage_too_low'
       | 'no_translations'
       | 'no_business_translations';
+    lowInfoTranslationCount?: number;
   };
   segments: Array<{
     id: string;
@@ -3005,6 +3007,66 @@ export function normalizeFashionTranslation(source: string, zh: string) {
   return text;
 }
 
+/**
+ * Information ratio: measures how much of the source semantic content
+ * is preserved in the translation. Returns 0–1.
+ *
+ * Design principles (engineering cybernetics – feedback control):
+ * - Uses token overlap as a proxy for information preservation
+ * - Penalises translations that are much shorter than expected
+ * - Designed for long compound sentences (>40 chars) where Q2_K models lose info
+ */
+export function measureInformationRatio(en: string, zh: string): number {
+  if (!en || en.trim().length < 20) return 1; // short texts are not checked
+
+  // Extract meaningful English tokens (skip articles, prepositions, conjunctions)
+  const stopWords = new Set([
+    'a', 'an', 'the', 'in', 'on', 'at', 'of', 'with', 'for', 'to', 'and', 'or',
+    'is', 'are', 'was', 'were', 'be', 'been', 'by', 'from', 'as', 'it', 'its',
+    'this', 'that', 'but', 'not', 'no', 'all', 'each', 'every', 'both', 'any',
+    'few', 'more', 'most', 'other', 'some', 'such', 'than', 'too', 'very'
+  ]);
+  const enTokens = en.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/)
+    .filter(t => t.length > 1 && !stopWords.has(t));
+  if (enTokens.length < 3) return 1; // too few tokens to judge
+
+  // Count distinct meaningful tokens
+  const distinctTokens = new Set(enTokens);
+
+  // Estimate Chinese character coverage: each Chinese char ≈ 0.8 English tokens of information
+  // Remove non-essential characters
+  const zhChars = (zh || '').replace(/[^\u4e00-\u9fff\u3400-\u4dbf0-9a-zA-Z]/g, '');
+  const zhCharCount = zhChars.length;
+
+  // Expected minimum Chinese chars: roughly 1.2 chars per meaningful English token
+  // (conservative — fashion terms often translate to short Chinese)
+  const expectedMinChars = Math.max(1, Math.ceil(distinctTokens.size * 0.8));
+
+  // Ratio: how many expected chars are present
+  const charRatio = Math.min(1, zhCharCount / expectedMinChars);
+
+  // Length ratio: if zh is drastically shorter than en, something was lost
+  // Allow 0.4:1 as minimum (Chinese is more compact)
+  const lengthRatio = Math.min(1, (zhCharCount * 2.5) / en.trim().length);
+
+  // Combined: harmonic mean penalises if either is low
+  if (charRatio === 0 || lengthRatio === 0) return 0;
+  return (2 * charRatio * lengthRatio) / (charRatio + lengthRatio);
+}
+
+const INFO_RATIO_THRESHOLD = Number(process.env.TRANSLATION_INFO_RATIO_THRESHOLD ?? '0.35');
+
+/**
+ * Check if a translation has unacceptably low information preservation.
+ * Only applies to longer source texts (>40 chars) where quality loss is impactful.
+ */
+export function isLowInformationTranslation(en: string, zh: string): boolean {
+  if (en.trim().length < 40) return false; // short texts are exempt
+  if (!zh || zh.trim().length < 2) return true; // empty translation is always low
+  const ratio = measureInformationRatio(en, zh);
+  return ratio < INFO_RATIO_THRESHOLD;
+}
+
 function shouldUseInlineAnnotatedNote(
   segment: PipelineResult['segments'][number],
   zh: string,
@@ -3060,7 +3122,8 @@ async function translateSegmentsWithModelB(
   translationModelOverride?: string,
   documentMainType?: DocumentMainType,
   reworkInstruction?: string,
-  reworkTargetPages?: number[]
+  reworkTargetPages?: number[],
+  signal?: AbortSignal
 ): Promise<{ map: Map<string, string>; stats: BModelBatchStats }> {
   const translated = new Map<string, string>();
   const configured = isTranslationModelConfigured(translationModelOverride);
@@ -3364,6 +3427,8 @@ async function translateSegmentsWithModelB(
       }
 
       const passAbortController = new AbortController();
+      if (signal?.aborted) { passAbortController.abort(); }
+      signal?.addEventListener('abort', () => passAbortController.abort(), { once: true });
       const passConcurrency =
         options.concurrencyOverride ??
         (options.promptMode === 'default' ? concurrency : 1);
@@ -3697,7 +3762,8 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
         translationCoveragePct: 0,
         businessPreviewThresholdPct: BUSINESS_PREVIEW_THRESHOLD_PCT,
         isBusinessPreviewReady: false,
-        previewSuppressedReason: 'coverage_too_low'
+        previewSuppressedReason: 'coverage_too_low',
+        lowInfoTranslationCount: 0
       },
       segments: [],
       outputs: {},
@@ -3839,7 +3905,8 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     input.translationModelOverride,
     documentMainType,
     input.executionControl?.rework?.instruction,
-    input.executionControl?.rework?.pageNumbers
+    input.executionControl?.rework?.pageNumbers,
+    input.signal
   );
   for (const segment of segments) {
     const zh = translatedMap.get(segment.id);
@@ -3867,7 +3934,10 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
         untranslatedTextLayerSegments,
         untranslatedTextLayerSegments.length,
         input.translationModelOverride,
-        documentMainType
+        documentMainType,
+        undefined,
+        undefined,
+        input.signal
       );
       for (const segment of untranslatedTextLayerSegments) {
         const zh = supplementMap.get(segment.id);
@@ -3893,6 +3963,25 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
         if (fallbackZh) segment.zh = fallbackZh;
       }
     }
+  }
+  // Information ratio quality gate — negative feedback loop
+  // Mark translations where the model lost significant source information
+  let lowInfoCount = 0;
+  for (const segment of segments) {
+    if (segment.zh && isLowInformationTranslation(segment.text, segment.zh)) {
+      lowInfoCount++;
+      // Don't suppress — keep the translation but mark for human review
+      // This is "feedback control" not "censorship": surface the problem, don't hide it
+    }
+  }
+  if (lowInfoCount > 0) {
+    logPipelineDebug('pipeline.info_ratio_quality_gate', {
+      pipelineId,
+      fileName: input.fileName,
+      lowInfoCount,
+      totalSegments: segments.length,
+      lowInfoRatio: (lowInfoCount / segments.length).toFixed(2)
+    });
   }
   const filteredSegments =
     skippedTranslationPages.size > 0
@@ -4004,7 +4093,8 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
       businessPreviewThresholdPct: coverage.businessPreviewThresholdPct,
       isBusinessPreviewReady: coverage.isBusinessPreviewReady,
       skippedTranslationPages: Array.from(skippedTranslationPages).sort((left, right) => left - right),
-      previewSuppressedReason: coverage.previewSuppressedReason
+      previewSuppressedReason: coverage.previewSuppressedReason,
+      lowInfoTranslationCount: lowInfoCount
     },
     segments,
     outputs
