@@ -1,3 +1,4 @@
+import { buildAiDisclosure } from '@/lib/assistant/disclosure';
 import type {
   AssistantReply,
   PdfTranslationSkillPayload,
@@ -91,6 +92,12 @@ export function buildTingPdfTranslationPayload(
     annotatedPdfUrl
   }));
   const deliveryPdfUrl = annotatedPdfUrl;
+  // wrapper 层按外部可见的 task.reviewStatus 重建披露，保证未审任务对外披露为“不得直接使用”，
+  // 已审任务降级为“请再次确认商务承诺”。payload 的 watermarkVersion 仍由构建侧负责。
+  const disclosure = buildAiDisclosure({
+    reviewStatus: task.reviewStatus,
+    watermarkVersion: result.disclosure?.watermarkVersion ?? null
+  });
 
   return {
     kind: 'ting_pdf_translation_v1',
@@ -103,6 +110,7 @@ export function buildTingPdfTranslationPayload(
     },
     result: {
       ...result,
+      disclosure,
       deliveryPdfUrl,
       artifactLinks
     }

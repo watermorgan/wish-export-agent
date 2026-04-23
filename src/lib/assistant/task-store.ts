@@ -13,6 +13,7 @@ import {
   ensureBaseTaskRevision
 } from '@/lib/assistant/task-iteration';
 import { hasDatabaseConfig, queryDb, withDbTransaction } from '@/lib/assistant/db';
+import { buildAiDisclosure } from '@/lib/assistant/disclosure';
 import type { PdfTranslationSkillPayload } from '@/lib/assistant/types';
 import type {
   ArtifactSection,
@@ -233,6 +234,7 @@ function ensureUiFixtureTask(taskId: string) {
     outputStrategy: 'annotated_pdf',
     summary: 'UI 预览样例已生成，可用于页面与 skill 输出验证。',
     reviewRequired: true,
+    disclosure: buildAiDisclosure({ reviewStatus: 'approved' }),
     deliveryPdfUrl: '/api/tasks/task_ui_fixture_preview/translation-pdf?download=1',
     artifactLinks: [
       {

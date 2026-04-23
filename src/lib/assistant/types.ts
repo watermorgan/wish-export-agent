@@ -1,4 +1,5 @@
 import type { FeedbackCategory, FeedbackPriority } from '@/lib/feedback/types';
+import type { PdfTranslationSkillDisclosure } from '@/lib/assistant/disclosure';
 
 export type AssistantChannel = 'web' | 'feishu' | 'slack' | 'wecom';
 
@@ -240,6 +241,11 @@ export type PdfTranslationSkillPayload = {
   outputStrategy: string;
   summary: string;
   reviewRequired: boolean;
+  /**
+   * 面向所有外部消费方的统一 AI 披露对象；consumer 应直接渲染其中的 zh/en 文案。
+   * 具体口径见 docs/product/07-ai-disclosure-policy.md。
+   */
+  disclosure?: PdfTranslationSkillDisclosure;
   /** 唯一正式交付入口：原文档标注式翻译 PDF。 */
   deliveryPdfUrl?: string | null;
   artifactLinks: PdfArtifactLinkEntry[];

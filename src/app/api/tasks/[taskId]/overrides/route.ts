@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { buildAiDisclosure } from '@/lib/assistant/disclosure';
 import { updatePdfTranslationSkillPayload } from '@/lib/assistant/pdf-translation-skill';
 import { readTaskOverride } from '@/lib/assistant/task-input';
 import {
@@ -79,6 +80,9 @@ export async function POST(request: Request, context: RouteContext) {
         }
       }, (skillPayload) => ({
         ...skillPayload,
+        disclosure: buildAiDisclosure({
+          watermarkVersion: skillPayload.disclosure?.watermarkVersion ?? null
+        }),
         revision: revisionSummary
           ? {
               id: revisionSummary.currentRevisionId,

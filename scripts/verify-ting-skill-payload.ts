@@ -8,6 +8,7 @@ import {
   buildTingPdfTranslationPayload,
   getPdfTranslationSkillPayload
 } from '@/lib/assistant/pdf-translation-skill';
+import { isPdfTranslationSkillDisclosure } from '@/lib/assistant/disclosure';
 import { getTask } from '@/lib/assistant/task-store';
 import type { AssistantReply, AssistantRequest } from '@/lib/assistant/types';
 
@@ -75,6 +76,14 @@ async function verifyHelperBranches() {
     metadataPayload.artifactLinks[0]?.annotatedPreviewUrl === '/preview/task/task_ui_fixture_preview',
     'metadata payload should preserve fixture preview link'
   );
+  assert(
+    isPdfTranslationSkillDisclosure(metadataPayload.disclosure),
+    'metadata payload should expose AI disclosure object'
+  );
+  assert(
+    metadataPayload.disclosure!.contentOrigin === 'ai_generated',
+    'metadata disclosure.contentOrigin must be ai_generated'
+  );
 
   const artifactOnlyReply: AssistantReply = stored.reply.metadata
     ? {
@@ -110,6 +119,15 @@ async function verifyHelperBranches() {
   assert(
     wrapped.result.deliveryPdfUrl === '/api/tasks/task_ui_fixture_preview/translation-pdf?download=1',
     'Ting payload should inject deliveryPdfUrl'
+  );
+  assert(
+    isPdfTranslationSkillDisclosure(wrapped.result.disclosure),
+    'Ting wrapper should rebuild AI disclosure against task.reviewStatus'
+  );
+  assert(
+    wrapped.result.disclosure!.humanReviewRequired === false &&
+      wrapped.result.disclosure!.notForExternalSendWithoutReview === false,
+    'approved fixture task should downgrade disclosure guard flags to false'
   );
 }
 
@@ -155,6 +173,20 @@ async function verifyRouteSuccess(baseUrl: string) {
   assert(
     payload.result?.artifactLinks?.[0]?.annotatedPreviewUrl === '/preview/task/task_ui_fixture_preview',
     'fixture route should preserve preview link'
+  );
+  assert(
+    isPdfTranslationSkillDisclosure(payload.result?.disclosure),
+    'fixture route should expose AI disclosure object'
+  );
+  assert(
+    typeof payload.result?.disclosure?.disclosureZh === 'string' &&
+      payload.result.disclosure.disclosureZh.length > 0,
+    'fixture route disclosure.disclosureZh should be non-empty'
+  );
+  assert(
+    typeof payload.result?.disclosure?.disclosureEn === 'string' &&
+      payload.result.disclosure.disclosureEn.length > 0,
+    'fixture route disclosure.disclosureEn should be non-empty'
   );
 }
 

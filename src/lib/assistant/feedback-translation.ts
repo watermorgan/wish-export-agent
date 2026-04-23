@@ -22,6 +22,7 @@ import {
   buildTaskRevisionSummary,
   getActiveTaskExecutionControl
 } from '@/lib/assistant/task-iteration';
+import { buildAiDisclosure } from '@/lib/assistant/disclosure';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -1067,6 +1068,7 @@ function buildPdfTranslationSkillPayload(options: {
     outputStrategy: pipelineResult.outputStrategy,
     summary,
     reviewRequired: true,
+    disclosure: buildAiDisclosure(),
     deliveryPdfUrl: null,
     artifactLinks: pdfArtifactLinks,
     humanReviewGuide,
@@ -1425,6 +1427,7 @@ async function buildFixtureReply(
       outputStrategy: snapshot.outputStrategy,
       summary: '当前未连通正式模型，已使用结构化人工标准答案生成业务预览。',
       reviewRequired: false,
+      disclosure: buildAiDisclosure(),
       deliveryPdfUrl: null,
       artifactLinks: [],
       revision: revisionSummary
