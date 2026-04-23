@@ -28,6 +28,7 @@ coverage/
 *.swo
 
 # Agent local state
+.omc/
 .claude/
 .codex/
 .playwright-mcp/
