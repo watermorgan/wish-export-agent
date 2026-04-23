@@ -22,7 +22,7 @@ import {
   buildTaskRevisionSummary,
   getActiveTaskExecutionControl
 } from '@/lib/assistant/task-iteration';
-import { buildAiDisclosure } from '@/lib/assistant/disclosure';
+import { buildAiDisclosure, isDisclosureWatermarkEnabled } from '@/lib/assistant/disclosure';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -1068,7 +1068,9 @@ function buildPdfTranslationSkillPayload(options: {
     outputStrategy: pipelineResult.outputStrategy,
     summary,
     reviewRequired: true,
-    disclosure: buildAiDisclosure(),
+    disclosure: buildAiDisclosure({
+      watermarkVersion: isDisclosureWatermarkEnabled() ? 'v1' : null
+    }),
     deliveryPdfUrl: null,
     artifactLinks: pdfArtifactLinks,
     humanReviewGuide,

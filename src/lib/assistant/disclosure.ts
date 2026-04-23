@@ -61,6 +61,34 @@ export function buildAiDisclosure(params?: {
   };
 }
 
+/**
+ * 当前披露水印开关。环境变量 EXPORT_AGENT_AI_DISCLOSURE=off 时关闭渲染侧水印；
+ * 其它值（包括未设置）均视为开启。
+ */
+export function isDisclosureWatermarkEnabled(): boolean {
+  const raw = process.env.EXPORT_AGENT_AI_DISCLOSURE;
+  if (typeof raw !== 'string') return true;
+  return raw.trim().toLowerCase() !== 'off';
+}
+
+/**
+ * 构造统一的 footer / watermark 文字。coverage 与 generatedAt 均可选，
+ * 缺失时跳过对应分段，避免出现 "Coverage NaN%" 这种不体面的文案。
+ */
+export function buildDisclosureWatermarkText(params: {
+  coveragePct?: number | null;
+  generatedAt?: string | null;
+}): string {
+  const parts: string[] = ['AI Translation Draft', 'Human Review Required'];
+  if (typeof params.coveragePct === 'number' && Number.isFinite(params.coveragePct)) {
+    parts.push(`Coverage ${Math.round(params.coveragePct)}%`);
+  }
+  if (typeof params.generatedAt === 'string' && params.generatedAt) {
+    parts.push(`Generated ${params.generatedAt}`);
+  }
+  return parts.join(' · ');
+}
+
 export function isPdfTranslationSkillDisclosure(
   value: unknown
 ): value is PdfTranslationSkillDisclosure {

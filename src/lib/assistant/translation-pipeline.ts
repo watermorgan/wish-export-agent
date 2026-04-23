@@ -4,6 +4,12 @@ import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import PDFDocument from 'pdfkit';
 import * as XLSX from 'xlsx';
+import {
+  AI_DISCLOSURE_TEXT_EN,
+  AI_DISCLOSURE_TEXT_ZH,
+  buildDisclosureWatermarkText,
+  isDisclosureWatermarkEnabled
+} from '@/lib/assistant/disclosure';
 
 import { buildFeedbackSourceReferenceWithDiagnostics } from '@/lib/assistant/feedback-source';
 import { extractPdfText } from '@/lib/assistant/file-extractor';
@@ -1018,7 +1024,8 @@ async function materializeBilingualXlsx(
   ];
 
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
+  const summarySheet = buildSummarySheetWithDisclosure(summaryRows);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
   XLSX.utils.book_append_sheet(
     workbook,
     XLSX.utils.json_to_sheet(translatedOnlyRows.length > 0 ? translatedOnlyRows : [{ Note: 'No translated rows available yet.' }]),
@@ -1031,6 +1038,35 @@ async function materializeBilingualXlsx(
     kind: 'bilingual_xlsx' as const,
     relativePath
   };
+}
+
+/**
+ * 在 Summary sheet 顶部前置两行 AI 披露（中英各一行），再接原有指标表。
+ * 通过 EXPORT_AGENT_AI_DISCLOSURE=off 关闭。
+ *
+ * 为保留原有的 `Metric`/`Value` 表头展示，我们使用 sheet_add_aoa 往同一个
+ * worksheet 按行写入，起点从 A1 开始：
+ *   A1 -> 中文披露
+ *   A2 -> 英文披露
+ *   A3 -> 空行
+ *   A4 -> 原来的 Metric / Value 指标列
+ */
+function buildSummarySheetWithDisclosure(
+  summaryRows: Array<{ Metric: string; Value: unknown }>
+) {
+  const sheet = XLSX.utils.aoa_to_sheet([[]]);
+  if (!isDisclosureWatermarkEnabled()) {
+    XLSX.utils.sheet_add_json(sheet, summaryRows, { origin: 'A1' });
+    return sheet;
+  }
+  const banner = [
+    [`AI 披露 · ${AI_DISCLOSURE_TEXT_ZH}`],
+    [`AI Disclosure · ${AI_DISCLOSURE_TEXT_EN}`],
+    []
+  ];
+  XLSX.utils.sheet_add_aoa(sheet, banner, { origin: 'A1' });
+  XLSX.utils.sheet_add_json(sheet, summaryRows, { origin: 'A4' });
+  return sheet;
 }
 
 function escapePdfText(input: string) {
@@ -1064,7 +1100,10 @@ async function materializeTableStylePdf(
     size: 'A4',
     layout: 'landscape',
     // Reduce outer margins a bit for denser tables while keeping readability.
-    margins: { top: 14, left: 14, right: 14, bottom: 14 }
+    margins: { top: 14, left: 14, right: 14, bottom: 14 },
+    // bufferPages lets us switch back to earlier pages after layout is done to
+    // stamp the disclosure footer; without it switchToPage would throw.
+    bufferPages: true
   });
 
   const chunks: Buffer[] = [];
@@ -1281,6 +1320,11 @@ async function materializeTableStylePdf(
       width: pageWidth
     });
 
+    stampDisclosureFooterOnPdf(doc, {
+      coveragePct: coverage.translationCoveragePct,
+      generatedAt: new Date().toISOString()
+    });
+
     const emptyBufferPromise = new Promise<Buffer>((resolve, reject) => {
       doc.once('end', () => resolve(Buffer.concat(chunks)));
       doc.once('error', reject);
@@ -1381,6 +1425,11 @@ async function materializeTableStylePdf(
     y += rowHeight;
   }
 
+  stampDisclosureFooterOnPdf(doc, {
+    coveragePct: coverage.translationCoveragePct,
+    generatedAt: new Date().toISOString()
+  });
+
   const bufferPromise = new Promise<Buffer>((resolve, reject) => {
     doc.once('end', () => resolve(Buffer.concat(chunks)));
     doc.once('error', reject);
@@ -1393,6 +1442,34 @@ async function materializeTableStylePdf(
     kind: 'table_style_pdf' as const,
     relativePath
   };
+}
+
+/**
+ * 在 PDFKit 文档的每一页底部盖上统一的 AI 披露页脚。
+ * 通过 EXPORT_AGENT_AI_DISCLOSURE=off 关闭。调用方必须在创建文档时传入
+ * `bufferPages: true`，否则 switchToPage 会抛错。
+ */
+function stampDisclosureFooterOnPdf(
+  doc: InstanceType<typeof PDFDocument>,
+  params: { coveragePct?: number | null; generatedAt?: string | null }
+) {
+  if (!isDisclosureWatermarkEnabled()) return;
+  const text = buildDisclosureWatermarkText({
+    coveragePct: params.coveragePct ?? null,
+    generatedAt: params.generatedAt ?? null
+  });
+  const range = doc.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    doc.save();
+    doc.font('Helvetica').fontSize(6.5).fillColor('#64748b');
+    doc.text(text, doc.page.margins.left, doc.page.height - 10, {
+      width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+      lineBreak: false,
+      align: 'left'
+    });
+    doc.restore();
+  }
 }
 
 async function materializeAnnotatedHtmlPreview(

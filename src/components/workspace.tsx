@@ -1162,6 +1162,18 @@ export function Workspace() {
 
             <div className="answer-card answer-callout" data-testid="artifact-links">
               <h3>翻译结果入口</h3>
+              {reply?.metadata?.skillPayload?.disclosure ? (
+                <div
+                  className={`disclosure-banner disclosure-banner--${
+                    reply.metadata.skillPayload.disclosure.humanReviewRequired ? 'pending' : 'approved'
+                  }`}
+                  data-testid="ai-disclosure-banner"
+                  role="note"
+                >
+                  <strong>AI 披露</strong>
+                  <span>{reply.metadata.skillPayload.disclosure.disclosureZh}</span>
+                </div>
+              ) : null}
               <p className="meta-note">
                 表格类（TP/BOM）优先提供双语 Excel；线稿/批注类优先提供预览页。链接由服务端生成，与下方 JSON 一致。
               </p>

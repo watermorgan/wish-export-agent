@@ -58,6 +58,13 @@ MARKER_FONT_SIZE = _cfg("markerFontSize", 10)
 USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES", "1") != "0"
 USE_DENSE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_DENSE_INLINE_NOTES") == "1"
 
+# AI 披露水印（PR-2）：页脚文字由 export-agent 侧通过环境变量注入。
+# EXPORT_AGENT_AI_DISCLOSURE=off 时禁用。
+DISCLOSURE_FLAG = os.environ.get("EXPORT_AGENT_AI_DISCLOSURE", "on").strip().lower()
+DISCLOSURE_ENABLED = DISCLOSURE_FLAG != "off"
+DISCLOSURE_TEXT_DEFAULT = "AI Translation Draft · Human Review Required"
+DISCLOSURE_TEXT = os.environ.get("EXPORT_AGENT_AI_DISCLOSURE_TEXT") or DISCLOSURE_TEXT_DEFAULT
+
 
 def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value or "").strip().lower()
@@ -1563,9 +1570,50 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
         for page in appendix_reader.pages:
             writer.add_page(page)
 
+    _apply_disclosure_watermark(writer)
+
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
     with output_pdf.open("wb") as handle:
         writer.write(handle)
+
+
+def _apply_disclosure_watermark(writer: PdfWriter) -> None:
+    """Merge a page-level AI disclosure footer onto every page.
+
+    Gated by EXPORT_AGENT_AI_DISCLOSURE. The footer text is provided by the
+    caller via EXPORT_AGENT_AI_DISCLOSURE_TEXT (built from the canonical
+    `buildDisclosureWatermarkText` helper on the TS side, so PDF/xlsx/UI
+    stay in sync).
+    """
+    if os.environ.get("EXPORT_AGENT_AI_DISCLOSURE", "on").strip().lower() == "off":
+        return
+    text = os.environ.get("EXPORT_AGENT_AI_DISCLOSURE_TEXT", "").strip()
+    if not text:
+        text = "AI Translation Draft · Human Review Required"
+
+    for page in writer.pages:
+        media = page.mediabox
+        width = float(media.width)
+        height = float(media.height)
+
+        buf = io.BytesIO()
+        overlay = canvas.Canvas(buf, pagesize=(width, height))
+        overlay.setFont("Helvetica", 7)
+        overlay.setFillColor(colors.HexColor("#64748b"))
+        margin_x = 18
+        margin_y = 10
+        max_width = max(40, width - margin_x * 2)
+        rendered = text
+        if overlay.stringWidth(rendered, "Helvetica", 7) > max_width:
+            ellipsis = "…"
+            while rendered and overlay.stringWidth(rendered + ellipsis, "Helvetica", 7) > max_width:
+                rendered = rendered[:-1]
+            rendered = rendered + ellipsis
+        overlay.drawString(margin_x, margin_y, rendered)
+        overlay.save()
+        buf.seek(0)
+        overlay_page = PdfReader(buf).pages[0]
+        page.merge_page(overlay_page)
 
 
 def main() -> int:

@@ -4,6 +4,11 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { TranslationSnapshot } from '@/lib/assistant/translation-pipeline';
+import {
+  buildDisclosureWatermarkText,
+  isDisclosureWatermarkEnabled
+} from '@/lib/assistant/disclosure';
+import { isPdfTranslationSkillPayload } from '@/lib/assistant/pdf-translation-skill';
 import type { ArtifactField, AssistantRequest, AssistantReply } from '@/lib/assistant/types';
 
 const execFileAsync = promisify(execFile);
@@ -125,16 +130,38 @@ export async function ensureTranslationPdfArtifact(
 
   await writeFile(responseJsonPath, JSON.stringify(payload, null, 2), 'utf8');
 
+  const disclosureEnv = buildDisclosureEnv(reply);
+
   // Use arch -arm64 on macOS to avoid x86_64/ARM64 .so mismatch in pdfplumber/charset_normalizer
   const useArch = process.platform === 'darwin';
   const execArgs = useArch
     ? ['-arm64', 'python3', join(process.cwd(), 'scripts', 'render_feedback_pdf.py'), resolvedSource.inputPath, responseJsonPath, outputPdfPath]
     : ['python3', join(process.cwd(), 'scripts', 'render_feedback_pdf.py'), resolvedSource.inputPath, responseJsonPath, outputPdfPath];
-  await execFileAsync(useArch ? 'arch' : 'python3', execArgs);
+  await execFileAsync(useArch ? 'arch' : 'python3', execArgs, {
+    env: { ...process.env, ...disclosureEnv }
+  });
 
   return {
     pdfPath: outputPdfPath,
     fileName: outputPdfName
+  };
+}
+
+function buildDisclosureEnv(reply: AssistantReply): Record<string, string> {
+  if (!isDisclosureWatermarkEnabled()) {
+    return { EXPORT_AGENT_AI_DISCLOSURE: 'off' };
+  }
+  const payload = reply.metadata?.skillPayload;
+  if (!isPdfTranslationSkillPayload(payload)) {
+    return { EXPORT_AGENT_AI_DISCLOSURE: 'on' };
+  }
+  const text = buildDisclosureWatermarkText({
+    coveragePct: payload.diagnostics?.translationCoveragePct ?? null,
+    generatedAt: payload.disclosure?.generatedAt ?? null
+  });
+  return {
+    EXPORT_AGENT_AI_DISCLOSURE: 'on',
+    EXPORT_AGENT_AI_DISCLOSURE_TEXT: text
   };
 }
 

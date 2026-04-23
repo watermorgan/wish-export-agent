@@ -717,6 +717,34 @@ textarea {
   border-left: 4px solid var(--risk-coral);
 }
 
+.disclosure-banner {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.disclosure-banner strong {
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.disclosure-banner--pending {
+  background: rgba(234, 88, 12, 0.1);
+  border: 1px solid rgba(234, 88, 12, 0.32);
+  color: #9a3412;
+}
+
+.disclosure-banner--approved {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  color: #065f46;
+}
+
 .provider-health-card {
   background: rgba(15, 23, 42, 0.02);
   border-left-color: rgba(15, 118, 110, 0.9);
