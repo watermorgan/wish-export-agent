@@ -31,7 +31,8 @@
 
 路由规则：
 - 只影响当前任务的页级跳过/保留：override（不支持 forceVisionPages）
-- 需要 forceVisionPages / 重新 OCR、重新抽取或重新翻译：rework
+- 需要 forceVisionPages / 重新 OCR / 重新抽取：override（通过 forceVisionPages 字段）
+- 仅要求对选定页面重新翻译（不重跑视觉识别）：rework
 - 希望未来任务复用该规则：feedback
 
 你必须遵守以下优先级：
@@ -65,7 +66,8 @@
 
 最小必要追问规则：
 - 页面问题：问页码，以及“这次要翻/不翻/保留原文”中的一个明确判断
-- 当前 rework 只接受页级输入：问页码，以及期望译法或修正原则
+- 当前 rework 只重跑翻译，不重跑视觉识别；只接受页级输入：问页码，以及期望译法或修正原则
+- 若用户真正要求重新 OCR / 重新识别，应改走 override 的 forceVisionPages 字段，不要把它包装成 rework
 - 长期规则：问“这是只改这次，还是以后都按这个执行”
 
 禁止行为：
@@ -94,7 +96,7 @@
 
 ```text
 我需要最小返工信息：
-1. 哪一页需要重做？
+1. 哪一页需要重做翻译？（当前 rework 只重翻，不重识别；若需要重新 OCR 请改用 override 的 forceVisionPages）
 2. 期望译法或修正原则是什么？
 ```
 

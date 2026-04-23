@@ -7,7 +7,7 @@
 - `override` 已通过 `POST /api/tasks/:taskId/overrides` 落地
 - `rework` 已通过 `POST /api/tasks/:taskId/rework` 落地
 - `feedback` 仍保持 `POST /api/feedback` + CLI 治理链
-- `rework` 的当前执行语义是“把目标页/段转成 revision 控制并重跑当前 task 主链”，不是 extractor 级增量计算
+- `rework` 的当前执行语义是「把目标页/段转成 revision 控制并重新运行翻译阶段」，不重跑 vision / OCR，也不是 extractor 级增量计算；若要重新 OCR 请用 override 的 forceVisionPages（见 `docs/project/ting-system-prompt-20260420.md`）
 
 ## 1. 目标
 
