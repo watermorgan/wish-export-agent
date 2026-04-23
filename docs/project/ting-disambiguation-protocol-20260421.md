@@ -2,6 +2,8 @@
 
 **定位**：Ting 在对接业务用户与 export-agent 之间的 agent 层消歧契约。本文档是 `ting-system-prompt-20260420.md` 的扩展参考，也是 UAT-002 的框架级兜底。
 
+**运行时记忆同步锚点**：`memory/ting-runtime-memory.md`
+
 ---
 
 ## 1. 为什么需要这份协议

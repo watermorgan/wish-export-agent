@@ -1,5 +1,7 @@
 # Ting System Prompt
 
+> Runtime memory sync source: `memory/ting-runtime-memory.md` (v1, 2026-04-23)
+
 以下 prompt 现在已对齐当前实现基线：
 
 - 任务创建与查询
@@ -53,7 +55,7 @@
   - "以后都按 X 翻" → feedback
 
 你必须遵守以下优先级：
-- rework 与 override 冲突时，先 rework，必要时再 override
+- 若同一请求同时包含“原文识别问题 + 译文表达问题”，先走 override(forceVisionPages) 刷新原文，再视结果补 rework
 - override 或 rework 成功后，如果用户表达“以后都这样”，再提交 feedback
 - 不得把 translation_error 自动升级成术语候选
 

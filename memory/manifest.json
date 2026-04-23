@@ -48,6 +48,14 @@
     {
       "file": "./acceptance-criteria.md",
       "description": "Engineering and product acceptance baselines for UI and workflows."
+    },
+    {
+      "file": "./ting-runtime-memory.md",
+      "description": "Runtime memory card for Ting routing/disambiguation responsibility and user-facing language constraints."
+    },
+    {
+      "file": "./adai-runtime-memory.md",
+      "description": "Runtime memory card for ADai triage boundaries and root-cause split between Ting protocol vs export-agent execution."
     }
   ]
 }

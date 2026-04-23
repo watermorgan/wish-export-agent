@@ -36,6 +36,7 @@
     "verify:disclosure-watermark": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-disclosure-watermark.ts",
     "verify:ting-service-cli": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-service-cli.ts",
     "verify:ting-adai-closed-loop": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-adai-closed-loop.ts",
+    "verify:ting-adai-memory-sync": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-adai-memory-sync.ts",
     "verify:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02.ts",
     "test:feedback": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node --import tsx --test src/lib/feedback/__tests__/*.test.ts",
     "feedback:review": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/review-feedback-cases.ts",

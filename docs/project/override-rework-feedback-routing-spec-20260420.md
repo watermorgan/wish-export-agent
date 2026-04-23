@@ -109,8 +109,8 @@
 
 处理优先级：
 
-1. `rework`
-2. 如果重跑后仍需页级强制包含/排除，再叠加 `override`
+1. 若同一请求里包含“原文识别问题”（漏字/错字/图中文字）与“译文表达问题”，先执行 `override`（`forceVisionPages`）
+2. 若 override 后仍存在译文表达偏差，再执行 `rework`
 
 禁止直接同时并发执行两个动作。
 
@@ -156,7 +156,7 @@
 }
 ```
 
-注意：`forceVisionPages` 和 `force_vision` 不允许出现在 override 中，请改用 rework。
+注意：`forceVisionPages` 和 `force_vision` 属于 override 输入，不属于 rework。
 
 ### 当前 rework 输入边界
 
