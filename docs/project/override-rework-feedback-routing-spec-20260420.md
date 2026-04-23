@@ -28,13 +28,20 @@
 - 只影响当前任务
 - 用户给的是页面级或明确可表达的覆盖输入
 - 不要求重新做知识沉淀
-- 不要求大范围重新抽取/重翻
+- 不要求重新 OCR / vision / 抽取 / 翻译
+- 不涉及 forceVisionPages / force_vision
 
 典型话术：
 
-- 第 10 页请翻译
 - 第 8/9 页太糊，可以不翻
 - 这页保留原文，不要出中文
+- 这页跳过翻译
+
+禁止话术（必须走 rework）：
+
+- 第 10 页请翻译（force_vision）
+- 重新识别这一页
+- 这页要重新抽取
 
 ### 走 `rework`
 
@@ -135,7 +142,6 @@
 
 当用户只给出页码且意图是：
 
-- 应翻
 - 不翻也可以
 - 保留原文
 
@@ -144,11 +150,13 @@
 ```json
 {
   "pageOverrides": {
-    "forceVisionPages": [],
-    "skipTranslationPages": []
+    "skipTranslationPages": [],
+    "pageDirectives": []
   }
 }
 ```
+
+注意：`forceVisionPages` 和 `force_vision` 不允许出现在 override 中，请改用 rework。
 
 ### 当前 rework 输入边界
 

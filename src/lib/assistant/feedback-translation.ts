@@ -942,6 +942,7 @@ function isLikelyBusinessReviewText(text: string) {
 function buildHumanReviewGuide(
   pipelineResult: Awaited<ReturnType<typeof runPdfTranslationPipeline>>
 ): HumanReviewGuide | undefined {
+  const skippedPageSet = new Set(pipelineResult.diagnostics.skippedTranslationPages ?? []);
   const focusPages = new Set<number>();
   const hints: HumanReviewGuide['hints'] = [];
   const pageRiskScore = new Map<number, number>();
@@ -956,6 +957,7 @@ function buildHumanReviewGuide(
 
   for (const rule of PDF_REVIEW_RULES) {
     const matchedSegments = pipelineResult.segments.filter((segment) =>
+      !skippedPageSet.has(segment.pageNumber) &&
       isLikelyBusinessReviewText(segment.text) &&
       rule.patterns.some((pattern) => pattern.test(segment.text))
     );
@@ -992,7 +994,11 @@ function buildHumanReviewGuide(
 
   const untranslatedPages = Array.from(
     pipelineResult.segments.reduce((pages, segment) => {
-      if (!segment.zh?.trim() && isLikelyBusinessReviewText(segment.text)) {
+      if (
+        !skippedPageSet.has(segment.pageNumber) &&
+        !segment.zh?.trim() &&
+        isLikelyBusinessReviewText(segment.text)
+      ) {
         pages.add(segment.pageNumber);
       }
       return pages;

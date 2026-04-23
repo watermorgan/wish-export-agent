@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { runAssistant } from '@/lib/assistant/service';
+import { updatePdfTranslationSkillPayload } from '@/lib/assistant/pdf-translation-skill';
 import { readTaskOverride } from '@/lib/assistant/task-input';
 import {
   buildTaskRevisionSummary,
@@ -31,7 +31,21 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
-    const payload = readTaskOverride(await request.json());
+    const rawBody = await request.json();
+
+    // Pre-zod deep check: reject forceVisionPages / force_vision anywhere in pageOverrides
+    const rawOverrides = rawBody?.pageOverrides;
+    if (rawOverrides && typeof rawOverrides === 'object') {
+      const jsonStr = JSON.stringify(rawOverrides);
+      if (jsonStr.includes('forceVisionPages') || jsonStr.includes('force_vision')) {
+        return NextResponse.json(
+          { error: 'forceVisionPages / force_vision 不允许在 override 中使用，请改用 rework。' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const payload = readTaskOverride(rawBody);
     const nextRequest = createOverrideRevisionRequest(
       existing.request,
       taskId,
@@ -40,10 +54,46 @@ export async function POST(request: Request, context: RouteContext) {
       payload.pageOverrides
     );
 
-    try {
-      const reply = await runAssistant(nextRequest);
+
+
+    {
       const finalizedRequest = finalizeLatestTaskRevision(nextRequest, 'ready');
-      const snapshot = await updateTaskFromExecution(taskId, finalizedRequest, reply);
+      const revisionSummary = buildTaskRevisionSummary(finalizedRequest);
+      const skippedTranslationPages = Array.from(
+        new Set([
+          ...(revisionSummary?.currentControl?.pageOverrides?.skipTranslationPages ?? []),
+          ...((revisionSummary?.currentControl?.pageOverrides?.pageDirectives ?? [])
+            .filter(
+              (directive) =>
+                directive.action === 'skip_translation' || directive.action === 'keep_original'
+            )
+            .map((directive) => directive.pageNumber))
+        ])
+      ).sort((left, right) => left - right);
+      const updatedReply = updatePdfTranslationSkillPayload({
+        ...existing.reply,
+        metadata: {
+          ...existing.reply.metadata,
+          needsHumanReview: existing.reply.metadata?.needsHumanReview ?? true,
+          taskIteration: revisionSummary
+        }
+      }, (skillPayload) => ({
+        ...skillPayload,
+        revision: revisionSummary
+          ? {
+              id: revisionSummary.currentRevisionId,
+              kind: revisionSummary.latestRevision?.kind ?? 'base',
+              parentRevisionId: revisionSummary.latestRevision?.parentRevisionId ?? null,
+              revisionCount: revisionSummary.revisionCount,
+              currentControl: revisionSummary.currentControl ?? null
+            }
+          : skillPayload.revision,
+        diagnostics: {
+          ...skillPayload.diagnostics,
+          skippedTranslationPages
+        }
+      }));
+      const snapshot = await updateTaskFromExecution(taskId, finalizedRequest, updatedReply);
 
       if (!snapshot) {
         return NextResponse.json({ error: '任务不存在。' }, { status: 404 });
@@ -56,20 +106,6 @@ export async function POST(request: Request, context: RouteContext) {
           snapshot.reply.metadata?.taskIteration?.latestRevision ??
           snapshot.reply.metadata?.taskIteration
       });
-    } catch (error) {
-      const failedRevisionId = buildTaskRevisionSummary(nextRequest)?.currentRevisionId;
-      const failedRequest = finalizeLatestTaskRevision(nextRequest, 'failed');
-      await updateTaskFromExecution(taskId, failedRequest, existing.reply);
-      return NextResponse.json(
-        {
-          error: error instanceof Error ? error.message : '页面覆盖执行失败。',
-          failedRevisionId,
-          revisionLookupUrl: failedRevisionId
-            ? `/api/tasks/${encodeURIComponent(taskId)}/revisions/${encodeURIComponent(failedRevisionId)}`
-            : null
-        },
-        { status: 409 }
-      );
     }
   } catch (error) {
     return NextResponse.json(

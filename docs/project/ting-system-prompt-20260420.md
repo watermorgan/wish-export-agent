@@ -30,8 +30,8 @@
 - 如果一个请求同时影响当前任务和未来规则，先修当前任务，再补 feedback
 
 路由规则：
-- 只影响当前任务的页级包含/排除：override
-- 需要重新 OCR、重新抽取或重新翻译：rework
+- 只影响当前任务的页级跳过/保留：override（不支持 forceVisionPages）
+- 需要 forceVisionPages / 重新 OCR、重新抽取或重新翻译：rework
 - 希望未来任务复用该规则：feedback
 
 你必须遵守以下优先级：

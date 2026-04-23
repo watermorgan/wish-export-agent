@@ -224,6 +224,16 @@ export function createOverrideRevisionRequest(
       throw new Error('task iteration state missing after base initialization');
     }
 
+    // Override is render-only: targetPages only includes skip/keep pages, never force_vision
+    const targetPages = Array.from(
+      new Set([
+        ...(pageOverrides.skipTranslationPages ?? []),
+        ...(pageOverrides.pageDirectives ?? [])
+          .filter((d) => d.action === 'skip_translation' || d.action === 'keep_original')
+          .map((d) => d.pageNumber)
+      ])
+    ).sort((left, right) => left - right);
+
     const revision: TaskRevision = {
       id: createRevisionId(),
       taskId,
@@ -236,7 +246,7 @@ export function createOverrideRevisionRequest(
       control: {
         pageOverrides
       },
-      targetPages: collectTargetPages(pageOverrides, null)
+      targetPages
     };
 
     return {
@@ -387,15 +397,9 @@ export function buildRevisionResponse(
     current: revision.id === state.currentRevisionId,
     revisionCount: state.revisionCount,
     currentControl: state.currentControl ?? null,
-    result:
-      revision.id === state.currentRevisionId
-        ? {
-            deliveryPdfUrl: `/api/tasks/${encodeURIComponent(reply.task?.id ?? revision.taskId)}/translation-pdf?download=1`,
-            skillPayloadUrl: `/api/tasks/${encodeURIComponent(reply.task?.id ?? revision.taskId)}/skill-payload`
-          }
-        : {
-            deliveryPdfUrl: null,
-            skillPayloadUrl: null
-          }
+    result: {
+      deliveryPdfUrl: `/api/tasks/${encodeURIComponent(reply.task?.id ?? revision.taskId)}/translation-pdf?download=1`,
+      skillPayloadUrl: `/api/tasks/${encodeURIComponent(reply.task?.id ?? revision.taskId)}/skill-payload`
+    }
   };
 }

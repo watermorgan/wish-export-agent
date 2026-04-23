@@ -105,6 +105,7 @@ async function main() {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      REWORK_PIPELINE_TIMEOUT_MS: '1',
       DATABASE_URL: '',
       DATABASE_JDBC_URL: '',
       JDBC_DATABASE_URL: ''
@@ -196,6 +197,45 @@ async function main() {
       conflictPayload.error === '当前任务尚未生成可供 skill/Ting 外贸助手复用的 PDF 结果协议。',
       'blocked task payload should preserve 409 error message'
     );
+
+    const realRequest = {
+      channel: 'web',
+      role: 'sales',
+      question: '创建 override 失败态 CLI 回归任务',
+      files: [
+        {
+          name: 'M415013.pdf',
+          size: 1,
+          type: 'application/pdf',
+          storagePath: path.resolve(process.cwd(), 'data/test02/M415013.pdf')
+        }
+      ],
+      taskType: 'feedback',
+      selectedTemplateId: 'translation-merge',
+      selectedSkillIds: ['comment-translator', 'comment-merger']
+    };
+
+    const realSubmit = await runCli(
+      ['submit', '--base-url', baseUrl, '--stdin'],
+      JSON.stringify(realRequest)
+    );
+    assert(realSubmit.code === 0, `real submit should succeed, got ${realSubmit.code}: ${realSubmit.stderr}`);
+    const realTaskId = String(parseJsonOutput(realSubmit.stdout).task.id);
+
+    const failingOverride = await runCli(
+      ['rework', '--base-url', baseUrl, realTaskId, '--stdin'],
+      JSON.stringify({
+        actor: 'sales',
+        scope: 'pages',
+        pageNumbers: [1],
+        instruction: 'force timeout failure path'
+      })
+    );
+    assert(failingOverride.code === 1, 'failing rework should exit with code 1');
+    const failingOverridePayload = parseJsonOutput(failingOverride.stderr);
+    assert(failingOverridePayload.status === 409, 'CLI failing rework should preserve 409');
+    assert(typeof failingOverridePayload.failedRevisionId === 'string', 'CLI should preserve failedRevisionId');
+    assert(typeof failingOverridePayload.revisionLookupUrl === 'string', 'CLI should preserve revisionLookupUrl');
 
     process.stdout.write('Ting service CLI verification passed.\n');
   } finally {

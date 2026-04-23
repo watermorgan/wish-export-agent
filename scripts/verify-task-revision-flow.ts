@@ -92,19 +92,25 @@ async function main() {
   const serverLogPath = path.join(logsDir, 'server.log');
   await mkdir(logsDir, { recursive: true });
   const serverLog = createWriteStream(serverLogPath, { flags: 'w' });
+  const startServer = (extraEnv: Record<string, string> = {}) => {
+    const child = spawn(process.execPath, [nextBin, 'start', '-p', String(port)], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ...extraEnv,
+        DATABASE_URL: '',
+        DATABASE_JDBC_URL: '',
+        JDBC_DATABASE_URL: ''
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    child.stdout?.pipe(serverLog);
+    child.stderr?.pipe(serverLog);
+    return child;
+  };
 
-  const server = spawn(process.execPath, [nextBin, 'start', '-p', String(port)], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      DATABASE_URL: '',
-      DATABASE_JDBC_URL: '',
-      JDBC_DATABASE_URL: ''
-    },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
-  server.stdout?.pipe(serverLog);
-  server.stderr?.pipe(serverLog);
+  let server = startServer();
+  let taskId = '';
 
   try {
     await waitForServer(`${baseUrl}/api/health`);
@@ -131,7 +137,7 @@ async function main() {
     });
     assert(createResponse.ok, `POST /api/tasks failed: ${createResponse.status}`);
     const created = (await createResponse.json()) as { task?: { id?: string } };
-    const taskId = created.task?.id;
+    taskId = created.task?.id ?? '';
     assert(taskId, 'taskId missing');
 
     const initialTask = (await pollTaskReady(baseUrl, taskId)) as {
@@ -147,9 +153,8 @@ async function main() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         actor: 'sales',
-        reason: '强制第1页走 vision，并跳过第2页翻译',
+        reason: '第2页保留原文',
         pageOverrides: {
-          forceVisionPages: [1],
           skipTranslationPages: [2]
         }
       })
@@ -229,6 +234,30 @@ async function main() {
       pdfResponse.headers.get('content-type')?.includes('application/pdf'),
       'translation-pdf should return application/pdf'
     );
+
+    server.kill('SIGTERM');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    server = startServer({ REWORK_PIPELINE_TIMEOUT_MS: '1' });
+    await waitForServer(`${baseUrl}/api/health`);
+
+    const failedReworkResponse = await fetch(`${baseUrl}/api/tasks/${taskId}/rework`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        actor: 'sales',
+        scope: 'pages',
+        pageNumbers: [1],
+        instruction: 'force timeout failure path'
+      })
+    });
+    assert(failedReworkResponse.status === 409, `failed rework should return 409, got ${failedReworkResponse.status}`);
+    const failedOverridePayload = (await failedReworkResponse.json()) as {
+      failedRevisionId?: string;
+      revisionLookupUrl?: string;
+    };
+    assert(typeof failedOverridePayload.failedRevisionId === 'string', 'HTTP should preserve failedRevisionId');
+    assert(typeof failedOverridePayload.revisionLookupUrl === 'string', 'HTTP should preserve revisionLookupUrl');
 
     process.stdout.write(
       JSON.stringify(

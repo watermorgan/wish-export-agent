@@ -75,8 +75,15 @@ async function runAssistantTaskInBackground(
     await new Promise((resolve) => setTimeout(resolve, minDelayMs));
   }
 
+  const PIPELINE_TIMEOUT_MS = Number(process.env.PIPELINE_TIMEOUT_MS ?? '600000'); // 10 min default
+
   try {
-    const reply = await runAssistant(input);
+    const reply = await Promise.race([
+      runAssistant(input),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Pipeline 执行超时（${PIPELINE_TIMEOUT_MS / 1000}s），请检查模型服务可用性或文件大小。`)), PIPELINE_TIMEOUT_MS)
+      )
+    ]);
     const completedAt = new Date().toISOString();
     const finalReply: AssistantReply = {
       ...reply,

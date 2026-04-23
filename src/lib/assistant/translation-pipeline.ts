@@ -22,7 +22,7 @@ import {
 } from '@/lib/assistant/vision-extraction';
 import type { TaskExecutionControl } from '@/lib/assistant/types';
 
-const DEBUG_PIPELINE = process.env.ASSISTANT_DEBUG_PIPELINE === '1';
+const DEBUG_PIPELINE = process.env.ASSISTANT_DEBUG_PIPELINE !== '0';
 
 function logPipelineDebug(event: string, payload: Record<string, unknown>) {
   if (!DEBUG_PIPELINE) return;
@@ -35,6 +35,7 @@ type PipelineInput = {
   maxSegmentsForTranslation?: number;
   translationModelOverride?: string;
   executionControl?: TaskExecutionControl | null;
+  baselineSnapshot?: TranslationSnapshot | null;
 };
 
 export type DocumentMainType = 'sketch_comment' | 'tp_bom_table_heavy' | 'mixed';
@@ -114,6 +115,7 @@ export type PipelineResult = {
     businessTranslationCoveragePct?: number;
     businessPreviewThresholdPct: number;
     isBusinessPreviewReady: boolean;
+    skippedTranslationPages?: number[];
     previewSuppressedReason?:
       | 'coverage_too_low'
       | 'no_translations'
@@ -280,14 +282,19 @@ export async function resolveLatestTableStylePdfForSource(fileName: string): Pro
 
 function summarizeTranslationCoverage(
   segments: PipelineResult['segments'],
-  documentMainType: DocumentMainType
+  documentMainType: DocumentMainType,
+  skippedTranslationPages?: Set<number>
 ): TranslationCoverageStats {
-  const translatedSegmentCount = segments.filter((segment) => Boolean(segment.zh?.trim())).length;
-  const totalSegments = segments.length;
-  const translationCoveragePct = segments.length
-    ? Math.round((translatedSegmentCount / segments.length) * 100)
+  const scopedSegments =
+    skippedTranslationPages && skippedTranslationPages.size > 0
+      ? segments.filter((segment) => !skippedTranslationPages.has(segment.pageNumber))
+      : segments;
+  const translatedSegmentCount = scopedSegments.filter((segment) => Boolean(segment.zh?.trim())).length;
+  const totalSegments = scopedSegments.length;
+  const translationCoveragePct = scopedSegments.length
+    ? Math.round((translatedSegmentCount / scopedSegments.length) * 100)
     : 0;
-  const businessSegments = segments.filter(
+  const businessSegments = scopedSegments.filter(
     (segment) => !shouldSuppressAnnotatedZh(segment, documentMainType)
   );
   const businessSegmentCount = businessSegments.length;
@@ -1616,6 +1623,11 @@ function shouldSuppressAnnotatedZh(
   if (!segment.zh?.trim()) {
     return false;
   }
+  // text_layer blocks (page headers/footers) should never be suppressed —
+  // they are structural content that users expect to see translated.
+  if (segment.extractionMeta.sourceType === 'text_layer') {
+    return false;
+  }
 
   const baseSuppressed =
     /all rights reserved|edited on/i.test(source) ||
@@ -2042,6 +2054,45 @@ function loadGlossaryCache(): Map<string, string> {
     console.warn('[glossary] Failed to load core.json, falling back to hardcoded rules:', err);
   }
   return _glossaryCache;
+}
+
+/**
+ * Resolve a translation for a source text using glossary and hardcoded rules only.
+ * Used as fallback when the translation model skips a segment entirely (no zh returned).
+ */
+function resolveGlossaryOrHardcodedTranslation(source: string): string | undefined {
+  const normalizedSource = normalizeSourceText(source);
+
+  // 1. Glossary exact-match
+  const glossaryHit = loadGlossaryCache().get(normalizedSource);
+  if (glossaryHit) return normalizeTraditionalApparelChinese(glossaryHit);
+
+  // 2. Hardcoded rules (mirrored from normalizeFashionTranslation but independent of model output)
+  if (/^dossier style$/i.test(normalizedSource)) return '款式资料';
+  if (/^hiver 26 \(26h\)$/i.test(normalizedSource)) return '款号：HIVER 26 (26H)';
+  if (/^en attente(?:\s+.*)?$/i.test(normalizedSource)) {
+    const suffix = source.replace(/^en attente/i, '').trim().replace(/\s+/g, ' ');
+    return suffix ? `待处理 ${suffix}` : '待处理';
+  }
+  if (/^m\d{6}$/i.test(normalizedSource)) return `款号：${normalizedSource.toUpperCase()}`;
+  if (/^proto\s*#?\s*1$/i.test(normalizedSource)) return 'OP1';
+  if (/^proto\s*#?\s*2$/i.test(normalizedSource)) return 'OP2';
+
+  // 3. Common header/footer patterns that models tend to skip
+  if (/^(styliste|graphiste|mod[ée]liste|acheteur|n[ée]goce|designer|graphic designer|model maker|purchaser)$/i.test(normalizedSource)) {
+    const headerMap: Record<string, string> = {
+      'styliste': '设计师', 'graphiste': '平面设计师', 'modéliste': '版师', 'modeliste': '版师',
+      'acheteur': '采购', 'négoce': '商务', 'negoce': '商务', 'designer': '设计师',
+      'graphic designer': '平面设计师', 'model maker': '版师', 'purchaser': '采购'
+    };
+    return headerMap[normalizedSource] ?? undefined;
+  }
+  if (/^(tous droits réservés|all rights reserved)$/i.test(normalizedSource)) return '版权所有';
+  if (/^fitting\s*\/\s*volume$/i.test(normalizedSource)) return '试身/容量';
+  if (/^description$/i.test(normalizedSource)) return '描述';
+  if (/^common designated size$/i.test(normalizedSource)) return '通用指定尺码';
+
+  return undefined;
 }
 
 export function normalizeFashionTranslation(source: string, zh: string) {
@@ -3715,13 +3766,62 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
   );
   for (const segment of segments) {
     const zh = translatedMap.get(segment.id);
-    if (zh) segment.zh = zh;
+    if (zh) {
+      segment.zh = zh;
+    }
+  }
+
+  // Phase 2: Translate remaining text_layer segments that the main model skipped.
+  // These are typically short header/footer blocks (DOSSIER STYLE, STYLISTE, etc.)
+  // that the batch model tends to omit from its JSON output.
+  const untranslatedTextLayerSegments = segments.filter(
+    (segment) =>
+      !segment.zh?.trim() &&
+      segment.extractionMeta.sourceType === 'text_layer'
+  );
+  if (untranslatedTextLayerSegments.length > 0) {
+    logPipelineDebug('pipeline.text_layer_supplement_start', {
+      pipelineId,
+      fileName: input.fileName,
+      untranslatedTextLayerCount: untranslatedTextLayerSegments.length
+    });
+    try {
+      const { map: supplementMap } = await translateSegmentsWithModelB(
+        untranslatedTextLayerSegments,
+        untranslatedTextLayerSegments.length,
+        input.translationModelOverride,
+        documentMainType
+      );
+      for (const segment of untranslatedTextLayerSegments) {
+        const zh = supplementMap.get(segment.id);
+        if (zh) segment.zh = zh;
+      }
+      logPipelineDebug('pipeline.text_layer_supplement_result', {
+        pipelineId,
+        fileName: input.fileName,
+        supplemented: untranslatedTextLayerSegments.filter((s) => supplementMap.has(s.id)).length,
+        stillMissing: untranslatedTextLayerSegments.filter((s) => !supplementMap.has(s.id)).length
+      });
+    } catch (error) {
+      logPipelineDebug('pipeline.text_layer_supplement_error', {
+        pipelineId,
+        fileName: input.fileName,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+    // Final glossary/hardcoded fallback for anything still untranslated
+    for (const segment of untranslatedTextLayerSegments) {
+      if (!segment.zh?.trim()) {
+        const fallbackZh = resolveGlossaryOrHardcodedTranslation(segment.text);
+        if (fallbackZh) segment.zh = fallbackZh;
+      }
+    }
   }
   const filteredSegments =
     skippedTranslationPages.size > 0
       ? segments.filter((segment) => !skippedTranslationPages.has(segment.pageNumber))
       : segments;
-  const coverage = summarizeTranslationCoverage(segments, documentMainType);
+  const coverage = summarizeTranslationCoverage(segments, documentMainType, skippedTranslationPages);
   const bilingualBundleSegments = selectBilingualBundleSegments(
     filteredSegments,
     documentMainType,
@@ -3826,6 +3926,7 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
       businessTranslationCoveragePct: coverage.businessTranslationCoveragePct,
       businessPreviewThresholdPct: coverage.businessPreviewThresholdPct,
       isBusinessPreviewReady: coverage.isBusinessPreviewReady,
+      skippedTranslationPages: Array.from(skippedTranslationPages).sort((left, right) => left - right),
       previewSuppressedReason: coverage.previewSuppressedReason
     },
     segments,

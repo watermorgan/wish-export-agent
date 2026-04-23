@@ -30,6 +30,36 @@ export function getPdfTranslationSkillPayload(
   return null;
 }
 
+export function updatePdfTranslationSkillPayload(
+  reply: AssistantReply,
+  updater: (payload: PdfTranslationSkillPayload) => PdfTranslationSkillPayload
+): AssistantReply {
+  const nextMetadataPayload = isPdfTranslationSkillPayload(reply.metadata?.skillPayload)
+    ? updater(reply.metadata.skillPayload)
+    : null;
+
+  return {
+    ...reply,
+    artifacts: reply.artifacts.map((section) => ({
+      ...section,
+      fields: section.fields.map((field) =>
+        isPdfTranslationSkillPayload(field.structuredData)
+          ? {
+              ...field,
+              structuredData: updater(field.structuredData)
+            }
+          : field
+      )
+    })),
+    metadata: nextMetadataPayload
+      ? {
+          ...(reply.metadata ?? { needsHumanReview: true }),
+          skillPayload: nextMetadataPayload
+        }
+      : reply.metadata
+  };
+}
+
 // DESIGN DEBT: "Ting" prefix is historical. This is a generic external consumption
 // wrapper, not Ting-specific. Rename to ExternalPdfTranslationPayload / ext_pdf_*
 // when a second consumer appears. See AGENTS.md "Deployment Boundary".

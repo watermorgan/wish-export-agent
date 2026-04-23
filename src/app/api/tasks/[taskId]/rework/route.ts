@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { runAssistant } from '@/lib/assistant/service';
 import { readTaskRework } from '@/lib/assistant/task-input';
+
+const REWORK_PIPELINE_TIMEOUT_MS = Number(process.env.REWORK_PIPELINE_TIMEOUT_MS ?? '600000');
 import {
   buildTaskRevisionSummary,
   createReworkRevisionRequest,
@@ -48,9 +50,20 @@ export async function POST(request: Request, context: RouteContext) {
       replaceReworkTargetPages(payload, targetPages),
       baselineSnapshot
     );
-
+    console.log(`[rework] starting pipeline for task=${taskId}, pages=${targetPages.join(',')}, timeout=${REWORK_PIPELINE_TIMEOUT_MS}ms`);
+    const reworkController = new AbortController();
     try {
-      const reply = await runAssistant(nextRequest);
+      console.log(`[rework] calling runAssistant...`);
+      const reply = await Promise.race([
+        runAssistant(nextRequest),
+        new Promise<never>((_, reject) => {
+          const timer = setTimeout(() => {
+            reworkController.abort();
+            reject(new Error(`Rework pipeline 超时（${REWORK_PIPELINE_TIMEOUT_MS / 1000}s），请检查模型服务可用性。`));
+          }, REWORK_PIPELINE_TIMEOUT_MS);
+          return timer;
+        })
+      ]);
       const finalizedRequest = finalizeLatestTaskRevision(nextRequest, 'ready');
       const snapshot = await updateTaskFromExecution(taskId, finalizedRequest, reply);
 

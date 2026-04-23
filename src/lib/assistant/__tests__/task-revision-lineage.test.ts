@@ -182,5 +182,5 @@ test('revision lookup returns historical revision instead of only current snapsh
   assert(historical);
   assert.equal(historical.current, false);
   assert.equal(historical.revision.kind, 'base');
-  assert.equal(historical.result.deliveryPdfUrl, null);
+  assert.equal(historical.result.deliveryPdfUrl, '/api/tasks/task-test/translation-pdf?download=1');
 });

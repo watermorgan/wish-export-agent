@@ -148,6 +148,7 @@ async function main() {
       cwd: process.cwd(),
       env: {
         ...process.env,
+        REWORK_PIPELINE_TIMEOUT_MS: '1',
         DATABASE_URL: '',
         DATABASE_JDBC_URL: '',
         JDBC_DATABASE_URL: ''
@@ -299,6 +300,60 @@ async function main() {
       conflict.structuredContent?.error === '当前任务尚未生成可供 skill/Ting 外贸助手复用的 PDF 结果协议。',
       'blocked task skill payload should preserve 409 error message'
     );
+
+    const realSubmit = (await client.request('tools/call', {
+      name: 'submit_pdf_translation_task',
+      arguments: {
+        question: '创建 override 失败态 MCP 回归任务',
+        pdfPath: path.resolve(process.cwd(), 'data/test02/M415013.pdf')
+      }
+    })) as {
+      structuredContent?: { task?: { id?: string } };
+    };
+    const realTaskId = realSubmit.structuredContent?.task?.id;
+    assert(typeof realTaskId === 'string' && realTaskId.length > 0, 'real submit should return task id');
+
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const taskSnapshot = (await client.request('tools/call', {
+        name: 'get_pdf_translation_task',
+        arguments: {
+          taskId: realTaskId
+        }
+      })) as {
+        structuredContent?: {
+          task?: { status?: string };
+          reply?: { metadata?: { asyncProgress?: { phase?: string } } };
+        };
+      };
+      const phase = taskSnapshot.structuredContent?.reply?.metadata?.asyncProgress?.phase;
+      if (!phase || phase === 'completed') {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    const failingOverride = (await client.request('tools/call', {
+      name: 'request_task_rework',
+      arguments: {
+        taskId: realTaskId,
+        actor: 'sales',
+        scope: 'pages',
+        pageNumbers: [1],
+        instruction: 'force timeout failure path'
+      }
+    })) as {
+      isError?: boolean;
+      structuredContent?: {
+        status?: number;
+        failedRevisionId?: string;
+        revisionLookupUrl?: string;
+      };
+    };
+    assert(failingOverride.isError === true, 'failing rework should report tool error');
+    assert(failingOverride.structuredContent?.status === 409, 'failing rework should preserve 409');
+    assert(typeof failingOverride.structuredContent?.failedRevisionId === 'string', 'MCP should preserve failedRevisionId');
+    assert(typeof failingOverride.structuredContent?.revisionLookupUrl === 'string', 'MCP should preserve revisionLookupUrl');
 
     process.stdout.write('Ting MCP server verification passed.\n');
   } finally {
