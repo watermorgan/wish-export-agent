@@ -37,6 +37,7 @@ npm run db:init
 - 对外 skill payload：`pdf_translation_skill_v1`（源头 `src/lib/assistant/feedback-translation.ts`）
 - Ting 消费 wrapper：`ting_pdf_translation_v1`（源头 `src/lib/assistant/pdf-translation-skill.ts`）
 - 三条业务路由契约：[`docs/project/override-rework-feedback-routing-spec-20260420.md`](./docs/project/override-rework-feedback-routing-spec-20260420.md)
+- Ting 侧语义消歧协议 v1（业务只说业务语言，路由归 Ting）：[`docs/project/ting-disambiguation-protocol-20260421.md`](./docs/project/ting-disambiguation-protocol-20260421.md)
 - 审核对象（task not revision）：[`docs/project/review-object-decision-20260420.md`](./docs/project/review-object-decision-20260420.md)
 
 ## 目录结构（关键位置）

@@ -11,7 +11,7 @@
 | 编号 | 标题 | 严重度 | 状态 | Owner | 建议处置 |
 |------|------|--------|------|-------|----------|
 | UAT-001 | `deliveryPdfUrl` 不回灌到历史 revision | 低 | 已归档 | export-agent 工程 | Backlog，设计侧先确认 revision 产物是否需要分别落盘 |
-| UAT-002 | Rework 文案让人误以为 OCR 也会重跑 | 低 | 已归档 | export-agent 工程 + Ting 文档 | 修 `ting-system-prompt-20260420.md` 文案，见 PR-4a |
+| UAT-002 | 业务在自然语言里混用"重做"和"重新识别"，Ting 路由不确定 | 低 | 已由 Ting 消歧协议 v1 兜底 | Ting 工程 | 见 `ting-disambiguation-protocol-20260421.md`，业务无需记忆任何系统术语 |
 | UAT-003 | skip-only override 在某些场景下不刷新诊断时间戳 | 低 | 已在 commit `4efd45d` 修复 | export-agent 工程 | Closed。保留在此以备追溯 |
 | UAT-004 | Ting CLI 对 `revisionLookupUrl` 的展示格式不够友好 | 低 | 已归档 | Ting 工程 | 建议 Ting 侧优化日志 formatter |
 
@@ -34,18 +34,34 @@
 - 短期：Ting 在展示时明确「历史版本仅保留诊断信息，不提供下载」。
 - 中期：若业务真要回溯历史版本 PDF，需要为每个 revision 保留独立产物，并补 `/api/tasks/[taskId]/revisions/[revisionId]/translation-pdf` 接口。见 `docs/project/plan.md` Backlog 条目 2。
 
-## UAT-002 · Rework 文案让人误以为 OCR 也会重跑
+## UAT-002 · 业务自然语言里的"重做 / 重新识别"路由不确定
 
-**现象**：Ting 调 rework 时，用户期待「重做识别」，但实际上 rework 只会在不重跑 vision 的前提下重新翻译受影响页。
+**现象**：业务在 Ting 里说"这页重做"或"重新识别这一页"时，系统既可能走 rework（只重翻）也可能走 override+forceVisionPages（重识别+重翻），结果与预期不符。
 
-**根因**：`docs/project/ting-system-prompt-20260420.md` 对 rework 的描述为「重跑当前 task 主链」，字面上容易被理解成「重新 OCR + 翻译」。`src/lib/assistant/translation-pipeline.ts` 中的 `extractWithVisionFallback` 对 `executionControl.rework` 明确不再触发 vision。
+**根因**：业务从来不会关心"识别"和"翻译"在实现上是两个阶段；但 Ting 之前的 system prompt 没有在路由层面做语义消歧，只在后面把这件事"规则化"后甩给了 LLM 自己悟。
 
-**影响**：功能本身正确（rework 只重翻），但 Ting 的 system prompt 会让 LLM 给用户错误期待。
+**早期错误处置（已废弃）**：
 
-**处置**：
+- 最初的想法是让业务"请记得说 OCR / 视觉"才能触发 forceVisionPages —— 这是在让业务替 Ting 承担消歧职责，错误的设计。
 
-- 在 PR-4a 更新 `ting-system-prompt-20260420.md`：把「重跑当前 task 主链」改成「对受影响页进行重新翻译（不重跑视觉识别）；若要重新识别请使用 override forceVision」。
-- `review-object-decision-20260420.md` 已经用相同口径，不需要再改。
+**正确处置（已落地）**：
+
+- 引入 **Ting 侧语义消歧协议 v1**（`docs/project/ting-disambiguation-protocol-20260421.md`）：
+  1. Ting 识别一份歧义触发词清单（"重做 / 重新识别 / 再跑一次 / 这页有问题"等）。
+  2. 命中后强制走一次性 A/B 澄清模板，**只用业务语言**（"译文的问题" vs "原文的问题"），**不暴露任何系统术语**（OCR / vision / rework / override / forceVisionPages）。
+  3. A → rework；B 或"都有 / 不确定" → override+forceVisionPages。
+- 同步更新 `ting-system-prompt-20260420.md` 与 `ting-lead-runtime-prompt-20260420.md`：加入触发词清单、澄清模板、禁止系统术语的硬约束。
+- `override-rework-feedback-routing-spec-20260420.md` §6.1 明确声明："Ting 侧语义消歧是 Ting 的职责"，export-agent 只按收到的字段执行，不做二次消歧。
+
+**对业务的意味**：业务按自己的自然语言描述问题即可。Ting 会替他们区分"译文问题"与"原文问题"，并在不把系统术语倾倒给业务的前提下完成路由。业务不需要学习任何关键词。
+
+**对 Ting 工程的意味**：Ting 的 prompt / agent 代码必须实现 §2 触发词识别 + §3 澄清模板；如果未来业务测试仍出现"路由误判"，先查 Ting 是否按协议执行，而不是让 export-agent 加兜底。
+
+**验证建议（业务测试阶段）**：
+
+- 让业务故意说"重新识别这一页 / 重做这页"，观察 Ting 是否弹出 A/B 澄清问题。
+- 故意回答"不确定"，观察 Ting 是否按默认 B 分支走（触发 forceVisionPages），结果中原文内容是否被刷新。
+- 全程不应在 Ting 对用户的任何一句话里出现 OCR / vision / rework / override / forceVisionPages 等词。
 
 ## UAT-003 · skip-only override 不刷新诊断时间戳（已修复）
 

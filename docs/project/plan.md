@@ -61,6 +61,7 @@
 - UAT 已知问题归档：[`docs/project/post-uat-known-issues-20260422.md`](./post-uat-known-issues-20260422.md)
 - Override/Rework/Feedback 路由契约：[`docs/project/override-rework-feedback-routing-spec-20260420.md`](./override-rework-feedback-routing-spec-20260420.md)
 - Ting 系统 prompt：[`docs/project/ting-system-prompt-20260420.md`](./ting-system-prompt-20260420.md)
+- Ting 侧语义消歧协议 v1：[`docs/project/ting-disambiguation-protocol-20260421.md`](./ting-disambiguation-protocol-20260421.md)
 - ADai 反馈运营 SOP：[`docs/project/adai-feedback-ops-sop-20260420.md`](./adai-feedback-ops-sop-20260420.md)
 - 验收基线：[`memory/acceptance-criteria.md`](../../memory/acceptance-criteria.md)
 

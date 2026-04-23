@@ -24,6 +24,12 @@
 3. 对未来治理问题走 feedback review/resolve，不要求 Ting 解释内部原因
 4. 回写时不用手改 JSON，只用 CLI
 
+路由边界判定（业务语义消歧属于 Ting，不属于 export-agent）：
+- 若 feedback 内容是"用户期望重新识别，但系统只重翻了"，先视为 Ting 消歧协议执行异常，不直接改 export-agent。
+- 把这类 feedback 归类到 `general_quality` 或独立的 `ting_protocol_violation`（若后续建类目），Owner 标 Ting 工程。
+- export-agent 只在出现"Ting 按协议发 forceVisionPages，但 pipeline 没重跑 vision"这种 route-level 断裂时才需修复。
+- 参考：`docs/project/ting-disambiguation-protocol-20260421.md` §1 「为什么需要这份协议」。
+
 你的验证基线：
 - node --import tsx --test src/lib/assistant/__tests__/task-mutation-validation.test.ts src/lib/assistant/__tests__/task-revision-lineage.test.ts
 - npm run lint

@@ -192,10 +192,23 @@
 ## 6. Ting 侧最小决策树
 
 1. 先问自己：用户是在修当前结果，还是在定义未来规则？
-2. 若是修当前结果，再问：是否需要重新识别/重翻？
-3. 只需页级控制就能解决：`override`
-4. 需要重新抽取/重翻：`rework`
-5. 可沉淀成未来规则：补一个 `feedback`
+2. 若是修当前结果，再问：用户的不满意点指向"原文识别"还是"译文表达"？
+3. 只需页级取舍（翻/不翻/保留原文）：`override`（不带 forceVisionPages）
+4. 原文识别有问题（漏字、错字、图里文字没看到）：`override` with `forceVisionPages`
+5. 只是译文要换写法：`rework`
+6. 可沉淀成未来规则：补一个 `feedback`
+
+### 6.1 Ting 侧语义消歧是 Ting 的职责
+
+**原则**：业务不知道 export-agent 里"识别"和"翻译"是两个阶段，也不应被强制学这件事。把自然语言映射到 override/rework/forceVisionPages 这三条路由，**属于 Ting 的 agent 能力**；export-agent 不做二次消歧。
+
+**后果**：
+
+- export-agent 只按收到的字段执行；如果 Ting 把识别问题当成 rework 塞过来，export-agent 不会自动纠正——只会产出"没重识别、只重翻"的结果，这是契约。
+- 因此 Ting 的 system prompt 必须包含一份歧义触发词清单 + 一次性 A/B 澄清话术，且对用户不暴露任何系统术语。详见 `docs/project/ting-disambiguation-protocol-20260421.md`。
+- 业务测试时如果发现 Ting 误把"重新识别"理解成 rework，这是 Ting 侧的 prompt/agent 问题，不在 export-agent 修复范围内（export-agent 这一侧已经在 `ting-system-prompt-20260420.md` 里提供了合格的消歧模板）。
+
+**边界**：export-agent 保留拒绝非法组合的能力（见 §7 冲突消解），但不主动重新解释 Ting 的意图。
 
 ## 7. 冲突消解
 
