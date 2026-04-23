@@ -6,16 +6,35 @@ export type FeedbackCaseFilters = {
   category?: string;
 };
 
+export type GlossaryOrigin = 'manual' | 'ai_feedback_mining' | 'imported';
+
 export type GlossaryCandidateEntry = {
   en: string;
   zh: string;
   context: 'general';
   source: 'feedback_extraction';
+  /**
+   * 粗粒度来源标签。从反馈自动挖出的候选固定为 'ai_feedback_mining'，
+   * 便于主管在审核界面/命令行里一眼看到 AI 是否参与了这条术语的引入。
+   * 历史未带该字段的条目在读取侧视为 'manual'（见 resolveGlossaryOrigin）。
+   */
+  origin: GlossaryOrigin;
   confidence: number;
   reviewStatus: 'pending';
   addedAt: string;
   notes?: string;
 };
+
+/**
+ * 对外部/历史条目做 origin 兜底：没有字段或字段非法时一律视为 manual，
+ * 保证下游脚本不需要关心 schema 升级前的数据。
+ */
+export function resolveGlossaryOrigin(value: unknown): GlossaryOrigin {
+  if (value === 'ai_feedback_mining' || value === 'imported' || value === 'manual') {
+    return value;
+  }
+  return 'manual';
+}
 
 function buildGlossaryCandidateKey(en: string, zh: string) {
   return `${en.trim().toLowerCase()}::${zh.trim()}`;
@@ -81,6 +100,7 @@ export function extractGlossaryCandidates(items: FeedbackCase[]): GlossaryCandid
         zh,
         context: 'general',
         source: 'feedback_extraction',
+        origin: 'ai_feedback_mining',
         confidence: 0.8,
         reviewStatus: 'pending',
         addedAt: getTodayDate(),

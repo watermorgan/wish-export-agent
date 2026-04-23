@@ -45,7 +45,13 @@
         "external_import",
         "normalize_rule_migration"
       ],
-      "description": "术语来源"
+      "description": "术语来源（细粒度渠道标签）"
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["manual", "ai_feedback_mining", "imported"],
+      "description": "术语引入方式（粗粒度审计标签）。manual=人工直接录入或规则迁移；ai_feedback_mining=从反馈案例自动挖掘；imported=外部导入。缺省时视为 manual，供历史条目向下兼容。",
+      "default": "manual"
     },
     "confidence": {
       "type": "number",

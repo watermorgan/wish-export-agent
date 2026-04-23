@@ -114,6 +114,18 @@ npm run feedback:promote-terms
 - 从 `term_correction` 里抽取候选
 - 合并写入 `data/glossary/candidates.json`
 - 不直接修改 `data/glossary/core.json`
+- 所有新写入的条目 `origin = "ai_feedback_mining"`；已有但缺失 `origin` 的历史条目在读回时按 `manual` 兜底并在下一次写入时补齐
+- 脚本结束会额外打印 `origin.ai_feedback_mining=<N>` 与（如发生回填）`origin.backfilled=<M>`，用于审计 AI 自动挖掘的比例
+
+### 4.2.1 origin 字段语义
+
+`data/glossary/candidates.json` 与 `core.json` 现在都带 `origin` 字段（见 `data/glossary/schema.json`）。取值：
+
+- `manual`：人工直接录入、或 `normalize_rule_migration` 等规则级迁移条目
+- `ai_feedback_mining`：由 `promote-feedback-terms` 脚本从反馈中自动挖掘
+- `imported`：外部术语库批量导入
+
+主管在审核 `candidates.json` 时可直接通过 `npm run feedback:review` 的 `--- glossary candidates ---` 区域查看每一条候选的 `origin`，优先核对 AI 自动挖掘出的条目。
 
 ### 4.3 人工决策处理路径
 

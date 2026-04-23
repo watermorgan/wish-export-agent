@@ -5,6 +5,7 @@ import {
   extractGlossaryCandidates,
   filterFeedbackCases,
   mergeGlossaryCandidates,
+  resolveGlossaryOrigin,
 } from '../review';
 import type { FeedbackCase } from '../types';
 
@@ -104,6 +105,7 @@ test('extractGlossaryCandidates only promotes term corrections and deduplicates 
   assert.equal(candidates[0].en, 'Back elasticated waistband');
   assert.equal(candidates[0].zh, '后腰部橡筋');
   assert.equal(candidates[0].source, 'feedback_extraction');
+  assert.equal(candidates[0].origin, 'ai_feedback_mining');
   assert.equal(candidates[0].reviewStatus, 'pending');
   assert.equal(candidates[0].context, 'general');
   assert.equal(candidates[0].confidence, 0.8);
@@ -119,6 +121,7 @@ test('mergeGlossaryCandidates appends only unseen candidate pairs', () => {
         zh: '后腰部橡筋',
         context: 'general',
         source: 'feedback_extraction',
+        origin: 'ai_feedback_mining',
         confidence: 0.8,
         reviewStatus: 'pending',
         addedAt: '2026-04-17',
@@ -131,6 +134,7 @@ test('mergeGlossaryCandidates appends only unseen candidate pairs', () => {
         zh: '后腰部橡筋',
         context: 'general',
         source: 'feedback_extraction',
+        origin: 'ai_feedback_mining',
         confidence: 0.8,
         reviewStatus: 'pending',
         addedAt: '2026-04-17',
@@ -140,6 +144,7 @@ test('mergeGlossaryCandidates appends only unseen candidate pairs', () => {
         zh: '侧缝插袋',
         context: 'general',
         source: 'feedback_extraction',
+        origin: 'ai_feedback_mining',
         confidence: 0.8,
         reviewStatus: 'pending',
         addedAt: '2026-04-17',
@@ -152,4 +157,13 @@ test('mergeGlossaryCandidates appends only unseen candidate pairs', () => {
     merged.map((item) => `${item.en}=>${item.zh}`),
     ['Back elasticated waistband=>后腰部橡筋', 'Side seam pockets=>侧缝插袋']
   );
+});
+
+test('resolveGlossaryOrigin falls back to manual for missing/unknown values', () => {
+  assert.equal(resolveGlossaryOrigin('ai_feedback_mining'), 'ai_feedback_mining');
+  assert.equal(resolveGlossaryOrigin('imported'), 'imported');
+  assert.equal(resolveGlossaryOrigin('manual'), 'manual');
+  assert.equal(resolveGlossaryOrigin(undefined), 'manual');
+  assert.equal(resolveGlossaryOrigin(null), 'manual');
+  assert.equal(resolveGlossaryOrigin('something_else'), 'manual');
 });
