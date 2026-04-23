@@ -15,6 +15,8 @@
   V1 功能需求细化文档，定义页面级能力、状态流转、异常回退和验收标准。
 - [`06-page-and-state-spec.md`](./06-page-and-state-spec.md)
   V1 页面与状态规格文档，定义页面信息架构、状态机、关键字段和角色操作边界。
+- [`07-ai-disclosure-policy.md`](./07-ai-disclosure-policy.md)
+  AI 披露政策，定义 payload 字段、PDF/xlsx/UI 渲染层、开关与豁免条件，对应代码常量在 `src/lib/assistant/disclosure.ts`。
 
 ## 当前产品基线
 - 产品形态：内部私有部署的 Web 工作台
