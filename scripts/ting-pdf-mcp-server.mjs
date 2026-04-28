@@ -155,7 +155,8 @@ const tools = [
         pageNumbers: { type: 'array', items: { type: 'number' } },
         instruction: { type: 'string' },
         note: { type: 'string' },
-        sourceFeedbackIds: { type: 'array', items: { type: 'string' } }
+        sourceFeedbackIds: { type: 'array', items: { type: 'string' } },
+        mode: { type: 'string', enum: ['retranslate', 'revise'], description: "'retranslate' = only re-translate (default), 'revise' = re-run vision OCR + translate" }
       },
       required: ['taskId', 'scope', 'instruction']
     }

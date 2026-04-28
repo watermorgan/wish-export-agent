@@ -1433,12 +1433,36 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                 render_styles,
             )
             if inline_overlay and not inline_overflow:
-                new_page = writer.add_blank_page(
-                    width=float(page.mediabox.width),
-                    height=float(page.mediabox.height),
-                )
-                new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-                new_page.merge_page(inline_overlay.pages[0])
+                non_inline_before_continue = [
+                    *[
+                        note
+                        for note in notes_for_page
+                        if note not in inline_candidates and note.get("render_mode") != "inline"
+                    ],
+                    *[note for note in sketch_inline_notes if note not in inline_candidates],
+                ]
+                if non_inline_before_continue:
+                    new_page = writer.add_blank_page(
+                        width=float(page.mediabox.width) + PANEL_WIDTH,
+                        height=float(page.mediabox.height),
+                    )
+                    new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                    new_page.merge_page(inline_overlay.pages[0])
+                    overlay_reader = create_overlay_page(
+                        float(page.mediabox.width),
+                        float(page.mediabox.height),
+                        page_number,
+                        non_inline_before_continue,
+                        render_styles,
+                    )
+                    new_page.merge_page(overlay_reader.pages[0])
+                else:
+                    new_page = writer.add_blank_page(
+                        width=float(page.mediabox.width),
+                        height=float(page.mediabox.height),
+                    )
+                    new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                    new_page.merge_page(inline_overlay.pages[0])
                 continue
 
         non_inline_notes = [

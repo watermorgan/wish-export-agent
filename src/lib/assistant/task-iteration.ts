@@ -278,7 +278,7 @@ export function createReworkRevisionRequest(
 
     const targetPages = collectTargetPages(undefined, rework);
     const mergedPageOverrides = mergePageOverrides(existing.currentControl?.pageOverrides, {
-      forceVisionPages: targetPages
+      forceVisionPages: rework.mode === 'revise' ? targetPages : []
     });
     const control: TaskExecutionControl = {
       pageOverrides: mergedPageOverrides,

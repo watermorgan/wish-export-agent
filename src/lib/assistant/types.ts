@@ -54,12 +54,16 @@ export type TaskPageOverrides = {
 
 export type TaskReworkScope = 'pages';
 
+export type TaskReworkMode = 'retranslate' | 'revise';
+
 export type TaskReworkRequest = {
   scope: TaskReworkScope;
   pageNumbers?: number[];
   instruction: string;
   note?: string;
   sourceFeedbackIds?: string[];
+  /** rework mode: 'retranslate' = only re-translate (default), 'revise' = re-run vision + translate */
+  mode?: TaskReworkMode;
 };
 
 export type TaskExecutionControl = {

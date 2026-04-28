@@ -1,0 +1,18 @@
+{
+  "id": "fb-20260424-001",
+  "category": "general_quality",
+  "priority": "high",
+  "status": "open",
+  "source": {
+    "taskId": "task_1777004268253_29ilch",
+    "fileName": "dingtalk-file-1776947841470-x0uepw.pdf"
+  },
+  "reporter": "ting",
+  "reportedAt": "2026-04-24T04:29:53.962Z",
+  "tags": [
+    "pdf-rendering",
+    "missing-zh-display",
+    "M445033"
+  ],
+  "resolution": null
+}
