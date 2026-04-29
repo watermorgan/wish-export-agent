@@ -57,6 +57,14 @@
     }
   },
 
+  "pageRenderDecision": {
+    "$comment": "Page-level unified render mode: 同一页统一使用 inline 或 panel，不再逐条混排。",
+    "pageInlineMaxNotes": 8,
+    "pageInlineMaxTotalChars": 200,
+    "pageInlineMaxSingleChars": 40,
+    "notes": "翻译条目数 > pageInlineMaxNotes 或总字符数 > pageInlineMaxTotalChars 或单条 > pageInlineMaxSingleChars → 整页走 panel 模式；否则走 inline 模式。用户可通过 override 强制指定。"
+  },
+
   "calibration": {
     "$comment": "校准元数据 - 记录参数是如何确定的",
     "method": "manual_initial",

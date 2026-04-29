@@ -58,6 +58,13 @@ MARKER_FONT_SIZE = _cfg("markerFontSize", 10)
 USE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_INLINE_NOTES", "1") != "0"
 USE_DENSE_INLINE_NOTES = os.environ.get("FEEDBACK_RENDER_DENSE_INLINE_NOTES") == "1"
 
+# Page-level unified render mode thresholds.
+# When a page has more notes or more total translation characters than these thresholds,
+# the entire page uses panel (right-side CN Notes) mode instead of inline (beside English).
+PAGE_INLINE_MAX_NOTES = _cfg("pageInlineMaxNotes", 8)
+PAGE_INLINE_MAX_TOTAL_CHARS = _cfg("pageInlineMaxTotalChars", 200)
+PAGE_INLINE_MAX_SINGLE_CHARS = _cfg("pageInlineMaxSingleChars", 40)
+
 # AI 披露水印（PR-2）：页脚文字由 export-agent 侧通过环境变量注入。
 # EXPORT_AGENT_AI_DISCLOSURE=off 时禁用。
 DISCLOSURE_FLAG = os.environ.get("EXPORT_AGENT_AI_DISCLOSURE", "on").strip().lower()
@@ -1372,6 +1379,63 @@ def create_dense_review_pages(page_width: float, page_height: float, page_number
     return buffer_pages
 
 
+def _load_page_render_overrides() -> dict[int, str]:
+    """Load per-page render style overrides from FEEDBACK_RENDER_PAGE_OVERRIDES env.
+
+    Format: "1:inline,3:panel,5:inline" (page_number:render_style pairs)
+    render_style must be 'inline' or 'panel'.
+    """
+    raw = os.environ.get("FEEDBACK_RENDER_PAGE_OVERRIDES", "").strip()
+    if not raw:
+        return {}
+    overrides: dict[int, str] = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if ":" not in pair:
+            continue
+        page_str, style = pair.split(":", 1)
+        try:
+            page_num = int(page_str.strip())
+        except ValueError:
+            continue
+        style = style.strip().lower()
+        if style in ("inline", "panel"):
+            overrides[page_num] = style
+    return overrides
+
+
+def _decide_page_render_style(notes: list[dict], page_number: int, overrides: dict[int, str]) -> str:
+    """Decide unified render style for an entire page.
+
+    Returns 'inline' (all beside English) or 'panel' (all in right-side CN Notes).
+
+    Logic:
+    1. If user has overridden this page via overrides dict, use that.
+    2. Count total notes with translations and total translation characters.
+    3. If any single translation exceeds PAGE_INLINE_MAX_SINGLE_CHARS, use panel.
+    4. If note count > PAGE_INLINE_MAX_NOTES or total chars > PAGE_INLINE_MAX_TOTAL_CHARS, use panel.
+    5. Otherwise use inline.
+    """
+    if page_number in overrides:
+        return overrides[page_number]
+
+    translated = [n for n in notes if n.get("translation")]
+    if not translated:
+        return "panel"
+
+    total_chars = sum(len(n.get("translation", "")) for n in translated)
+    max_single = max(len(n.get("translation", "")) for n in translated)
+
+    if max_single > PAGE_INLINE_MAX_SINGLE_CHARS:
+        return "panel"
+    if len(translated) > PAGE_INLINE_MAX_NOTES:
+        return "panel"
+    if total_chars > PAGE_INLINE_MAX_TOTAL_CHARS:
+        return "panel"
+
+    return "inline"
+
+
 def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
     pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 
@@ -1400,6 +1464,8 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
     reader = PdfReader(str(input_pdf))
     writer = PdfWriter()
 
+    page_render_overrides = _load_page_render_overrides()
+
     for page_number, page in enumerate(reader.pages, start=1):
         notes_for_page = page_notes.get(page_number, [])
         if not notes_for_page:
@@ -1410,110 +1476,103 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
             new_page.merge_transformed_page(page, Transformation().translate(0, 0))
             continue
 
-        inline_overlay = None
-        inline_overflow: list[dict] = []
-        sketch_inline_notes = [
-            note
-            for note in notes_for_page
-            if note.get("render_mode") == "inline" and note.get("page_layout_type") == "sketch"
-        ]
-        # Only notes explicitly marked as `render_mode=inline` are allowed to use the blue inline overlay.
-        # This prevents footnote notes (even if translation is short) from being placed near the English bbox,
-        # which can visually cover the original English in certain bbox estimation scenarios.
-        inline_candidates = [
-            note
-            for note in notes_for_page
-            if note.get("bbox") and note.get("render_mode") == "inline"
-        ]
-        if USE_INLINE_NOTES and inline_candidates:
+        page_render_style = _decide_page_render_style(notes_for_page, page_number, page_render_overrides)
+
+        # ── Unified INLINE mode: all translations beside the English source ──
+        if page_render_style == "inline" and USE_INLINE_NOTES:
+            # Force all notes on this page to inline rendering
+            inline_all = [
+                {**note, "render_mode": "inline"}
+                for note in notes_for_page
+                if note.get("bbox") and note.get("translation")
+            ]
             inline_overlay, inline_overflow = create_inline_note_overlay(
                 float(page.mediabox.width),
                 float(page.mediabox.height),
-                inline_candidates,
+                inline_all,
                 render_styles,
             )
             if inline_overlay and not inline_overflow:
-                non_inline_before_continue = [
-                    *[
-                        note
-                        for note in notes_for_page
-                        if note not in inline_candidates and note.get("render_mode") != "inline"
-                    ],
-                    *[note for note in sketch_inline_notes if note not in inline_candidates],
-                ]
-                if non_inline_before_continue:
-                    new_page = writer.add_blank_page(
-                        width=float(page.mediabox.width) + PANEL_WIDTH,
-                        height=float(page.mediabox.height),
-                    )
-                    new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-                    new_page.merge_page(inline_overlay.pages[0])
-                    overlay_reader = create_overlay_page(
-                        float(page.mediabox.width),
-                        float(page.mediabox.height),
-                        page_number,
-                        non_inline_before_continue,
-                        render_styles,
-                    )
-                    new_page.merge_page(overlay_reader.pages[0])
-                else:
-                    new_page = writer.add_blank_page(
-                        width=float(page.mediabox.width),
-                        height=float(page.mediabox.height),
-                    )
-                    new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-                    new_page.merge_page(inline_overlay.pages[0])
+                new_page = writer.add_blank_page(
+                    width=float(page.mediabox.width),
+                    height=float(page.mediabox.height),
+                )
+                new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+                new_page.merge_page(inline_overlay.pages[0])
                 continue
 
-        non_inline_notes = [
-            *[
-                note
-                for note in notes_for_page
-                if note not in inline_candidates and note.get("render_mode") != "inline"
-            ],
-            *[note for note in sketch_inline_notes if note not in inline_candidates],
+            # Fallback: inline had overflow or failed, fall through to panel
+
+        # ── Unified PANEL mode: all translations in right-side CN Notes ──
+        # This also serves as fallback when inline mode overflows
+        panel_notes = [
+            {**note, "render_mode": "footnote"}
+            for note in notes_for_page
+            if note.get("translation")
         ]
-        sketch_only_page = bool(non_inline_notes) and all(
-            note.get("page_layout_type") == "sketch" for note in non_inline_notes
+        if not panel_notes:
+            new_page = writer.add_blank_page(
+                width=float(page.mediabox.width),
+                height=float(page.mediabox.height),
+            )
+            new_page.merge_transformed_page(page, Transformation().translate(0, 0))
+            continue
+
+        sketch_only_page = all(
+            note.get("page_layout_type") == "sketch" for note in panel_notes
         )
-        side_fit_preview = None
-        if non_inline_notes:
-            side_fit_preview = fit_notes_single_page(float(page.mediabox.height), non_inline_notes, render_styles)
+        side_fit_preview = fit_notes_single_page(
+            float(page.mediabox.height), panel_notes, render_styles
+        )
         side_panel_can_fit = bool(
-            side_fit_preview and side_fit_preview[1].get("used_height", 10_000)
+            side_fit_preview
+            and side_fit_preview[1].get("used_height", 10_000)
             <= float(page.mediabox.height) - PAGE_PADDING * 2 - 28
         )
-        dense_page = False if (sketch_only_page or side_panel_can_fit) else should_use_dense_layout(non_inline_notes)
+        dense_page = (
+            False
+            if (sketch_only_page or side_panel_can_fit)
+            else should_use_dense_layout(panel_notes)
+        )
 
         if dense_page:
-            dense_rows = build_dense_page_rows(non_inline_notes)
+            dense_rows = build_dense_page_rows(panel_notes)
             new_page = writer.add_blank_page(
                 width=float(page.mediabox.width),
                 height=float(page.mediabox.height),
             )
             new_page.merge_transformed_page(page, Transformation().translate(0, 0))
             if USE_DENSE_INLINE_NOTES:
-                inline_overlay, overflow_rows = create_dense_inline_overlay(
+                dense_inline_overlay, overflow_rows = create_dense_inline_overlay(
                     float(page.mediabox.width),
                     float(page.mediabox.height),
                     dense_rows,
                     render_styles,
                 )
-                if inline_overlay:
-                    new_page.merge_page(inline_overlay.pages[0])
+                if dense_inline_overlay:
+                    new_page.merge_page(dense_inline_overlay.pages[0])
                 if overflow_rows:
                     marker_overlay = create_dense_marker_overlay(
                         float(page.mediabox.width),
                         float(page.mediabox.height),
                         overflow_rows,
                     )
-                    if not inline_overlay:
+                    if not dense_inline_overlay:
                         new_page.merge_page(marker_overlay.pages[0])
                     for review_page in create_dense_review_pages(
                         float(page.mediabox.width),
                         float(page.mediabox.height),
                         page_number,
-                        [note for note in non_inline_notes if note.get("note_number") in {num for row in overflow_rows for num in row.get("note_numbers", [])}],
+                        [
+                            note
+                            for note in panel_notes
+                            if note.get("note_number")
+                            in {
+                                num
+                                for row in overflow_rows
+                                for num in row.get("note_numbers", [])
+                            }
+                        ],
                         render_styles,
                     ):
                         writer.add_page(review_page.pages[0])
@@ -1529,35 +1588,13 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                         float(page.mediabox.width),
                         float(page.mediabox.height),
                         page_number,
-                        non_inline_notes,
+                        panel_notes,
                         render_styles,
                     ):
                         writer.add_page(review_page.pages[0])
             continue
 
-        if USE_INLINE_NOTES and inline_overlay:
-            new_page = writer.add_blank_page(
-                width=float(page.mediabox.width),
-                height=float(page.mediabox.height),
-            )
-            new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-            new_page.merge_page(inline_overlay.pages[0])
-            if inline_overflow or non_inline_notes:
-                overflow_page = writer.add_blank_page(
-                    width=float(page.mediabox.width) + PANEL_WIDTH,
-                    height=float(page.mediabox.height),
-                )
-                overflow_page.merge_transformed_page(page, Transformation().translate(0, 0))
-                overlay_reader = create_overlay_page(
-                    float(page.mediabox.width),
-                    float(page.mediabox.height),
-                    page_number,
-                    [*non_inline_notes, *inline_overflow],
-                    render_styles,
-                )
-                overflow_page.merge_page(overlay_reader.pages[0])
-            continue
-
+        # Standard side-panel layout
         new_page = writer.add_blank_page(
             width=float(page.mediabox.width) + PANEL_WIDTH,
             height=float(page.mediabox.height),
@@ -1567,7 +1604,7 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
             float(page.mediabox.width),
             float(page.mediabox.height),
             page_number,
-            non_inline_notes if non_inline_notes else notes_for_page,
+            panel_notes,
             render_styles,
         )
         new_page.merge_page(overlay_reader.pages[0])

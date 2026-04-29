@@ -131,6 +131,7 @@ export async function ensureTranslationPdfArtifact(
   await writeFile(responseJsonPath, JSON.stringify(payload, null, 2), 'utf8');
 
   const disclosureEnv = buildDisclosureEnv(reply);
+  const renderStyleEnv = buildPageRenderStyleEnv(reply);
 
   // Use arch -arm64 on macOS to avoid x86_64/ARM64 .so mismatch in pdfplumber/charset_normalizer
   const useArch = process.platform === 'darwin';
@@ -138,7 +139,7 @@ export async function ensureTranslationPdfArtifact(
     ? ['-arm64', 'python3', join(process.cwd(), 'scripts', 'render_feedback_pdf.py'), resolvedSource.inputPath, responseJsonPath, outputPdfPath]
     : ['python3', join(process.cwd(), 'scripts', 'render_feedback_pdf.py'), resolvedSource.inputPath, responseJsonPath, outputPdfPath];
   await execFileAsync(useArch ? 'arch' : 'python3', execArgs, {
-    env: { ...process.env, ...disclosureEnv }
+    env: { ...process.env, ...disclosureEnv, ...renderStyleEnv }
   });
 
   return {
@@ -147,9 +148,25 @@ export async function ensureTranslationPdfArtifact(
   };
 }
 
+function buildPageRenderStyleEnv(reply: AssistantReply): Record<string, string> {
+  const taskIteration = reply.metadata?.taskIteration;
+  const renderStyles = taskIteration?.currentControl?.pageOverrides?.pageRenderStyles;
+  if (!renderStyles || !Array.isArray(renderStyles) || renderStyles.length === 0) {
+    return {};
+  }
+  // Format: "1:inline,3:panel,5:inline"
+  const pairs = renderStyles
+    .filter((item: { pageNumber?: number; renderStyle?: string }) => item.pageNumber && item.renderStyle)
+    .map((item: { pageNumber: number; renderStyle: string }) => `${item.pageNumber}:${item.renderStyle}`);
+  if (pairs.length === 0) {
+    return {};
+  }
+  return { FEEDBACK_RENDER_PAGE_OVERRIDES: pairs.join(',') };
+}
+
 function buildDisclosureEnv(reply: AssistantReply): Record<string, string> {
   if (!isDisclosureWatermarkEnabled()) {
-    return { EXPORT_AGENT_AI_DISCLOSURE: 'off' };
+    return { EXPORT_AGENT_AI_DISCLOSURE: 'off' };;
   }
   const payload = reply.metadata?.skillPayload;
   if (!isPdfTranslationSkillPayload(payload)) {

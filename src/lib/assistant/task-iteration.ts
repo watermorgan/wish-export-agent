@@ -115,11 +115,19 @@ function mergePageOverrides(
     new Set([...(existing?.skipTranslationPages ?? []), ...(incoming?.skipTranslationPages ?? [])])
   ).sort((left, right) => left - right);
   const pageDirectives = [...(existing?.pageDirectives ?? []), ...(incoming?.pageDirectives ?? [])];
+  const pageRenderStyles = [...(existing?.pageRenderStyles ?? []), ...(incoming?.pageRenderStyles ?? [])];
+  // Later entries override earlier ones for the same pageNumber
+  const renderStyleMap = new Map<number, string>();
+  for (const entry of pageRenderStyles) {
+    renderStyleMap.set(entry.pageNumber, entry.renderStyle);
+  }
+  const dedupedRenderStyles = [...renderStyleMap.entries()].map(([pageNumber, renderStyle]) => ({ pageNumber, renderStyle: renderStyle as 'inline' | 'panel' }));
 
   return {
     ...(forceVisionPages.length > 0 ? { forceVisionPages } : {}),
     ...(skipTranslationPages.length > 0 ? { skipTranslationPages } : {}),
-    ...(pageDirectives.length > 0 ? { pageDirectives } : {})
+    ...(pageDirectives.length > 0 ? { pageDirectives } : {}),
+    ...(dedupedRenderStyles.length > 0 ? { pageRenderStyles: dedupedRenderStyles } : {})
   };
 }
 

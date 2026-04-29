@@ -29,13 +29,19 @@ const pageDirectiveSchema = z.object({
   note: z.string().trim().max(200).optional()
 });
 
+const pageRenderStyleSchema = z.object({
+  pageNumber: positiveIntSchema,
+  renderStyle: z.enum(['inline', 'panel'])
+});
+
 const taskOverrideSchema = z.object({
   actor: z.enum(['sales', 'supervisor']).default('sales'),
   reason: z.string().trim().min(1).max(400),
   pageOverrides: z.object({
     forceVisionPages: z.array(positiveIntSchema).max(100).optional(),
     skipTranslationPages: z.array(positiveIntSchema).max(100).optional(),
-    pageDirectives: z.array(pageDirectiveSchema).max(200).optional()
+    pageDirectives: z.array(pageDirectiveSchema).max(200).optional(),
+    pageRenderStyles: z.array(pageRenderStyleSchema).max(100).optional()
   })
 });
 

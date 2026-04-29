@@ -46,10 +46,18 @@ export type TaskPageDirective = {
   note?: string;
 };
 
+export type TaskPageRenderStyle = 'inline' | 'panel';
+
+export type TaskPageRenderStyleDirective = {
+  pageNumber: number;
+  renderStyle: TaskPageRenderStyle;
+};
+
 export type TaskPageOverrides = {
   forceVisionPages?: number[];
   skipTranslationPages?: number[];
   pageDirectives?: TaskPageDirective[];
+  pageRenderStyles?: TaskPageRenderStyleDirective[];
 };
 
 export type TaskReworkScope = 'pages';
