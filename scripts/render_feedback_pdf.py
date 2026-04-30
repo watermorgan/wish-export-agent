@@ -35,7 +35,7 @@ def _cfg(key: str, default):
 
 _LAYOUT_CONFIG = _load_layout_config()
 
-PANEL_WIDTH = _cfg("panelWidth", 248)
+PANEL_WIDTH = _cfg("panelWidth", 340)
 PAGE_PADDING = _cfg("pagePadding", 18)
 BOX_PADDING = _cfg("boxPadding", 10)
 BOX_GAP = _cfg("boxGap", 10)
@@ -645,6 +645,9 @@ def fit_notes_single_page(page_height: float, notes: list[dict], base_styles: di
         {"columns": 1, "source_chars": 48, "translation_chars": 52, "source_size": 6.6, "translation_size": 8.0, "source_leading": 7.6, "translation_leading": 9.2},
         {"columns": 2, "source_chars": 34, "translation_chars": 34, "source_size": 6.2, "translation_size": 7.2, "source_leading": 7.0, "translation_leading": 8.0},
         {"columns": 2, "source_chars": 26, "translation_chars": 28, "source_size": 5.8, "translation_size": 6.6, "source_leading": 6.6, "translation_leading": 7.4},
+        {"columns": 3, "source_chars": 22, "translation_chars": 24, "source_size": 5.4, "translation_size": 6.4, "source_leading": 6.2, "translation_leading": 7.2},
+        {"columns": 3, "source_chars": 16, "translation_chars": 20, "source_size": 5.0, "translation_size": 6.0, "source_leading": 5.8, "translation_leading": 6.8},
+        {"columns": 4, "source_chars": 14, "translation_chars": 18, "source_size": 4.6, "translation_size": 5.6, "source_leading": 5.4, "translation_leading": 6.4},
     ]
 
     sample_styles = getSampleStyleSheet()
@@ -1199,8 +1202,9 @@ def create_overlay_page(page_width: float, page_height: float, page_number: int,
         translation_para = Paragraph(note["_translation_excerpt"], layout["translation"])
 
         pdf.setFillColor(MARKER_COLOR)
-        pdf.setFont("Helvetica-Bold", 18 if layout["columns"] == 1 else 16)
-        pdf.drawString(x + 4, y + note_height - 22, str(note["note_number"]))
+        label_font_size = 18 if layout["columns"] == 1 else (16 if layout["columns"] == 2 else (12 if layout["columns"] == 3 else 10))
+        pdf.setFont("Helvetica-Bold", label_font_size)
+        pdf.drawString(x + 4, y + note_height - (14 if layout["columns"] <= 2 else 10), str(note["note_number"]))
 
         inner_x = x + BOX_PADDING + 18
         inner_y = y + note_height - BOX_PADDING
@@ -1518,83 +1522,10 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
             new_page.merge_transformed_page(page, Transformation().translate(0, 0))
             continue
 
-        sketch_only_page = all(
-            note.get("page_layout_type") == "sketch" for note in panel_notes
-        )
-        side_fit_preview = fit_notes_single_page(
-            float(page.mediabox.height), panel_notes, render_styles
-        )
-        side_panel_can_fit = bool(
-            side_fit_preview
-            and side_fit_preview[1].get("used_height", 10_000)
-            <= float(page.mediabox.height) - PAGE_PADDING * 2 - 28
-        )
-        dense_page = (
-            False
-            if (sketch_only_page or side_panel_can_fit)
-            else should_use_dense_layout(panel_notes)
-        )
-
-        if dense_page:
-            dense_rows = build_dense_page_rows(panel_notes)
-            new_page = writer.add_blank_page(
-                width=float(page.mediabox.width),
-                height=float(page.mediabox.height),
-            )
-            new_page.merge_transformed_page(page, Transformation().translate(0, 0))
-            if USE_DENSE_INLINE_NOTES:
-                dense_inline_overlay, overflow_rows = create_dense_inline_overlay(
-                    float(page.mediabox.width),
-                    float(page.mediabox.height),
-                    dense_rows,
-                    render_styles,
-                )
-                if dense_inline_overlay:
-                    new_page.merge_page(dense_inline_overlay.pages[0])
-                if overflow_rows:
-                    marker_overlay = create_dense_marker_overlay(
-                        float(page.mediabox.width),
-                        float(page.mediabox.height),
-                        overflow_rows,
-                    )
-                    if not dense_inline_overlay:
-                        new_page.merge_page(marker_overlay.pages[0])
-                    for review_page in create_dense_review_pages(
-                        float(page.mediabox.width),
-                        float(page.mediabox.height),
-                        page_number,
-                        [
-                            note
-                            for note in panel_notes
-                            if note.get("note_number")
-                            in {
-                                num
-                                for row in overflow_rows
-                                for num in row.get("note_numbers", [])
-                            }
-                        ],
-                        render_styles,
-                    ):
-                        writer.add_page(review_page.pages[0])
-            else:
-                if dense_rows:
-                    marker_overlay = create_dense_marker_overlay(
-                        float(page.mediabox.width),
-                        float(page.mediabox.height),
-                        dense_rows,
-                    )
-                    new_page.merge_page(marker_overlay.pages[0])
-                    for review_page in create_dense_review_pages(
-                        float(page.mediabox.width),
-                        float(page.mediabox.height),
-                        page_number,
-                        panel_notes,
-                        render_styles,
-                    ):
-                        writer.add_page(review_page.pages[0])
-            continue
-
-        # Standard side-panel layout
+        # ── Always use right-side panel layout (no extra review pages) ──
+        # All translations go into the right-side CN Notes panel.
+        # fit_notes_single_page will use progressively more columns and smaller
+        # fonts to fit everything on a single page.
         new_page = writer.add_blank_page(
             width=float(page.mediabox.width) + PANEL_WIDTH,
             height=float(page.mediabox.height),
