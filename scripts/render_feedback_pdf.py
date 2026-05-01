@@ -106,7 +106,16 @@ def clean_translation(value: str) -> str:
     if "->" in text:
       return text.split("->", 1)[-1].replace("[译文]", "").strip()
 
-    return text
+    # Fix potential garbled text with doubled characters
+    # Remove consecutive duplicate characters that might be extraction errors
+    cleaned = ""
+    prev_char = ""
+    for char in text:
+      if char != prev_char:
+        cleaned += char
+      prev_char = char
+    
+    return cleaned
 
 
 def normalize_translation_display(value: str) -> str:
@@ -566,6 +575,10 @@ def find_collision_free_position(
                 "bottom": source_bbox["top"] + text_height
             }
             
+            # Ensure within page bounds
+            if candidate_rect["x1"] > page_width - PAGE_PADDING:
+                return None
+                
             if not check_collision(candidate_rect, page_words, source_bbox):
                 return candidate_rect
     
@@ -582,6 +595,8 @@ def find_collision_free_position(
             # Ensure within page bounds
             if candidate_rect["top"] < PAGE_PADDING or candidate_rect["bottom"] > page_height - PAGE_PADDING:
                 continue
+            if candidate_rect["x1"] > page_width - PAGE_PADDING:
+                continue
                 
             if not check_collision(candidate_rect, page_words, source_bbox):
                 return candidate_rect
@@ -594,6 +609,9 @@ def find_collision_free_position(
         "bottom": source_bbox["bottom"] + 2 + text_height
     }
     
+    # Ensure within page bounds
+    if candidate_rect["x1"] > page_width - PAGE_PADDING:
+        return None
     if candidate_rect["bottom"] <= page_height - PAGE_PADDING:
         if not check_collision(candidate_rect, page_words, source_bbox):
             return candidate_rect
@@ -1666,15 +1684,15 @@ def apply_smart_placement_strategies(
     """Apply smart placement strategies in priority order.
     
     Returns:
-        tuple: (table_placed, inline_placed, remaining_for_panel)
+        tuple: (table_placed, inline_placed, remaining_for_bottom)
     """
     if not USE_SMART_PLACEMENT or not SMART_PLACEMENT_ENABLED:
         return [], [], page_notes
     
     page_words = pdf_page.extract_words(x_tolerance=2, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
     
-    # Strategy 1: Table Column Fill
-    table_placed = apply_table_column_fill_strategy(pdf_page, page_notes, page_words, render_styles)
+    # Strategy 1: Table-Aware Translation (highest priority)
+    table_placed = apply_table_aware_strategy(pdf_page, page_notes, page_words, render_styles)
     
     # Get notes not placed by Strategy 1
     remaining_for_strategies = [note for note in page_notes if note not in table_placed]
@@ -1682,80 +1700,129 @@ def apply_smart_placement_strategies(
     # Strategy 2: Collision-Free Inline
     inline_placed = apply_collision_free_inline_strategy(remaining_for_strategies, page_words, page_width, page_height, render_styles)
     
-    # Get notes not placed by Strategies 1-2
-    remaining_for_panel = [note for note in remaining_for_strategies if note not in inline_placed]
+    # Get notes not placed by Strategies 1-2 (these will go to bottom zone)
+    remaining_for_bottom = [note for note in remaining_for_strategies if note not in inline_placed]
     
-    return table_placed, inline_placed, remaining_for_panel
+    return table_placed, inline_placed, remaining_for_bottom
 
 
-def apply_table_column_fill_strategy(
+def apply_table_aware_strategy(
     pdf_page,
     page_notes: list[dict],
     page_words: list,
     render_styles: dict
 ) -> list[dict]:
-    """Strategy 1: Place translations in empty table comment/notes cells."""
+    """Strategy 1: Table-Aware Translation - Place translations in table cells.
+    
+    This handles:
+    - Header translations: place Chinese near or below English headers
+    - Data row translations: place Chinese POM descriptions in Comment/Notes columns
+    """
     placed = []
     
-    # Use the extended version to get the specific table
-    col_info = find_table_comment_column_ex(pdf_page, TABLE_COMMENT_HEADERS)
-    if col_info is None:
-        return placed
-    
-    table_idx, comment_col_idx = col_info
     tables = pdf_page.find_tables()
-    if table_idx >= len(tables):
+    if not tables:
         return placed
     
-    table = tables[table_idx]
-    if not hasattr(table, 'cells') or not table.cells:
-        return placed
-    
-    # Build a map of row y-ranges to Comment cells
-    # This avoids the fragile note<->row matching
-    comment_cells = []
-    for row_idx, row in enumerate(table.cells):
-        if comment_col_idx >= len(row):
-            continue
-        cell_bbox = row[comment_col_idx]
-        if not cell_bbox or not isinstance(cell_bbox, (tuple, list)) or len(cell_bbox) < 4:
-            continue
-        # cell_bbox is (x0, top, x1, bottom) tuple
-        cell_dict = {
-            "x0": cell_bbox[0],
-            "x1": cell_bbox[2],
-            "top": cell_bbox[1],
-            "bottom": cell_bbox[3]
-        }
-        if is_cell_empty(cell_dict, page_words):
-            comment_cells.append(cell_dict)
-    
-    if not comment_cells:
-        return placed
-    
-    # Match notes to comment cells by y-position overlap
-    used_cells = set()
-    for note in page_notes:
-        if not note.get("bbox") or not note.get("translation"):
+    for table in tables:
+        if not hasattr(table, 'cells') or not table.cells:
             continue
         
-        note_bbox = note["bbox"]
-        note_center_y = (note_bbox["top"] + note_bbox["bottom"]) / 2
+        table_data = table.extract()
+        if not table_data or len(table_data) < 1:
+            continue
         
-        for ci, cell in enumerate(comment_cells):
-            if ci in used_cells:
+        # Find header row and comment columns
+        header_row = table_data[0] if table_data else []
+        comment_col_indices = []
+        
+        for col_idx, cell_text in enumerate(header_row):
+            cell_str = (cell_text or "").strip().lower()
+            for header_keyword in TABLE_COMMENT_HEADERS:
+                if header_keyword in cell_str:
+                    comment_col_indices.append(col_idx)
+                    break
+        
+        # Process each row
+        for row_idx, row in enumerate(table.cells):
+            if not isinstance(row, list):
                 continue
-            # Check if note center falls within cell's y-range (relaxed)
-            if cell["top"] - 5 <= note_center_y <= cell["bottom"] + 5:
-                placed_note = clone_note(note)
-                placed_note["_smart_placement"] = "table_cell"
-                placed_note["_cell_bbox"] = cell
-                placed_note["_font_size"] = 7.0
-                placed.append(placed_note)
-                used_cells.add(ci)
-                break
-    
-    return placed
+            
+            for col_idx, cell in enumerate(row):
+                if not cell or not isinstance(cell, (tuple, list)) or len(cell) < 4:
+                    continue
+                
+                cell_bbox = {
+                    "x0": cell[0],
+                    "x1": cell[2],
+                    "top": cell[1],
+                    "bottom": cell[3]
+                }
+                
+                # Skip cells that contain text
+                if not is_cell_empty(cell_bbox, page_words):
+                    # Check if this is a header cell that needs translation
+                    if row_idx == 0 and col_idx < len(header_row):
+                        header_text = (header_row[col_idx] or "").strip()
+                        if header_text:
+                            # Try to find translation for this header
+                            for note in page_notes:
+                                if note in placed:
+                                    continue
+                                source_norm = normalize_text(note.get("source", ""))
+                                header_norm = normalize_text(header_text)
+                                if source_norm == header_norm or (source_norm in header_norm or header_norm in source_norm):
+                                    placed_note = clone_note(note)
+                                    placed_note["_smart_placement"] = "table_header"
+                                    placed_note["_cell_bbox"] = cell_bbox
+                                    placed_note["_font_size"] = 6.0
+                                    placed.append(placed_note)
+                                    break
+                    continue
+                
+                # This is an empty cell, try to place translation here
+                # Find the row that corresponds to this cell
+                if row_idx > 0 and row_idx - 1 < len(table_data):
+                    row_data = table_data[row_idx - 1] if row_idx - 1 >= 0 else []
+                    if col_idx < len(row_data):
+                        row_text = (row_data[col_idx] or "").strip()
+                        
+                        # Look for matching translation
+                        for note in page_notes:
+                            if note in placed:
+                                continue
+                            
+                            source_text = note.get("source", "")
+                            if not source_text:
+                                continue
+                            
+                            # Check for POM pattern match (e.g., "141=carrure dvt/frt breadth")
+                            source_norm = normalize_text(source_text)
+                            row_norm = normalize_text(row_text)
+                            
+                            # Try exact match first
+                            if source_norm == row_norm:
+                                placed_note = clone_note(note)
+                                placed_note["_smart_placement"] = "table_cell"
+                                placed_note["_cell_bbox"] = cell_bbox
+                                placed_note["_font_size"] = 7.0
+                                placed.append(placed_note)
+                                break
+                            
+                            # Try partial match for POM descriptions
+                            if source_norm in row_norm or row_norm in source_norm:
+                                # Extract just the POM part for translation
+                                translation = note.get("translation", "")
+                                if '=' in source_text:
+                                    # Extract POM code from source
+                                    pom_code = source_text.split('=')[0].strip()
+                                    if pom_code and pom_code in row_text:
+                                        placed_note = clone_note(note)
+                                        placed_note["_smart_placement"] = "table_cell"
+                                        placed_note["_cell_bbox"] = cell_bbox
+                                        placed_note["_font_size"] = 7.0
+                                        placed.append(placed_note)
+                                        break
     
     return placed
 
@@ -1767,7 +1834,13 @@ def apply_collision_free_inline_strategy(
     page_height: float,
     render_styles: dict
 ) -> list[dict]:
-    """Strategy 2: Place translations with collision detection and adaptive font sizing."""
+    """Strategy 2: Collision-Free Inline - Place translations near source text.
+    
+    Tries multiple positions with adaptive font sizing:
+    1. Right side of source (preferred)
+    2. Below source
+    3. Vertical shifts
+    """
     placed = []
     
     for note in page_notes:
@@ -1777,10 +1850,10 @@ def apply_collision_free_inline_strategy(
         source_bbox = note["bbox"]
         translation = note["translation"]
         
-        # Try different font sizes
-        for space_threshold in sorted([int(k) for k in INLINE_FONT_BY_SPACE.keys()], reverse=True):
-            font_size = INLINE_FONT_BY_SPACE[str(space_threshold)]
-            
+        # Try different font sizes (larger to smaller)
+        font_sizes = [7.0, 6.0, 5.0]
+        
+        for font_size in font_sizes:
             # Calculate text dimensions
             text_width = pdfmetrics.stringWidth(translation, "STSong-Light", font_size)
             text_height = font_size * 1.2  # Approximate height with leading
@@ -1805,17 +1878,22 @@ def create_bottom_zone_overlay(
     page_width: float,
     page_height: float,
     bottom_notes: list[dict],
-    page_number: int
+    page_number: int,
+    page_words: list = None
 ) -> PdfReader | None:
-    """Strategy 3: Create bottom zone overlay for remaining translations."""
+    """Strategy 3: Bottom Zone Compact List - Simple format without numbers/markers."""
     if not bottom_notes:
         return None
     
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=(page_width, page_height))
     
-    # Calculate bottom zone position
-    bottom_y = detect_bottom_zone([], page_height)  # Will be calculated from actual content
+    # Calculate bottom zone position from actual content
+    if page_words:
+        bottom_y = detect_bottom_zone(page_words, page_height)
+    else:
+        bottom_y = page_height * 0.85  # Fallback to 85% down the page
+    
     available_height = page_height - bottom_y - PAGE_PADDING
     
     if available_height < BOTTOM_ZONE_MIN_HEIGHT:
@@ -1838,19 +1916,19 @@ def create_bottom_zone_overlay(
         stroke=0,
     )
     
-    # Draw separator line
+    # Draw separator line above the zone
     pdf.setStrokeColor(colors.HexColor("#d4e3f4"))
     pdf.setLineWidth(1.0)
     pdf.line(PAGE_PADDING, zone_y + zone_height - 1, page_width - PAGE_PADDING, zone_y + zone_height - 1)
     
-    # Draw title
+    # Draw compact title
     pdf.setFillColor(colors.HexColor("#1f4f86"))
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(PAGE_PADDING, zone_y + zone_height - 8, "CN Notes")
+    pdf.setFont("Helvetica-Bold", 9)
+    pdf.drawString(PAGE_PADDING, zone_y + zone_height - 6, "CN Notes")
     
-    # Organize notes in columns
+    # Organize notes in simple 2-column format without numbers
     column_width = (page_width - PAGE_PADDING * 2 - COLUMN_GAP) / BOTTOM_ZONE_COLUMNS
-    current_y = zone_y + zone_height - 28
+    current_y = zone_y + zone_height - 24
     current_column = 0
     
     pdf.setFont("STSong-Light", BOTTOM_ZONE_FONT_SIZE)
@@ -1859,20 +1937,33 @@ def create_bottom_zone_overlay(
     for note in bottom_notes:
         if current_column >= BOTTOM_ZONE_COLUMNS:
             current_column = 0
-            current_y -= 16
+            current_y -= 14
         
         x = PAGE_PADDING + current_column * (column_width + COLUMN_GAP)
         
-        # Format: "1. keyword → 中文翻译"
-        source_short = shorten_text(note["source"], 30)
-        text = f"{note['note_number']}. {source_short} → {note['translation']}"
+        # Ensure text doesn't overflow column width
+        source_short = shorten_text(note["source"], 20)
+        translation_clean = clean_translation(note['translation'])
+        text = f"{source_short} → {translation_clean}"
+        
+        # Check if text would overflow column width and truncate if needed
+        text_width = pdfmetrics.stringWidth(text, "STSong-Light", BOTTOM_ZONE_FONT_SIZE)
+        max_width = column_width - 5  # 5px buffer
+        
+        if text_width > max_width:
+            # Truncate translation to fit
+            while text_width > max_width and len(translation_clean) > 3:
+                shortened_translation = translation_clean[:-1]
+                text = f"{source_short} → {shortened_translation}"
+                text_width = pdfmetrics.stringWidth(text, "STSong-Light", BOTTOM_ZONE_FONT_SIZE)
         
         pdf.drawString(x, current_y, text)
         
         current_column += 1
+        # Move to next line after filling all columns
         if current_column >= BOTTOM_ZONE_COLUMNS:
             current_column = 0
-            current_y -= 16
+            current_y -= 14
     
     pdf.save()
     buffer.seek(0)
@@ -1883,28 +1974,27 @@ def render_smart_placement_overlays(
     table_placed: list[dict],
     inline_placed: list[dict],
     bottom_notes: list[dict],
-    panel_notes: list[dict],
     page_width: float,
     page_height: float,
     page_number: int,
-    render_styles: dict
-) -> tuple[list[PdfReader], bool]:
+    render_styles: dict,
+    page_words: list = None
+) -> list[PdfReader]:
     """Render all smart placement overlays.
     
     Returns:
-        tuple: (overlay_pages, needs_panel_expansion)
+        list: overlay_pages (no panel expansion)
     """
     overlays = []
-    needs_panel_expansion = len(panel_notes) > 0
     
     # Create table and inline placement overlay
     if table_placed or inline_placed:
         buffer = io.BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=(page_width, page_height))
         
-        # Render table cell placements
+        # Render table cell placements (including headers)
         for note in table_placed:
-            if note.get("_smart_placement") == "table_cell" and note.get("_cell_bbox"):
+            if note.get("_smart_placement") in ["table_cell", "table_header"] and note.get("_cell_bbox"):
                 cell_bbox = note["_cell_bbox"]
                 pdf.setFillColor(colors.HexColor("#0a6fd6"))
                 pdf.setFont("STSong-Light", note.get("_font_size", 7.0))
@@ -1913,7 +2003,11 @@ def render_smart_placement_overlays(
                 x = cell_bbox["x0"] + 2
                 y = page_height - cell_bbox["top"] - note.get("_font_size", 7.0) - 2
                 
-                pdf.drawString(x, y, note["translation"])
+                # For headers, place translation below the original text
+                if note.get("_smart_placement") == "table_header":
+                    y -= 4  # Add some space below header
+                
+                pdf.drawString(x, y, clean_translation(note["translation"]))
         
         # Render inline placements
         for note in inline_placed:
@@ -1926,7 +2020,7 @@ def render_smart_placement_overlays(
                 x = rect["x0"]
                 y = page_height - rect["bottom"]
                 
-                pdf.drawString(x, y, note["translation"])
+                pdf.drawString(x, y, clean_translation(note["translation"]))
         
         pdf.save()
         buffer.seek(0)
@@ -1934,11 +2028,11 @@ def render_smart_placement_overlays(
     
     # Create bottom zone overlay if there are remaining notes
     if bottom_notes:
-        bottom_overlay = create_bottom_zone_overlay(page_width, page_height, bottom_notes, page_number)
+        bottom_overlay = create_bottom_zone_overlay(page_width, page_height, bottom_notes, page_number, page_words)
         if bottom_overlay:
             overlays.append(bottom_overlay)
     
-    return overlays, needs_panel_expansion
+    return overlays
 
 
 def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
@@ -1999,52 +2093,37 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
 
             if pdf_page:
                 # Apply smart placement strategies
-                table_placed, inline_placed, remaining_for_panel = apply_smart_placement_strategies(
+                table_placed, inline_placed, remaining_for_bottom = apply_smart_placement_strategies(
                     pdf_page, notes_for_page, page_width, page_height, render_styles
                 )
 
-                # Separate remaining into bottom zone and panel
-                bottom_notes = []
-                panel_notes = []
+                # Get page words for bottom zone detection
+                page_words = pdf_page.extract_words(x_tolerance=2, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
                 
-                if remaining_for_panel:
-                    # Check if bottom zone is available
-                    page_words = pdf_page.extract_words(x_tolerance=2, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
-                    bottom_y = detect_bottom_zone(page_words, page_height)
-                    
-                    if can_fit_bottom_zone(page_height, bottom_y):
-                        # Put remaining in bottom zone
-                        bottom_notes = remaining_for_panel
-                        panel_notes = []
-                    else:
-                        # Put remaining in panel
-                        panel_notes = remaining_for_panel
+                # Check if bottom zone is available for remaining translations
+                bottom_y = detect_bottom_zone(page_words, page_height)
+                
+                if remaining_for_bottom and can_fit_bottom_zone(page_height, bottom_y):
+                    # Use bottom zone for remaining translations
+                    bottom_notes = remaining_for_bottom
+                else:
+                    # No bottom zone available - remaining translations won't be rendered
+                    bottom_notes = []
 
-                # Render smart placement overlays
-                smart_overlays, needs_panel = render_smart_placement_overlays(
-                    table_placed, inline_placed, bottom_notes, panel_notes,
-                    page_width, page_height, page_number, render_styles
+                # Render smart placement overlays (no panel expansion)
+                smart_overlays = render_smart_placement_overlays(
+                    table_placed, inline_placed, bottom_notes,
+                    page_width, page_height, page_number, render_styles, page_words
                 )
 
-                # Smart placement mode: avoid panel expansion when possible.
-                # Even if some notes need panel, try to put them in bottom zone instead.
-                # Only expand page width if there are truly no alternatives.
-                use_panel = needs_panel and panel_notes and not bottom_notes
-                final_width = page_width + (PANEL_WIDTH if use_panel else 0)
-                new_page = writer.add_blank_page(width=final_width, height=page_height)
+                # Create page at original width (no panel expansion)
+                new_page = writer.add_blank_page(width=page_width, height=page_height)
                 new_page.merge_transformed_page(page, Transformation().translate(0, 0))
 
                 # Apply all smart placement overlays
                 for overlay in smart_overlays:
                     if overlay.pages:
                         new_page.merge_page(overlay.pages[0])
-
-                # Apply panel overlay only if truly needed
-                if use_panel:
-                    panel_overlay = create_overlay_page(
-                        page_width, page_height, page_number, panel_notes, render_styles
-                    )
-                    new_page.merge_page(panel_overlay.pages[0])
 
                 continue
 
