@@ -123,13 +123,17 @@ def extract_pom_description(translation: str) -> str:
     
     Measurement translations look like:
       "7 | 141=前幅宽 | 1.00 | 38.3 | 39.5 | 41.0 | 42.5 | 44.0"
-    We only want: "141=前幅宽"
+    We only want: "前幅宽"
     
     For simple translations like "高度" or "袖长", return as-is.
     """
     text = clean_translation(translation)
+    
     if '|' not in text:
-        return text
+        # Simple case: might have POM prefix like "280=领宽" → "领宽"
+        text = re.sub(r'^[a-zA-Z]*\d+=', '', text)
+        text = re.sub(r'^1/2\s*', '', text)
+        return text.strip()
     
     parts = [p.strip() for p in text.split('|')]
     
@@ -141,7 +145,11 @@ def extract_pom_description(translation: str) -> str:
         is_pure_number = part.replace('.', '').replace('-', '').replace('+', '').replace('%', '').strip().isdigit()
         
         if has_chinese or (has_letters and not is_pure_number):
-            meaningful_parts.append(part)
+            # Strip POM number prefix: "280=领宽" → "领宽", "armhole12=..." → "..."
+            cleaned = re.sub(r'^[a-zA-Z]*\d+=', '', part)
+            cleaned = re.sub(r'^1/2\s*', '', cleaned)
+            if cleaned.strip():
+                meaningful_parts.append(cleaned.strip())
     
     if meaningful_parts:
         return ' '.join(meaningful_parts)
@@ -1896,6 +1904,10 @@ def apply_collision_free_inline_strategy(
             
         source_bbox = note["bbox"]
         translation = note["translation"]
+        
+        # Skip notes with invalid bbox (x0=0 means position unknown)
+        if source_bbox.get("x0", 0) < 10:
+            continue
         
         # Try different font sizes (larger to smaller)
         font_sizes = [7.0, 6.0, 5.0]
