@@ -1,0 +1,19 @@
+{
+  "id": "fb-20260501-001",
+  "category": "layout_issue",
+  "priority": "high",
+  "status": "open",
+  "source": {
+    "taskId": "task_1777598888052_xxjfw4",
+    "fileName": "dingtalk-file-1777598875617-ya2nay.pdf"
+  },
+  "reporter": "ting",
+  "reportedAt": "2026-05-01T02:30:00.403Z",
+  "tags": [
+    "layout",
+    "bilingual-placement",
+    "size-chart",
+    "tp_bom_table_heavy"
+  ],
+  "resolution": null
+}

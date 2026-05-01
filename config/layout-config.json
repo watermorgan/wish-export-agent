@@ -24,7 +24,16 @@
     "columnGap": 8,
     "denseRowTolerance": 8.0,
     "denseRowMaxItems": 3,
-    "denseRowMaxSourceChars": 100
+    "denseRowMaxSourceChars": 100,
+    "smartPlacementEnabled": true,
+    "tableCommentHeaders": ["comment", "notes", "备注", "说明", "description"],
+    "inlineMinFreeSpace": 20,
+    "inlineFontBySpace": {"60": 7.0, "40": 6.0, "20": 5.0},
+    "inlineMaxVerticalShift": 24,
+    "bottomZoneMinHeight": 50,
+    "bottomZoneFontSize": 7.0,
+    "bottomZoneColumns": 2,
+    "collisionPadding": 1
   },
 
   "levelDecision": {
