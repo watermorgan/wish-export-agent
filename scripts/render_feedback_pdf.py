@@ -185,15 +185,6 @@ def should_skip_render(source: str, translation: str) -> bool:
         return True
     if is_code_like(source) and compact_source in compact_translation:
         return True
-    # Skip rows that are mostly numeric measurements (e.g. "7 | 141=前幅宽 | 1.00 | 38.3 | 39.5")
-    # These are size spec rows where only the POM description matters, not the numbers.
-    # Count digits-and-delimiters vs alphabetic/CJK content.
-    numeric_chars = sum(1 for c in source if c.isdigit() or c in '.|/ ')
-    alpha_chars = sum(1 for c in source if c.isalpha())
-    # If >60% of the source is numeric/pipes, it's a measurement row
-    total_chars = len(source.strip())
-    if total_chars > 10 and numeric_chars / total_chars > 0.60 and alpha_chars / total_chars < 0.25:
-        return True
     return False
 
 
@@ -2035,8 +2026,11 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                     page_width, page_height, page_number, render_styles
                 )
 
-                # Create page with appropriate width
-                final_width = page_width + (PANEL_WIDTH if needs_panel else 0)
+                # Smart placement mode: avoid panel expansion when possible.
+                # Even if some notes need panel, try to put them in bottom zone instead.
+                # Only expand page width if there are truly no alternatives.
+                use_panel = needs_panel and panel_notes and not bottom_notes
+                final_width = page_width + (PANEL_WIDTH if use_panel else 0)
                 new_page = writer.add_blank_page(width=final_width, height=page_height)
                 new_page.merge_transformed_page(page, Transformation().translate(0, 0))
 
@@ -2045,8 +2039,8 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                     if overlay.pages:
                         new_page.merge_page(overlay.pages[0])
 
-                # Apply panel overlay if needed
-                if needs_panel and panel_notes:
+                # Apply panel overlay only if truly needed
+                if use_panel:
                     panel_overlay = create_overlay_page(
                         page_width, page_height, page_number, panel_notes, render_styles
                     )
