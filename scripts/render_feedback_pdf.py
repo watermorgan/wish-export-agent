@@ -1728,6 +1728,8 @@ def apply_table_aware_strategy(
         if not hasattr(table, 'cells') or not table.cells:
             continue
         
+        used_cells = set()  # Track cells already assigned to prevent duplicates
+        
         table_data = table.extract()
         if not table_data or len(table_data) < 1:
             continue
@@ -1772,11 +1774,15 @@ def apply_table_aware_strategy(
                                 source_norm = normalize_text(note.get("source", ""))
                                 header_norm = normalize_text(header_text)
                                 if source_norm == header_norm or (source_norm in header_norm or header_norm in source_norm):
+                                    cell_key = (round(cell_bbox["x0"], 1), round(cell_bbox["top"], 1))
+                                    if cell_key in used_cells:
+                                        break
                                     placed_note = clone_note(note)
                                     placed_note["_smart_placement"] = "table_header"
                                     placed_note["_cell_bbox"] = cell_bbox
                                     placed_note["_font_size"] = 6.0
                                     placed.append(placed_note)
+                                    used_cells.add(cell_key)
                                     break
                     continue
                 
@@ -1800,6 +1806,11 @@ def apply_table_aware_strategy(
                             source_norm = normalize_text(source_text)
                             row_norm = normalize_text(row_text)
                             
+                            # Skip if this cell already used
+                            cell_key = (round(cell_bbox["x0"], 1), round(cell_bbox["top"], 1))
+                            if cell_key in used_cells:
+                                continue
+                            
                             # Try exact match first
                             if source_norm == row_norm:
                                 placed_note = clone_note(note)
@@ -1807,6 +1818,7 @@ def apply_table_aware_strategy(
                                 placed_note["_cell_bbox"] = cell_bbox
                                 placed_note["_font_size"] = 7.0
                                 placed.append(placed_note)
+                                used_cells.add(cell_key)
                                 break
                             
                             # Try partial match for POM descriptions
@@ -1822,6 +1834,7 @@ def apply_table_aware_strategy(
                                         placed_note["_cell_bbox"] = cell_bbox
                                         placed_note["_font_size"] = 7.0
                                         placed.append(placed_note)
+                                        used_cells.add(cell_key)
                                         break
     
     return placed
@@ -1842,6 +1855,8 @@ def apply_collision_free_inline_strategy(
     3. Vertical shifts
     """
     placed = []
+    # Track placed text rects to avoid self-overlap
+    placed_rects = []
     
     for note in page_notes:
         if not note.get("bbox") or not note.get("translation"):
@@ -1858,9 +1873,15 @@ def apply_collision_free_inline_strategy(
             text_width = pdfmetrics.stringWidth(translation, "STSong-Light", font_size)
             text_height = font_size * 1.2  # Approximate height with leading
             
+            # Build collision word list including already-placed inline translations
+            collision_words = list(page_words) + [
+                {"x0": r["x0"], "x1": r["x1"], "top": r["top"], "bottom": r["bottom"], "text": "_placed"}
+                for r in placed_rects
+            ]
+            
             # Try to find collision-free position
             candidate_rect = find_collision_free_position(
-                source_bbox, page_words, text_width, text_height, page_width, page_height
+                source_bbox, collision_words, text_width, text_height, page_width, page_height
             )
             
             if candidate_rect:
@@ -1869,6 +1890,7 @@ def apply_collision_free_inline_strategy(
                 placed_note["_rect"] = candidate_rect
                 placed_note["_font_size"] = font_size
                 placed.append(placed_note)
+                placed_rects.append(candidate_rect)
                 break
     
     return placed
@@ -1992,10 +2014,17 @@ def render_smart_placement_overlays(
         buffer = io.BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=(page_width, page_height))
         
-        # Render table cell placements (including headers)
+        # Render table cell placements (including headers) — deduplicate by cell
+        seen_cells = set()
         for note in table_placed:
             if note.get("_smart_placement") in ["table_cell", "table_header"] and note.get("_cell_bbox"):
                 cell_bbox = note["_cell_bbox"]
+                # Deduplicate: skip if same cell already rendered
+                cell_key = (round(cell_bbox["x0"], 1), round(cell_bbox["top"], 1))
+                if cell_key in seen_cells:
+                    continue
+                seen_cells.add(cell_key)
+                
                 pdf.setFillColor(colors.HexColor("#0a6fd6"))
                 pdf.setFont("STSong-Light", note.get("_font_size", 7.0))
                 
