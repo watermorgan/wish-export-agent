@@ -118,6 +118,38 @@ def clean_translation(value: str) -> str:
     return cleaned
 
 
+def extract_pom_description(translation: str) -> str:
+    """For measurement rows, extract only the POM description part.
+    
+    Measurement translations look like:
+      "7 | 141=前幅宽 | 1.00 | 38.3 | 39.5 | 41.0 | 42.5 | 44.0"
+    We only want: "141=前幅宽"
+    
+    For simple translations like "高度" or "袖长", return as-is.
+    """
+    text = clean_translation(translation)
+    if '|' not in text:
+        return text
+    
+    parts = [p.strip() for p in text.split('|')]
+    
+    # Find the part that contains Chinese characters (the POM description)
+    meaningful_parts = []
+    for part in parts:
+        has_chinese = any('\u4e00' <= c <= '\u9fff' for c in part)
+        has_letters = any(c.isalpha() for c in part)
+        is_pure_number = part.replace('.', '').replace('-', '').replace('+', '').replace('%', '').strip().isdigit()
+        
+        if has_chinese or (has_letters and not is_pure_number):
+            meaningful_parts.append(part)
+    
+    if meaningful_parts:
+        return ' '.join(meaningful_parts)
+    
+    # Fallback: return original
+    return text
+
+
 def normalize_translation_display(value: str) -> str:
     text = clean_translation(value)
     replacements = {
@@ -2036,7 +2068,7 @@ def render_smart_placement_overlays(
                 if note.get("_smart_placement") == "table_header":
                     y -= 4  # Add some space below header
                 
-                pdf.drawString(x, y, clean_translation(note["translation"]))
+                pdf.drawString(x, y, extract_pom_description(note["translation"]))
         
         # Render inline placements
         for note in inline_placed:
@@ -2049,7 +2081,7 @@ def render_smart_placement_overlays(
                 x = rect["x0"]
                 y = page_height - rect["bottom"]
                 
-                pdf.drawString(x, y, clean_translation(note["translation"]))
+                pdf.drawString(x, y, extract_pom_description(note["translation"]))
         
         pdf.save()
         buffer.seek(0)
