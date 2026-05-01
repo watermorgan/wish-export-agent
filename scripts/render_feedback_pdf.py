@@ -185,6 +185,15 @@ def should_skip_render(source: str, translation: str) -> bool:
         return True
     if is_code_like(source) and compact_source in compact_translation:
         return True
+    # Skip rows that are mostly numeric measurements (e.g. "7 | 141=前幅宽 | 1.00 | 38.3 | 39.5")
+    # These are size spec rows where only the POM description matters, not the numbers.
+    # Count digits-and-delimiters vs alphabetic/CJK content.
+    numeric_chars = sum(1 for c in source if c.isdigit() or c in '.|/ ')
+    alpha_chars = sum(1 for c in source if c.isalpha())
+    # If >60% of the source is numeric/pipes, it's a measurement row
+    total_chars = len(source.strip())
+    if total_chars > 10 and numeric_chars / total_chars > 0.60 and alpha_chars / total_chars < 0.25:
+        return True
     return False
 
 
@@ -1140,6 +1149,9 @@ def create_dense_marker_overlay(page_width: float, page_height: float, rows: lis
         if not bbox:
             continue
 
+        if USE_SMART_PLACEMENT:
+            continue
+
         marker_x, marker_y = compute_marker_position(page_width, page_height, bbox, row["label"])
         draw_note_marker(pdf, marker_x, marker_y, row["label"])
 
@@ -1311,6 +1323,9 @@ def create_dense_inline_overlay(
         if not bbox:
             continue
 
+        if USE_SMART_PLACEMENT:
+            continue
+
         marker_x, marker_y = compute_marker_position(page_width, page_height, bbox, row["label"])
         draw_note_marker(pdf, marker_x, marker_y, row["label"])
 
@@ -1381,6 +1396,10 @@ def create_overlay_page(page_width: float, page_height: float, page_number: int,
     for note in fitted_notes:
         bbox = note.get("bbox")
         if not bbox:
+            continue
+
+        # Skip marker drawing in smart placement mode (cleaner look)
+        if USE_SMART_PLACEMENT:
             continue
 
         marker_x, marker_y = compute_marker_position(page_width, page_height, bbox, str(note["note_number"]))
