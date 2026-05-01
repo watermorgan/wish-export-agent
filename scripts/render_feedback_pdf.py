@@ -1714,6 +1714,152 @@ def _decide_page_render_style(notes: list[dict], page_number: int, overrides: di
     return "inline"
 
 
+def apply_comment_column_fill(
+    pdf_page,
+    page_notes: list[dict],
+    page_words: list,
+    page_height: float
+) -> list[dict]:
+    """Fallback strategy: fill Comment column using header word positions.
+    
+    This function is specifically designed to handle cases where pdfplumber table.cells
+    returns unexpected data formats (4 floats instead of proper bounding box tuples).
+    It finds Comment/Notes columns by analyzing header positions and places translations
+    in the appropriate column area for each data row.
+    """
+    placed = []
+    
+    if not pdf_page:
+        return placed
+    
+    # Step 1: Find Comment/Notes and Tolerance headers
+    comment_keywords = ['comment', 'notes', '备注', '说明', 'description']
+    tolerance_keywords = ['tolerance', '公差']
+    
+    comment_header = None
+    tolerance_header = None
+    
+    for w in page_words:
+        text_lower = w['text'].lower().strip()
+        for kw in comment_keywords:
+            if kw in text_lower:
+                comment_header = w
+                break
+        for kw in tolerance_keywords:
+            if kw in text_lower:
+                tolerance_header = w
+                break
+    
+    if not comment_header:
+        return placed
+    
+    # Step 2: Calculate Comment column area
+    comment_x0 = comment_header['x0']  # Left edge of Comment column
+    comment_x1 = tolerance_header['x0'] if tolerance_header else comment_header['x1'] + 60
+    
+    # Step 3: Find table structure
+    tables = pdf_page.find_tables()
+    if not tables:
+        return placed
+    
+    # Find the measurement table (largest one)
+    meas_table = max(tables, key=lambda t: len(t.extract()))
+    table_data = meas_table.extract()
+    
+    if len(table_data) < 2:
+        return placed
+    
+    header_y_bottom = comment_header['bottom']
+    used_y_positions = set()
+    
+    # Step 4: Process each data row
+    for row_idx in range(1, len(table_data)):
+        row = table_data[row_idx]
+        if not row:
+            continue
+        
+        # Find POM description in this row
+        pom_text = None
+        for cell in row:
+            cell_str = (cell or '').strip()
+            # POM descriptions have patterns like "141=carrure dvt" or "1=1/2 poitrine"
+            if '=' in cell_str and any(c.isalpha() for c in cell_str):
+                pom_text = cell_str
+                break
+            # Or simple words like "height", "length", "width"
+            if cell_str.lower() in ['height', 'length', 'width', 'depth'] and len(cell_str) < 15:
+                pom_text = cell_str
+                break
+        
+        if not pom_text:
+            continue
+        
+        # Find the y-position of this row from page words
+        row_y = None
+        for w in page_words:
+            if pom_text[:20] in w['text'] or w['text'][:20] in pom_text:
+                row_y = w['top']
+                break
+        
+        if row_y is None:
+            continue
+        
+        # Skip if this row position already used
+        y_key = round(row_y)
+        if y_key in used_y_positions:
+            continue
+        
+        # Step 5: Match against translation segments
+        pom_norm = normalize_text(pom_text)
+        
+        for note in page_notes:
+            if note in placed:
+                continue
+            
+            source = note.get('source', '')
+            if not source:
+                continue
+            
+            source_norm = normalize_text(source)
+            
+            # Check if this note's source matches the POM text
+            if source_norm == pom_norm or source_norm in pom_norm or pom_norm in source_norm:
+                translation = extract_pom_description(note.get('translation', ''))
+                if not translation or not any('\u4e00' <= c <= '\u9fff' for c in translation):
+                    continue
+                
+                # Check collision in Comment column area
+                comment_area_words = [w for w in page_words 
+                    if comment_x0 <= w['x0'] <= comment_x1 
+                    and row_y - 5 <= w['top'] <= row_y + 20]
+                
+                if comment_area_words:
+                    continue  # Already has text there
+                
+                # Calculate font size to fit in column
+                col_width = comment_x1 - comment_x0
+                font_size = 7.0
+                text_width = pdfmetrics.stringWidth(translation, "STSong-Light", font_size)
+                while text_width > col_width - 4 and font_size > 5.0:
+                    font_size -= 0.5
+                    text_width = pdfmetrics.stringWidth(translation, "STSong-Light", font_size)
+                
+                placed_note = clone_note(note)
+                placed_note["_smart_placement"] = "table_cell"
+                placed_note["_cell_bbox"] = {
+                    "x0": comment_x0,
+                    "x1": comment_x1,
+                    "top": row_y,
+                    "bottom": row_y + font_size + 2
+                }
+                placed_note["_font_size"] = font_size
+                placed.append(placed_note)
+                used_y_positions.add(y_key)
+                break
+    
+    return placed
+
+
 def apply_smart_placement_strategies(
     pdf_page,
     page_notes: list[dict],
@@ -1731,19 +1877,28 @@ def apply_smart_placement_strategies(
     
     page_words = pdf_page.extract_words(x_tolerance=2, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
     
-    # Strategy 1: Table-Aware Translation (highest priority)
-    table_placed = apply_table_aware_strategy(pdf_page, page_notes, page_words, render_styles)
+    # Strategy 0: Comment Column Fill (highest priority - fallback for table.cells issues)
+    comment_placed = apply_comment_column_fill(pdf_page, page_notes, page_words, page_height)
     
-    # Get notes not placed by Strategy 1
-    remaining_for_strategies = [note for note in page_notes if note not in table_placed]
+    # Get notes not placed by Strategy 0
+    remaining_after_comment = [note for note in page_notes if note not in comment_placed]
+    
+    # Strategy 1: Table-Aware Translation
+    table_placed = apply_table_aware_strategy(pdf_page, remaining_after_comment, page_words, render_styles)
+    
+    # Combine results from Strategy 0 and Strategy 1
+    all_table_placed = comment_placed + table_placed
+    
+    # Get notes not placed by Strategies 0-1
+    remaining_for_strategies = [note for note in page_notes if note not in all_table_placed]
     
     # Strategy 2: Collision-Free Inline
     inline_placed = apply_collision_free_inline_strategy(remaining_for_strategies, page_words, page_width, page_height, render_styles)
     
-    # Get notes not placed by Strategies 1-2 (these will go to bottom zone)
+    # Get notes not placed by Strategies 0-2 (these will go to bottom zone)
     remaining_for_bottom = [note for note in remaining_for_strategies if note not in inline_placed]
     
-    return table_placed, inline_placed, remaining_for_bottom
+    return all_table_placed, inline_placed, remaining_for_bottom
 
 
 def apply_table_aware_strategy(
