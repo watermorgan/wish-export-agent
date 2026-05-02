@@ -62,13 +62,13 @@ USE_SMART_PLACEMENT = os.environ.get("FEEDBACK_RENDER_SMART_PLACEMENT", "1") != 
 # Smart placement configuration
 SMART_PLACEMENT_ENABLED = _cfg("smartPlacementEnabled", True)
 TABLE_COMMENT_HEADERS = _cfg("tableCommentHeaders", ["comment", "notes", "备注", "说明", "description"])
-INLINE_MIN_FREE_SPACE = _cfg("inlineMinFreeSpace", 20)
-INLINE_FONT_BY_SPACE = _cfg("inlineFontBySpace", {"60": 7.0, "40": 6.0, "20": 5.0})
+INLINE_MIN_FREE_SPACE = _cfg("inlineMinFreeSpace", 15)
+INLINE_FONT_BY_SPACE = _cfg("inlineFontBySpace", {"60": 7.0, "40": 6.0, "20": 5.0, "10": 4.0})
 INLINE_MAX_VERTICAL_SHIFT = _cfg("inlineMaxVerticalShift", 24)
 BOTTOM_ZONE_MIN_HEIGHT = _cfg("bottomZoneMinHeight", 50)
 BOTTOM_ZONE_FONT_SIZE = _cfg("bottomZoneFontSize", 7.0)
 BOTTOM_ZONE_COLUMNS = _cfg("bottomZoneColumns", 2)
-COLLISION_PADDING = _cfg("collisionPadding", 1)
+COLLISION_PADDING = _cfg("collisionPadding", 0.5)
 
 # Page-level unified render mode thresholds.
 # When a page has more notes or more total translation characters than these thresholds,
@@ -375,6 +375,7 @@ def build_page_assignment(input_pdf: Path, structured: dict) -> tuple[dict[int, 
             continue
         segments.append(
             {
+                "id": item.get("id"),  # Preserve ID for tracking
                 "source": source,
                 "translation": translation,
                 "page_number": item.get("pageNumber"),
@@ -616,13 +617,11 @@ def find_collision_free_position(
             }
             
             # Ensure within page bounds
-            if candidate_rect["x1"] > page_width - PAGE_PADDING:
-                return None
-                
-            if not check_collision(candidate_rect, page_words, source_bbox):
-                return candidate_rect
+            if candidate_rect["x1"] <= page_width - PAGE_PADDING:
+                if not check_collision(candidate_rect, page_words, source_bbox):
+                    return candidate_rect
     
-    # Try vertical shifts
+    # Try vertical shifts (right side)
     for shift in range(4, INLINE_MAX_VERTICAL_SHIFT + 1, 4):
         for direction in [1, -1]:  # down and up
             candidate_rect = {
@@ -650,11 +649,37 @@ def find_collision_free_position(
     }
     
     # Ensure within page bounds
-    if candidate_rect["x1"] > page_width - PAGE_PADDING:
-        return None
-    if candidate_rect["bottom"] <= page_height - PAGE_PADDING:
-        if not check_collision(candidate_rect, page_words, source_bbox):
-            return candidate_rect
+    if candidate_rect["x1"] <= page_width - PAGE_PADDING:
+        if candidate_rect["bottom"] <= page_height - PAGE_PADDING:
+            if not check_collision(candidate_rect, page_words, source_bbox):
+                return candidate_rect
+    
+    # Try above source text
+    candidate_rect = {
+        "x0": source_bbox["x0"],
+        "x1": source_bbox["x0"] + text_width,
+        "top": source_bbox["top"] - text_height - 2,
+        "bottom": source_bbox["top"] - 2
+    }
+    
+    # Ensure within page bounds
+    if candidate_rect["x1"] <= page_width - PAGE_PADDING:
+        if candidate_rect["top"] >= PAGE_PADDING:
+            if not check_collision(candidate_rect, page_words, source_bbox):
+                return candidate_rect
+    
+    # Try left side
+    if source_bbox["x0"] >= text_width + 5:
+        candidate_rect = {
+            "x0": source_bbox["x0"] - text_width - 3,
+            "x1": source_bbox["x0"] - 3,
+            "top": source_bbox["top"],
+            "bottom": source_bbox["top"] + text_height
+        }
+        
+        if candidate_rect["x0"] >= PAGE_PADDING:
+            if not check_collision(candidate_rect, page_words, source_bbox):
+                return candidate_rect
     
     return None
 
@@ -1877,26 +1902,38 @@ def apply_smart_placement_strategies(
     
     page_words = pdf_page.extract_words(x_tolerance=2, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
     
+    # Track placed note IDs to avoid duplicates
+    placed_ids = set()
+    
     # Strategy 0: Comment Column Fill (highest priority - fallback for table.cells issues)
     comment_placed = apply_comment_column_fill(pdf_page, page_notes, page_words, page_height)
+    for note in comment_placed:
+        if note.get("id"):
+            placed_ids.add(note["id"])
     
     # Get notes not placed by Strategy 0
-    remaining_after_comment = [note for note in page_notes if note not in comment_placed]
+    remaining_after_comment = [note for note in page_notes if note.get("id") not in placed_ids]
     
     # Strategy 1: Table-Aware Translation
     table_placed = apply_table_aware_strategy(pdf_page, remaining_after_comment, page_words, render_styles)
+    for note in table_placed:
+        if note.get("id"):
+            placed_ids.add(note["id"])
     
     # Combine results from Strategy 0 and Strategy 1
     all_table_placed = comment_placed + table_placed
     
     # Get notes not placed by Strategies 0-1
-    remaining_for_strategies = [note for note in page_notes if note not in all_table_placed]
+    remaining_for_strategies = [note for note in page_notes if note.get("id") not in placed_ids]
     
     # Strategy 2: Collision-Free Inline
     inline_placed = apply_collision_free_inline_strategy(remaining_for_strategies, page_words, page_width, page_height, render_styles)
+    for note in inline_placed:
+        if note.get("id"):
+            placed_ids.add(note["id"])
     
     # Get notes not placed by Strategies 0-2 (these will go to bottom zone)
-    remaining_for_bottom = [note for note in remaining_for_strategies if note not in inline_placed]
+    remaining_for_bottom = [note for note in page_notes if note.get("id") not in placed_ids]
     
     return all_table_placed, inline_placed, remaining_for_bottom
 
@@ -2044,10 +2081,11 @@ def apply_collision_free_inline_strategy(
 ) -> list[dict]:
     """Strategy 2: Collision-Free Inline - Place translations near source text.
     
-    Tries multiple positions with adaptive font sizing:
+    Tries multiple positions with aggressive font sizing:
     1. Right side of source (preferred)
-    2. Below source
-    3. Vertical shifts
+    2. Below/Above source
+    3. Left side
+    4. Vertical shifts
     """
     placed = []
     # Track placed text rects to avoid self-overlap
@@ -2064,8 +2102,8 @@ def apply_collision_free_inline_strategy(
         if source_bbox.get("x0", 0) < 10:
             continue
         
-        # Try different font sizes (larger to smaller)
-        font_sizes = [7.0, 6.0, 5.0]
+        # Try more aggressive font sizes (larger to smaller)
+        font_sizes = [7.0, 6.0, 5.0, 4.0, 3.5]
         
         for font_size in font_sizes:
             # Calculate text dimensions
@@ -2254,11 +2292,12 @@ def render_smart_placement_overlays(
         buffer.seek(0)
         overlays.append(PdfReader(buffer))
     
-    # Create bottom zone overlay if there are remaining notes
-    if bottom_notes:
-        bottom_overlay = create_bottom_zone_overlay(page_width, page_height, bottom_notes, page_number, page_words)
-        if bottom_overlay:
-            overlays.append(bottom_overlay)
+    # DISABLE bottom zone - don't create bottom zone overlay
+    # All translations must be placed inline via strategies 0-2
+    # if bottom_notes:
+    #     bottom_overlay = create_bottom_zone_overlay(page_width, page_height, bottom_notes, page_number, page_words)
+    #     if bottom_overlay:
+    #         overlays.append(bottom_overlay)
     
     return overlays
 
@@ -2328,15 +2367,12 @@ def render_pdf(input_pdf: Path, response_json: Path, output_pdf: Path) -> None:
                 # Get page words for bottom zone detection
                 page_words = pdf_page.extract_words(x_tolerance=2, y_tolerance=3, keep_blank_chars=False, use_text_flow=True)
                 
-                # Check if bottom zone is available for remaining translations
-                bottom_y = detect_bottom_zone(page_words, page_height)
+                # DISABLE bottom zone - force all translations to be placed inline
+                bottom_notes = []
                 
-                if remaining_for_bottom and can_fit_bottom_zone(page_height, bottom_y):
-                    # Use bottom zone for remaining translations
-                    bottom_notes = remaining_for_bottom
-                else:
-                    # No bottom zone available - remaining translations won't be rendered
-                    bottom_notes = []
+                # Log remaining translations that couldn't be placed (for debugging)
+                if remaining_for_bottom:
+                    bottom_notes = remaining_for_bottom  # Keep for now but will be discarded
 
                 # Render smart placement overlays (no panel expansion)
                 smart_overlays = render_smart_placement_overlays(
