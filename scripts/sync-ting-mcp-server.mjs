@@ -5,7 +5,11 @@ import crypto from 'node:crypto';
 
 const repoRoot = process.cwd();
 const source = path.join(repoRoot, 'scripts', 'ting-pdf-mcp-server.mjs');
-const target = path.join(process.env.HOME ?? '', '.openclaw', 'mcp-servers', 'ting-pdf-mcp-server.mjs');
+const home = process.env.HOME ?? '';
+const targets = [
+  path.join(home, '.openclaw', 'mcp-servers', 'ting-pdf-mcp-server.mjs'),
+  path.join(home, '.hermes', 'profiles', 'ting', 'workspace', 'ting-pdf-mcp-server.mjs')
+];
 
 function sha256(filePath) {
   const raw = readFileSync(filePath);
@@ -16,16 +20,21 @@ if (!existsSync(source)) {
   throw new Error(`source MCP server missing: ${source}`);
 }
 
-mkdirSync(path.dirname(target), { recursive: true });
-copyFileSync(source, target);
+const syncedTargets = targets.map((target) => {
+  mkdirSync(path.dirname(target), { recursive: true });
+  copyFileSync(source, target);
+  return {
+    target,
+    sha256: sha256(target)
+  };
+});
 
 console.log(
   JSON.stringify(
     {
       synced: true,
       source,
-      target,
-      sha256: sha256(target)
+      targets: syncedTargets
     },
     null,
     2

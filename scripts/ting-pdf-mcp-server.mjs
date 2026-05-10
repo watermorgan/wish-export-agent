@@ -8,6 +8,8 @@ const SUPPORTED_PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-
 const DEFAULT_SUCCESS_TASK_ID = 'task_ui_fixture_preview';
 const DEFAULT_TEMPLATE_ID = 'translation-merge';
 const DEFAULT_SKILL_IDS = ['comment-translator', 'comment-merger'];
+const DEFAULT_POLL_INTERVAL_MS = 10_000;
+const DEFAULT_POLL_ATTEMPTS = 12;
 const BASE_URL = process.env.EXPORT_AGENT_BASE_URL?.trim();
 
 if (!BASE_URL) {
@@ -19,7 +21,7 @@ const tools = [
     name: 'submit_pdf_translation_task',
     title: 'Submit PDF Translation Task',
     description:
-      'Create a PDF translation task through the running export-agent service. For real work provide pdfPath; omit it only for deterministic blocked-smoke flows with explicit selectedSkillIds.',
+      'Create a PDF translation task. ⚠️ ONLY use for .pdf files. Do NOT use for .xlsx/.xls — use submit_excel_translation_task instead.',
     annotations: {
       title: 'Submit PDF Translation Task',
       readOnlyHint: false,
@@ -71,7 +73,7 @@ const tools = [
   {
     name: 'get_pdf_translation_task',
     title: 'Get PDF Translation Task',
-    description: 'Read a task snapshot from the running export-agent service.',
+    description: 'Read a PDF translation task snapshot. Use get_excel_translation_task for Excel tasks.',
     annotations: {
       title: 'Get PDF Translation Task',
       readOnlyHint: true,
@@ -203,6 +205,94 @@ const tools = [
       },
       required: ['category', 'source']
     }
+  },
+  {
+    name: 'submit_excel_translation_task',
+    title: 'Submit Excel Translation Task',
+    description: 'Create an Excel translation task. ⚠️ MUST use this tool (NOT submit_pdf_translation_task) when source file is .xlsx or .xls. Preserves original English content by appending a "翻译" column.',
+    annotations: {
+      title: 'Submit Excel Translation Task',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'User-facing task intent or translation instruction.'
+        },
+        xlsxPath: {
+          type: 'string',
+          description: 'Absolute local path to the source Excel (.xlsx) file.'
+        },
+        role: {
+          type: 'string',
+          enum: ['sales', 'supervisor'],
+          description: 'Assistant role. Defaults to sales.'
+        },
+        selectedSkillIds: {
+          type: 'array',
+          description: 'Optional override for deterministic diagnostics.',
+          items: {
+            type: 'string'
+          }
+        },
+        modelOverride: {
+          type: 'string'
+        },
+        translationModelOverride: {
+          type: 'string'
+        }
+      },
+      required: ['question']
+    }
+  },
+  {
+    name: 'get_excel_translation_task',
+    title: 'Get Excel Translation Task',
+    description: 'Read an Excel translation task snapshot from the running export-agent service.',
+    annotations: {
+      title: 'Get Excel Translation Task',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: {
+          type: 'string',
+          description: 'Task id to fetch.'
+        }
+      },
+      required: ['taskId']
+    }
+  },
+  {
+    name: 'get_excel_translation_skill_payload',
+    title: 'Get Excel Translation Skill Payload',
+    description: 'Read the Excel translation skill payload for a completed task.',
+    annotations: {
+      title: 'Get Excel Translation Skill Payload',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: {
+          type: 'string',
+          description: 'Task ID to fetch.'
+        }
+      },
+      required: ['taskId']
+    }
   }
 ];
 
@@ -301,6 +391,86 @@ async function requestService(pathname, init) {
   }
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function extractTaskId(payload) {
+  const candidates = [
+    payload?.taskId,
+    payload?.task?.id,
+    payload?.reply?.task?.id,
+    payload?.reply?.metadata?.skillPayload?.taskId
+  ];
+
+  return candidates.find((candidate) => typeof candidate === 'string' && candidate.trim()) ?? null;
+}
+
+function buildAbsoluteUrl(url) {
+  return typeof url === 'string' && url ? new URL(url, BASE_URL).toString() : null;
+}
+
+function summarizeExcelPayload(payload, taskId) {
+  const absoluteDownloadUrl = buildAbsoluteUrl(payload.downloadUrl);
+  return {
+    kind: payload.kind,
+    taskId,
+    status: payload.error ? 'failed' : 'completed',
+    fileName: payload.fileName,
+    summary: payload.summary,
+    translatedFileName: payload.translatedFileName,
+    translatedFilePath: payload.translatedFilePath,
+    downloadUrl: payload.downloadUrl,
+    absoluteDownloadUrl,
+    totalCells: payload.totalCells,
+    translatedCells: payload.translatedCells,
+    failedCells: payload.failedCells,
+    executionTimeMs: payload.executionTimeMs,
+    error: payload.error,
+    parseFailedBatches: payload.parseFailedBatches,
+    translationBatchErrors: Array.isArray(payload.translationBatchErrors)
+      ? payload.translationBatchErrors
+      : []
+  };
+}
+
+async function pollSkillPayload(taskId, expectedKind, options = {}) {
+  const attempts = Number.isFinite(options.attempts) ? options.attempts : DEFAULT_POLL_ATTEMPTS;
+  const intervalMs = Number.isFinite(options.intervalMs)
+    ? options.intervalMs
+    : DEFAULT_POLL_INTERVAL_MS;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const response = await requestService(`/api/tasks/${encodeURIComponent(taskId)}/skill-payload`);
+
+    if (response.ok && response.payload?.kind === expectedKind) {
+      return {
+        ok: true,
+        payload: response.payload,
+        attempts: attempt
+      };
+    }
+
+    lastError =
+      typeof response.payload?.error === 'string'
+        ? response.payload.error
+        : response.ok
+          ? `payload kind mismatch: ${response.payload?.kind ?? 'missing'}`
+          : `HTTP ${response.status}`;
+
+    if (attempt < attempts) {
+      await wait(intervalMs);
+    }
+  }
+
+  return {
+    ok: false,
+    attempts,
+    lastError
+  };
+}
+
 function normalizeProtocolVersion(requestedVersion) {
   if (SUPPORTED_PROTOCOLS.includes(requestedVersion)) {
     return requestedVersion;
@@ -329,6 +499,22 @@ async function buildUploadedPdf(pdfPath) {
     name: path.basename(resolvedPath),
     size: info.size,
     type: 'application/pdf',
+    storagePath: resolvedPath
+  };
+}
+
+async function buildUploadedXlsx(xlsxPath) {
+  const resolvedPath = path.resolve(xlsxPath);
+  const info = await stat(resolvedPath);
+
+  if (!info.isFile()) {
+    throw new Error('xlsxPath 必须指向文件。');
+  }
+
+  return {
+    name: path.basename(resolvedPath),
+    size: info.size,
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     storagePath: resolvedPath
   };
 }
@@ -664,6 +850,189 @@ async function handleSubmitFeedbackCase(argumentsObject) {
   return buildToolResult(response.payload);
 }
 
+async function handleSubmitExcelTask(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  const question =
+    typeof args.question === 'string' && args.question.trim()
+      ? args.question.trim()
+      : null;
+
+  if (!question) {
+    throw new Error('question 为必填项。');
+  }
+
+  const hasXlsxPath = typeof args.xlsxPath === 'string' && args.xlsxPath.trim().length > 0;
+  const hasSelectedSkillOverride =
+    Array.isArray(args.selectedSkillIds) && args.selectedSkillIds.length > 0;
+
+  if (!hasXlsxPath && !hasSelectedSkillOverride) {
+    throw new Error('xlsxPath 为真实 Excel 翻译必填项；仅诊断/回归场景可显式传 selectedSkillIds 覆盖。');
+  }
+
+  const files = hasXlsxPath ? [await buildUploadedXlsx(args.xlsxPath)] : [];
+  const requestBody = {
+    channel: 'web',
+    role: args.role === 'supervisor' ? 'supervisor' : 'sales',
+    question,
+    files,
+    taskType: 'feedback',
+    selectedSkillIds: hasSelectedSkillOverride ? args.selectedSkillIds : ['excel-translator'],
+    ...(typeof args.modelOverride === 'string' && args.modelOverride.trim()
+      ? { modelOverride: args.modelOverride.trim() }
+      : {}),
+    ...(typeof args.translationModelOverride === 'string' && args.translationModelOverride.trim()
+      ? { translationModelOverride: args.translationModelOverride.trim() }
+      : {})
+  };
+
+  const response = await requestService('/api/tasks', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        error: typeof response.payload?.error === 'string' ? response.payload.error : '创建 Excel 翻译任务失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  const taskId = extractTaskId(response.payload);
+  if (!taskId) {
+    return buildToolResult(
+      {
+        status: 'submitted',
+        warning: 'Excel 翻译任务已提交，但返回值中没有 taskId，无法自动查询结果。'
+      },
+      {
+        text:
+          'Excel 翻译任务已提交，但工具未拿到 taskId，无法自动查询结果。不要承诺已完成，请让用户稍后提供任务状态或重试。'
+      }
+    );
+  }
+
+  const poll = await pollSkillPayload(taskId, 'excel_translation_skill_v1');
+  if (!poll.ok) {
+    return buildToolResult(
+      {
+        status: 'pending',
+        taskId,
+        pollAttempts: poll.attempts,
+        lastError: poll.lastError
+      },
+      {
+        text:
+          `Excel 翻译任务已提交，taskId=${taskId}，但 ${poll.attempts} 次轮询内还没有拿到结果。\n` +
+          '不要说“已完成”或“马上发文件”；请稍后调用 get_excel_translation_skill_payload 继续查询。'
+      }
+    );
+  }
+
+  const summary = summarizeExcelPayload(poll.payload, taskId);
+  const text = summary.error
+    ? `Excel 翻译失败：${summary.summary ?? summary.error}\ntaskId: ${taskId}`
+    : [
+        `Excel 翻译完成：${summary.summary}`,
+        `taskId: ${taskId}`,
+        summary.translatedFilePath ? `本地文件：${summary.translatedFilePath}` : null,
+        summary.absoluteDownloadUrl
+          ? `下载链接：${summary.absoluteDownloadUrl}`
+          : '当前没有下载链接，请检查 skill-payload。',
+        '给用户交付时优先使用附件/MEDIA 本地文件路径，不要只发 localhost 链接。'
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+  return buildToolResult(summary, { text });
+}
+
+async function handleGetExcelTask(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  if (typeof args.taskId !== 'string' || !args.taskId.trim()) {
+    throw new Error('taskId 为必填项。');
+  }
+
+  const response = await requestService(`/api/tasks/${encodeURIComponent(args.taskId)}`);
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        error: typeof response.payload?.error === 'string' ? response.payload.error : '读取任务失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  return buildToolResult(response.payload);
+}
+
+async function handleGetExcelSkillPayload(argumentsObject) {
+  const missingBaseUrl = ensureBaseUrl();
+  if (missingBaseUrl) {
+    return missingBaseUrl;
+  }
+
+  const args = validateObject(argumentsObject ?? {}, 'arguments');
+  if (typeof args.taskId !== 'string' || !args.taskId.trim()) {
+    throw new Error('taskId 为必填项。');
+  }
+
+  const response = await requestService(
+    `/api/tasks/${encodeURIComponent(args.taskId)}/skill-payload`
+  );
+
+  if (!response.ok) {
+    return buildToolResult(
+      {
+        status: response.status,
+        error: typeof response.payload?.error === 'string' ? response.payload.error : '读取 skill payload 失败。'
+      },
+      { isError: true }
+    );
+  }
+
+  const payload = response.payload;
+
+  if (!payload || payload.kind !== 'excel_translation_skill_v1') {
+    return buildToolResult(
+      { error: '当前任务尚未生成 Excel 翻译结果。' },
+      { isError: true, text: '当前任务尚未生成 Excel 翻译结果，请稍后重试或检查任务状态。' }
+    );
+  }
+
+  const absoluteDownloadUrl = buildAbsoluteUrl(payload.downloadUrl);
+  const resultText = payload.error
+    ? `Excel 翻译失败：${payload.summary ?? payload.error}`
+    : [
+        `Excel 翻译结果已生成：${payload.summary}`,
+        payload.translatedFilePath ? `本地文件：${payload.translatedFilePath}` : null,
+        absoluteDownloadUrl ? `下载链接：${absoluteDownloadUrl}` : null,
+        `文件名：${payload.fileName}`,
+        '给用户交付时优先把本地文件路径单独发出，方便 gateway 自动发送附件。'
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+  return buildToolResult(payload, {
+    text: resultText
+  });
+}
+
 async function handleCall(name, argumentsObject) {
   switch (name) {
     case 'submit_pdf_translation_task':
@@ -680,6 +1049,12 @@ async function handleCall(name, argumentsObject) {
       return handleGetTaskRevision(argumentsObject);
     case 'submit_feedback_case':
       return handleSubmitFeedbackCase(argumentsObject);
+    case 'submit_excel_translation_task':
+      return handleSubmitExcelTask(argumentsObject);
+    case 'get_excel_translation_task':
+      return handleGetExcelTask(argumentsObject);
+    case 'get_excel_translation_skill_payload':
+      return handleGetExcelSkillPayload(argumentsObject);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
