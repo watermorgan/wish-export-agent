@@ -111,6 +111,11 @@ Interpretation:
   - `<!-- openclaw:dreaming:rem:start -->`
   - `Promoted From Short-Term Memory`
 - The low-risk mitigation used here was not to disable Dreaming globally, but to trim runtime `MEMORY.md` files and reset the affected direct sessions.
+- Follow-up on 2026-05-10:
+  - `plugins.entries.memory-core.config.dreaming.enabled` was switched to `false`
+  - gateway was reloaded successfully afterward
+  - repo helper added: `npm run service:openclaw-dreaming` for status / future toggles
+- This change is intended to stop further `MEMORY.md` bloat from new Dreaming promotions. It does not clean historical `memory/.dreams` files by itself.
 
 ## DingTalk Hotpatch Persistence
 
