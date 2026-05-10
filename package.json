@@ -37,6 +37,8 @@
     "verify:ting-service-cli": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-service-cli.ts",
     "verify:ting-adai-closed-loop": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-adai-closed-loop.ts",
     "verify:ting-adai-memory-sync": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-ting-adai-memory-sync.ts",
+    "diagnose:agent-latency": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/analyze-agent-latency.mjs",
+    "verify:agent-latency": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/verify-agent-latency-analyzer.mjs",
     "verify:openclaw-runtime-manual": "bash scripts/verify-openclaw-ting-adai-runtime.sh",
     "verify:test02": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/verify-test02.ts",
     "test:feedback": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node --import tsx --test src/lib/feedback/__tests__/*.test.ts",
