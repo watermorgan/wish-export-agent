@@ -26,6 +26,18 @@ writeFileSync(openclawLog, [
   JSON.stringify({
     time: '2026-05-10T10:00:15.000Z',
     message: 'Finishing card with 42 chars'
+  }),
+  JSON.stringify({
+    time: '2026-05-10T10:01:00.000Z',
+    message: 'feishu[main]: Feishu[main] DM from user-feishu: [延迟测试] 飞书纯聊天'
+  }),
+  JSON.stringify({
+    time: '2026-05-10T10:01:01.000Z',
+    message: 'feishu[main]: dispatching to agent (session=agent:main:feishu:direct:user-feishu)'
+  }),
+  JSON.stringify({
+    time: '2026-05-10T10:01:12.000Z',
+    message: 'feishu[main]: dispatch complete (queuedFinal=true, replies=1)'
   })
 ].join('\n'));
 
@@ -47,11 +59,14 @@ const output = execFileSync(process.execPath, [
 ], { encoding: 'utf8' });
 const report = JSON.parse(output);
 
-assertEqual(report.sources[0].events.length, 2, 'OpenClaw event count');
+assertEqual(report.sources[0].events.length, 3, 'OpenClaw event count');
 assertEqual(report.sources[0].events[0].verdict, 'unknown', 'OpenClaw unmatched verdict');
 assertEqual(report.sources[0].events[1].firstChunkMs, 12000, 'OpenClaw first chunk');
 assertEqual(report.sources[0].events[1].totalMs, 15000, 'OpenClaw total');
 assertEqual(report.sources[0].events[1].verdict, 'warn', 'OpenClaw verdict');
+assertEqual(report.sources[0].events[2].channel, 'feishu', 'OpenClaw feishu channel');
+assertEqual(report.sources[0].events[2].totalMs, 12000, 'OpenClaw feishu total');
+assertEqual(report.sources[0].events[2].verdict, 'pass', 'OpenClaw feishu verdict');
 assertEqual(report.sources[1].events.length, 2, 'Hermes event count');
 assertEqual(report.sources[1].events[0].chat, 'chat-a', 'Hermes first chat');
 assertEqual(report.sources[1].events[0].totalMs, 9100, 'Hermes first chat total');

@@ -125,12 +125,42 @@ function parseOpenClaw(path, since) {
       continue;
     }
 
+    const feishuInbound = message.match(/feishu\[(.+?)\]: Feishu\[(.+?)\] DM from ([^:]+): (.+)$/i);
+    if (feishuInbound) {
+      events.push({
+        runtime: 'openclaw',
+        channel: 'feishu',
+        line: index + 1,
+        inboundAt: time,
+        user: feishuInbound[3],
+        prompt: feishuInbound[4],
+        dispatchAt: null,
+        firstChunkAt: null,
+        completeAt: null,
+        firstChunkMs: null,
+        totalMs: null,
+        chars: null,
+        warnings: []
+      });
+      continue;
+    }
+
     const dispatch = message.match(/streaming via .*session=([^ ]+)/);
     if (dispatch) {
       const event = lastOpenEvent(events);
       if (event && !event.dispatchAt) {
         event.dispatchAt = time;
         event.session = dispatch[1];
+      }
+      continue;
+    }
+
+    const feishuDispatch = message.match(/feishu\[(.+?)\]: dispatching to agent \(session=([^ )]+)\)/i);
+    if (feishuDispatch) {
+      const event = lastOpenEvent(events);
+      if (event && !event.dispatchAt) {
+        event.dispatchAt = time;
+        event.session = feishuDispatch[2];
       }
       continue;
     }
@@ -157,6 +187,18 @@ function parseOpenClaw(path, since) {
         }
       }
       continue;
+    }
+
+    const feishuComplete = message.match(/feishu\[(.+?)\]: dispatch complete \(queuedFinal=.* replies=(\d+)\)/i);
+    if (feishuComplete) {
+      const event = events.find((candidate) => candidate.channel === 'feishu' && candidate.dispatchAt && !candidate.completeAt) ?? lastOpenEvent(events, true);
+      if (event) {
+        event.completeAt = time;
+        event.chars = Number(feishuComplete[2]);
+        if (event.inboundAt) {
+          event.totalMs = time - event.inboundAt;
+        }
+      }
     }
   }
 

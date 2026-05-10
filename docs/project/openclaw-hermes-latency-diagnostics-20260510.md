@@ -11,6 +11,11 @@ This note records the first optimization increment and the verification method. 
 - OpenClaw slow cases before optimization included first-token latencies from 35s to 101s, with some total replies over 80s.
 - Hermes Ting ordinary DingTalk chat was usually 7s to 19s, but tool-heavy/current-news style prompts reached 122s with 8 API calls.
 - Several OpenClaw events had inbound messages but no correlated completion metrics. These must be treated as `unknown`, not `pass`.
+- Real chat-path comparison on 2026-05-10 showed the issue is runtime-specific, not business-tool specific:
+  - OpenClaw ADai on DingTalk: `66.1s` first chunk / `66.7s` total on a pure `OK` reply.
+  - OpenClaw Ting on DingTalk: `48.0s` first chunk / `48.8s` total on a pure `OK` reply.
+  - Hermes Ting on DingTalk: `10.1s` total on a pure `OK` reply.
+  - OpenClaw main on Feishu: `11.8s` total on a pure `OK` reply.
 - Runtime warnings seen during the investigation:
   - OpenClaw DingTalk duplicate plugin/config warning.
   - OpenClaw DingTalk registration confirmation warnings after restart.
@@ -30,6 +35,12 @@ This note records the first optimization increment and the verification method. 
 - Reindexed OpenClaw Ting and ADai memory stores.
 - Reset the single direct DingTalk test session bindings for Ting, ADai, and Hermes Ting with backups preserved.
 - Restarted OpenClaw gateway and Hermes Ting gateway.
+- Added OpenClaw Feishu dispatch-complete parsing to the latency analyzer so Feishu chat no longer disappears from the report.
+- Trimmed OpenClaw runtime memory files to remove stale setup history and auto-promoted noise:
+  - `workspace/MEMORY.md`: `11624` bytes -> `1563`
+  - `workspace-ting/MEMORY.md`: `9326` bytes -> `2591`
+  - `workspace-adae/MEMORY.md`: `13364` bytes -> `2608`
+- Reset the OpenClaw direct sessions for ADai, Ting, and main Feishu after the memory trim.
 
 ## Verification
 
@@ -43,6 +54,20 @@ PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsc --noEmit
 ```
 
 All passed after the analyzer was corrected to report unmatched events as `unknown`.
+
+Additional verification and observations:
+
+- `npm run diagnose:agent-latency -- --since '2026-05-10 20:22'`
+  - Captured the OpenClaw DingTalk failures and the healthy Hermes/OpenClaw-Feishu paths.
+- `npm run diagnose:agent-latency -- --since '2026-05-10 21:01'`
+  - After memory trim + session reset:
+    - OpenClaw ADai DingTalk improved to `15.0s` first chunk / `15.6s` total.
+    - OpenClaw Ting DingTalk improved to `11.4s` first chunk / `11.9s` total.
+- `node --import tsx --test src/lib/assistant/__tests__/excel-translation-review.test.ts`
+  - Not clean on the current branch.
+  - Two failures remain around failed Excel payload/status-code handling:
+    - `skill-payload route does not attach Excel download URL to failed payloads`
+    - `translation-xlsx route rejects failed Excel payloads before filesystem lookup`
 
 ## Next Test Protocol
 
@@ -72,3 +97,4 @@ Interpretation:
 - DingTalk multi-account/plugin warnings remain. Do not change multi-account business config without a dedicated plan.
 - Hermes Ting currently runs, but `Channel directory built: 0 target(s)` suggests the message target directory needs follow-up before treating Hermes DingTalk as healthy.
 - Memory recall is FTS-only until `sqlite-vec` support is restored.
+- Even after trimming, OpenClaw direct sessions still load large prompt contexts (`~17k` to `20k` input tokens on fresh ADai/Ting direct sessions). The latency is improved, but the prompt footprint is still heavier than it should be.
