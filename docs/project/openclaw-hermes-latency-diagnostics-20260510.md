@@ -28,6 +28,7 @@ This note records the first optimization increment and the verification method. 
 - Added `scripts/analyze-agent-latency.mjs` to parse OpenClaw and Hermes logs into a compact latency report.
 - Added `npm run diagnose:agent-latency` as the operator-facing report command.
 - Added `scripts/verify-agent-latency-analyzer.mjs` and `npm run verify:agent-latency` to lock the parser behavior.
+- Added `scripts/reapply-openclaw-dingtalk-hotpatch.mjs` and `npm run service:reapply-dingtalk-hotpatch` to keep the DingTalk runtime hotpatch reproducible after plugin reinstall or upgrade.
 - Updated OpenClaw Ting, OpenClaw ADai, and Hermes Ting runtime memory/prompt files with chat-mode rules:
   - Ordinary chat should avoid MCP/file/search/deep memory unless needed.
   - Long operations should produce visible status instead of silence.
@@ -98,3 +99,25 @@ Interpretation:
 - Hermes Ting currently runs, but `Channel directory built: 0 target(s)` suggests the message target directory needs follow-up before treating Hermes DingTalk as healthy.
 - Memory recall is FTS-only until `sqlite-vec` support is restored.
 - Even after trimming, OpenClaw direct sessions still load large prompt contexts (`~17k` to `20k` input tokens on fresh ADai/Ting direct sessions). The latency is improved, but the prompt footprint is still heavier than it should be.
+
+## Dreaming Note
+
+- `MEMORY.md` growth was not caused by one thing alone, but Dreaming is a major amplifier.
+- In the current OpenClaw config, `plugins.entries.memory-core.config.dreaming.enabled=true` with weekly frequency.
+- Evidence in the workspace shows Dreaming writes and promotes material through:
+  - `memory/.dreams/session-corpus/*.txt`
+  - `memory/YYYY-MM-DD.md`
+  - `<!-- openclaw:dreaming:light:start -->`
+  - `<!-- openclaw:dreaming:rem:start -->`
+  - `Promoted From Short-Term Memory`
+- The low-risk mitigation used here was not to disable Dreaming globally, but to trim runtime `MEMORY.md` files and reset the affected direct sessions.
+
+## DingTalk Hotpatch Persistence
+
+- Script: `npm run service:reapply-dingtalk-hotpatch`
+- Scope:
+  - ensure `openclaw.plugin.json#channelConfigs.dingtalk`
+  - ensure silent-reply suppression for `NO_REPLY`
+  - ensure AI Card preview suppresses `NO` / `NO_` / `NO_RE` prefix fragments
+  - ensure media-send fallback does not leak the raw local path back to the user
+- Current state on 2026-05-10: the live extension already matches the expected patch points, so the script reports `needsPatch: false`.

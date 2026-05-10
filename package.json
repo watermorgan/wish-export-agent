@@ -13,6 +13,7 @@
     "service:health": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/manage-service.mjs health",
     "service:sync-ting-mcp": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/sync-ting-mcp-server.mjs",
     "service:reload-gateway": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/reload-openclaw-gateway.mjs",
+    "service:reapply-dingtalk-hotpatch": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/reapply-openclaw-dingtalk-hotpatch.mjs",
     "service:preflight": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/preflight-ting-stack.mjs",
     "lint": "eslint .",
     "extract:test": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/test-extraction.ts",
