@@ -29,6 +29,7 @@ This note records the first optimization increment and the verification method. 
 - Added `npm run diagnose:agent-latency` as the operator-facing report command.
 - Added `scripts/verify-agent-latency-analyzer.mjs` and `npm run verify:agent-latency` to lock the parser behavior.
 - Added `scripts/reapply-openclaw-dingtalk-hotpatch.mjs` and `npm run service:reapply-dingtalk-hotpatch` to keep the DingTalk runtime hotpatch reproducible after plugin reinstall or upgrade.
+- Added `scripts/repair-openclaw-cron-session-isolation.mjs` and `npm run service:openclaw-cron-isolation` to keep scheduled OpenClaw agent jobs out of interactive direct-message sessions.
 - Updated OpenClaw Ting, OpenClaw ADai, and Hermes Ting runtime memory/prompt files with chat-mode rules:
   - Ordinary chat should avoid MCP/file/search/deep memory unless needed.
   - Long operations should produce visible status instead of silence.
@@ -65,10 +66,9 @@ Additional verification and observations:
     - OpenClaw ADai DingTalk improved to `15.0s` first chunk / `15.6s` total.
     - OpenClaw Ting DingTalk improved to `11.4s` first chunk / `11.9s` total.
 - `node --import tsx --test src/lib/assistant/__tests__/excel-translation-review.test.ts`
-  - Not clean on the current branch.
-  - Two failures remain around failed Excel payload/status-code handling:
-    - `skill-payload route does not attach Excel download URL to failed payloads`
-    - `translation-xlsx route rejects failed Excel payloads before filesystem lookup`
+  - Passed on rerun: `10/10`.
+- `npm run verify:openclaw-cron-isolation`
+  - Passed with a temp OpenClaw fixture.
 
 ## Next Test Protocol
 
@@ -103,7 +103,7 @@ Interpretation:
 ## Dreaming Note
 
 - `MEMORY.md` growth was not caused by one thing alone, but Dreaming is a major amplifier.
-- In the current OpenClaw config, `plugins.entries.memory-core.config.dreaming.enabled=true` with weekly frequency.
+- Before mitigation, OpenClaw had `plugins.entries.memory-core.config.dreaming.enabled=true` with weekly frequency.
 - Evidence in the workspace shows Dreaming writes and promotes material through:
   - `memory/.dreams/session-corpus/*.txt`
   - `memory/YYYY-MM-DD.md`
@@ -116,6 +116,21 @@ Interpretation:
   - gateway was reloaded successfully afterward
   - repo helper added: `npm run service:openclaw-dreaming` for status / future toggles
 - This change is intended to stop further `MEMORY.md` bloat from new Dreaming promotions. It does not clean historical `memory/.dreams` files by itself.
+
+## Cron Session Isolation
+
+- Root cause found after the first memory trim: `weekly-memory-archive` was bound to the live Ting DingTalk DM session:
+  - before: `sessionTarget=session:agent:ting:dingtalk:direct:12443063651233525`
+  - before: `sessionKey=agent:ting:dingtalk:direct:12443063651233525`
+- The 2026-05-10 weekly archive run read memory files and other sessions inside that same direct session, expanding Ting's interactive context to about `83.8k` input tokens.
+- Runtime repair performed:
+  - `weekly-memory-archive` now uses `sessionTarget=isolated`
+  - `sessionKey=agent:ting:cron:21366bd4-739f-4c2f-8029-ae6efc127a34`
+  - the polluted Ting direct session was removed from `sessions.json`
+  - backups were written under `/Users/weitao/.openclaw/backups`
+- Verification:
+  - `npm run service:openclaw-cron-isolation -- --check` now reports `needsCronPatch=false` and `needsDirectSessionReset=false`
+  - `openclaw sessions --agent ting --json` no longer lists `agent:ting:dingtalk:direct:12443063651233525`; the next user message will create a clean session.
 
 ## DingTalk Hotpatch Persistence
 

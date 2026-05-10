@@ -48,7 +48,9 @@
     "feedback:resolve": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/resolve-feedback-case.ts",
     "feedback:promote-terms": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/promote-feedback-terms.ts",
     "test:translation-concurrency": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node --import tsx --test src/lib/assistant/__tests__/translation-concurrency.test.ts",
-    "samples:business-review": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/generate-business-review-samples.ts"
+    "samples:business-review": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/generate-business-review-samples.ts",
+    "service:openclaw-cron-isolation": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/repair-openclaw-cron-session-isolation.mjs",
+    "verify:openclaw-cron-isolation": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/verify-openclaw-cron-session-isolation.mjs"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
