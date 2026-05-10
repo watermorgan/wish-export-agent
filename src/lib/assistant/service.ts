@@ -4,5 +4,6 @@ export {
   createAssistantTask,
   createAssistantTaskAsync,
   getAssistantTaskSnapshot,
+  getTaskSkillPayload,
   getTingPdfTranslationTaskPayload
 } from '@/lib/assistant/task-service';

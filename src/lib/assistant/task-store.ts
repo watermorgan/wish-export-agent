@@ -14,7 +14,10 @@ import {
 } from '@/lib/assistant/task-iteration';
 import { hasDatabaseConfig, queryDb, withDbTransaction } from '@/lib/assistant/db';
 import { buildAiDisclosure } from '@/lib/assistant/disclosure';
-import type { PdfTranslationSkillPayload } from '@/lib/assistant/types';
+import type {
+  ExcelTranslationSkillPayload,
+  PdfTranslationSkillPayload
+} from '@/lib/assistant/types';
 import type {
   ArtifactSection,
   AssistantReply,
@@ -530,20 +533,69 @@ function createStoredTask(
 ): StoredTask {
   const record = buildTaskRecord(id, request, reply, createdAt, updatedAt, overrides);
   const taskIteration = buildTaskRevisionSummary(request);
+  const normalizedReply = normalizeTaskBoundExcelPayloadUrls(id, reply);
 
   return {
     record,
     request,
     reply: {
-      ...reply,
+      ...normalizedReply,
       metadata: taskIteration
         ? {
-            ...(reply.metadata ?? { needsHumanReview: true }),
+            ...(normalizedReply.metadata ?? { needsHumanReview: true }),
             taskIteration
           }
-        : reply.metadata,
+        : normalizedReply.metadata,
       task: record
     }
+  };
+}
+
+function isExcelTranslationSkillPayload(value: unknown): value is ExcelTranslationSkillPayload {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === 'excel_translation_skill_v1'
+  );
+}
+
+function withTaskBoundExcelDownloadUrl(
+  taskId: string,
+  payload: ExcelTranslationSkillPayload
+): ExcelTranslationSkillPayload {
+  if (!payload.translatedFilePath || payload.error) {
+    return payload;
+  }
+  return {
+    ...payload,
+    downloadUrl: `/api/tasks/${encodeURIComponent(taskId)}/translation-xlsx?download=1`
+  };
+}
+
+function normalizeTaskBoundExcelPayloadUrls(taskId: string, reply: AssistantReply): AssistantReply {
+  const metadataPayload = isExcelTranslationSkillPayload(reply.metadata?.skillPayload)
+    ? withTaskBoundExcelDownloadUrl(taskId, reply.metadata.skillPayload)
+    : null;
+
+  return {
+    ...reply,
+    artifacts: reply.artifacts.map((section) => ({
+      ...section,
+      fields: section.fields.map((field) =>
+        isExcelTranslationSkillPayload(field.structuredData)
+          ? {
+              ...field,
+              structuredData: withTaskBoundExcelDownloadUrl(taskId, field.structuredData)
+            }
+          : field
+      )
+    })),
+    metadata: metadataPayload
+      ? {
+          ...(reply.metadata ?? { needsHumanReview: true }),
+          skillPayload: metadataPayload
+        }
+      : reply.metadata
   };
 }
 

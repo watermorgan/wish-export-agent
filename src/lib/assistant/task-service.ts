@@ -4,7 +4,10 @@ import {
   prepareAssistantExecution,
   runAssistant
 } from '@/lib/assistant/execution';
-import { buildTingPdfTranslationPayload } from '@/lib/assistant/pdf-translation-skill';
+import {
+  buildTaskSkillPayload,
+  buildTingPdfTranslationPayload
+} from '@/lib/assistant/pdf-translation-skill';
 import {
   createTaskFromExecution,
   getTask,
@@ -185,6 +188,25 @@ export async function getTingPdfTranslationTaskPayload(taskId: string) {
     throw new AssistantTaskServiceError(
       409,
       '当前任务尚未生成可供 skill/Ting 外贸助手复用的 PDF 结果协议。'
+    );
+  }
+
+  return payload;
+}
+
+export async function getTaskSkillPayload(taskId: string) {
+  const task = await getTask(taskId);
+
+  if (!task) {
+    throw new AssistantTaskServiceError(404, '任务不存在。');
+  }
+
+  const payload = buildTaskSkillPayload(task.record, task.reply);
+
+  if (!payload) {
+    throw new AssistantTaskServiceError(
+      409,
+      '当前任务尚未生成可供 skill/Ting 外贸助手复用的结果协议。'
     );
   }
 

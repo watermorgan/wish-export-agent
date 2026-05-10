@@ -9,6 +9,7 @@ import bomOrganizerManifest from '../../skills/bom-organizer/manifest.json';
 import commentTranslatorManifest from '../../skills/comment-translator/manifest.json';
 import commentMergerManifest from '../../skills/comment-merger/manifest.json';
 import customerReplyDrafterManifest from '../../skills/customer-reply-drafter/manifest.json';
+import excelTranslatorManifest from '../../skills/excel-translator/manifest.json';
 
 export type TaskTypeOption = {
   id: TaskType;
@@ -68,7 +69,8 @@ export const skillCatalog: SkillDefinition[] = [
   bomOrganizerManifest as SkillDefinition,
   commentTranslatorManifest as SkillDefinition,
   commentMergerManifest as SkillDefinition,
-  customerReplyDrafterManifest as SkillDefinition
+  customerReplyDrafterManifest as SkillDefinition,
+  excelTranslatorManifest as SkillDefinition
 ];
 
 export const workflowTemplates: WorkflowTemplate[] = [
@@ -93,6 +95,18 @@ export const workflowTemplates: WorkflowTemplate[] = [
     allowedSkills: ['comment-translator', 'comment-merger'],
     blockingConditions: ['原文缺失', '上下文不足', '文本质量过低'],
     deliverables: ['双语对照', '主题分组', '冲突项'],
+    taskType: 'feedback',
+    status: 'published'
+  },
+  {
+    id: 'excel-translation',
+    name: 'Excel 翻译链',
+    goal: '对 Excel 文件进行批量翻译，生成双语对照。',
+    scenarios: ['Excel 工艺单翻译', 'Excel 尺寸表翻译', 'Excel BOM 翻译'],
+    steps: ['excel-translator'],
+    allowedSkills: ['excel-translator'],
+    blockingConditions: ['文件不是 xlsx 格式', '文件为空'],
+    deliverables: ['双语 Excel 文件', '翻译统计'],
     taskType: 'feedback',
     status: 'published'
   },

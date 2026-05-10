@@ -1,6 +1,7 @@
 import { buildAiDisclosure } from '@/lib/assistant/disclosure';
 import type {
   AssistantReply,
+  ExcelTranslationSkillPayload,
   PdfTranslationSkillPayload,
   TaskRecord
 } from '@/lib/assistant/types';
@@ -13,6 +14,10 @@ export function isPdfTranslationSkillPayload(value: unknown): value is PdfTransl
   return isObject(value) && value.kind === 'pdf_translation_skill_v1';
 }
 
+export function isExcelTranslationSkillPayload(value: unknown): value is ExcelTranslationSkillPayload {
+  return isObject(value) && value.kind === 'excel_translation_skill_v1';
+}
+
 export function getPdfTranslationSkillPayload(
   reply: AssistantReply
 ): PdfTranslationSkillPayload | null {
@@ -23,6 +28,24 @@ export function getPdfTranslationSkillPayload(
   for (const section of reply.artifacts) {
     for (const field of section.fields) {
       if (isPdfTranslationSkillPayload(field.structuredData)) {
+        return field.structuredData;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function getExcelTranslationSkillPayload(
+  reply: AssistantReply
+): ExcelTranslationSkillPayload | null {
+  if (isExcelTranslationSkillPayload(reply.metadata?.skillPayload)) {
+    return reply.metadata.skillPayload;
+  }
+
+  for (const section of reply.artifacts) {
+    for (const field of section.fields) {
+      if (isExcelTranslationSkillPayload(field.structuredData)) {
         return field.structuredData;
       }
     }
@@ -76,6 +99,8 @@ export type TingPdfTranslationPayload = {
   result: PdfTranslationSkillPayload;
 };
 
+export type TaskSkillPayload = TingPdfTranslationPayload | ExcelTranslationSkillPayload;
+
 export function buildTingPdfTranslationPayload(
   task: TaskRecord,
   reply: AssistantReply
@@ -115,4 +140,21 @@ export function buildTingPdfTranslationPayload(
       artifactLinks
     }
   };
+}
+
+export function buildTaskSkillPayload(
+  task: TaskRecord,
+  reply: AssistantReply
+): TaskSkillPayload | null {
+  const excelPayload = getExcelTranslationSkillPayload(reply);
+  if (excelPayload) {
+    return {
+      ...excelPayload,
+      ...(excelPayload.translatedFilePath && !excelPayload.error
+        ? { downloadUrl: `/api/tasks/${encodeURIComponent(task.id)}/translation-xlsx?download=1` }
+        : {})
+    };
+  }
+
+  return buildTingPdfTranslationPayload(task, reply);
 }

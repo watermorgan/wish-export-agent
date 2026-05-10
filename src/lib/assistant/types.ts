@@ -245,6 +245,32 @@ export type HumanReviewGuide = {
   hints: HumanReviewHint[];
 };
 
+export type ExcelTranslationSkillPayload = {
+  kind: 'excel_translation_skill_v1';
+  fileName: string;
+  taskType: 'feedback';
+  summary: string;
+  reviewRequired: boolean;
+  translatedFileName: string;
+  translatedFilePath: string;
+  sheets: Array<{
+    sheetName: string;
+    rowCount: number;
+    columnCount: number;
+    translatedCells: number;
+    failedCells: number;
+  }>;
+  totalCells: number;
+  translatedCells: number;
+  failedCells: number;
+  executionTimeMs: number;
+  parseFailedBatches?: number;
+  translationBatchErrors?: string[];
+  /** 翻译下载链接 */
+  downloadUrl?: string;
+  error?: string;
+};
+
 export type PdfTranslationSkillPayload = {
   kind: 'pdf_translation_skill_v1';
   fileName: string;
@@ -324,8 +350,8 @@ export type AssistantReplyMetadata = {
   pipelineFallbackHints?: string[];
   /** 给业务员的结构化人工复核建议，供页面/skill/Ting 外贸助手共用。 */
   humanReviewGuide?: HumanReviewGuide;
-  /** 稳定的 PDF skill 输出协议，供页面/skill/Ting 外贸助手共用。 */
-  skillPayload?: PdfTranslationSkillPayload;
+  /** 稳定的 PDF/Excel skill 输出协议，供页面/skill/Ting 外贸助手共用。 */
+  skillPayload?: PdfTranslationSkillPayload | ExcelTranslationSkillPayload;
   taskIteration?: {
     currentRevisionId?: string;
     baseRevisionId?: string;

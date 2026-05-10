@@ -22,6 +22,11 @@
 - 若属 Ting 协议层，给出可复现输入与建议澄清话术；不写后端修复单。
 - 若属后端执行层，必须提供 taskId、revisionId、请求字段与失败证据。
 
+## Excel 翻译失败语义
+- Excel 翻译全批次模型/API/VPN 硬失败时，归因为 export-agent 执行层依赖不可用。
+- `0/N` 有 hard batch error 不允许包装成“待人工确认”或提供下载入口；必须返回 failed，并保留模型/VPN/API Key 错误作为风险提示。
+- 健康检查区分服务存活与依赖可用：`/api/health` 是服务/配置 readiness，模型连通性以 `/api/model-health` 为准。
+
 ## 引用源
 - `docs/project/adai-runtime-prompt-20260420.md`
 - `docs/project/ting-disambiguation-protocol-20260421.md`

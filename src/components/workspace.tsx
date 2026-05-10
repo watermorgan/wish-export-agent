@@ -146,12 +146,17 @@ function buildTranslationHtmlDocument(title: string, bodyHtml: string) {
 function getCanonicalFeedbackSource(
   reply: AssistantReply | null
 ): WorkspaceFeedbackSource | null {
-  const feedbackSource = reply?.metadata?.skillPayload?.feedbackSource;
+  const payload = reply?.metadata?.skillPayload;
+  if (!payload || payload.kind !== 'pdf_translation_skill_v1') {
+    return null;
+  }
+
+  const feedbackSource = payload.feedbackSource;
   if (feedbackSource?.fileName) {
     return feedbackSource;
   }
 
-  const items = reply?.metadata?.skillPayload?.snapshot?.items ?? [];
+  const items = payload.snapshot?.items ?? [];
   const item =
     items.find(
       (candidate: (typeof items)[number]) =>
@@ -170,7 +175,7 @@ function getCanonicalFeedbackSource(
   }
 
   return {
-    fileName: reply?.metadata?.skillPayload?.fileName ?? reply?.task?.files[0]?.name ?? '',
+    fileName: payload.fileName ?? reply?.task?.files[0]?.name ?? '',
     pageNumber: item.pageNumber,
     segmentId: item.regionId,
     sourceText: item.en,
@@ -445,6 +450,10 @@ export function Workspace() {
       )
     : null;
   const primaryArtifactLink = reply?.metadata?.pdfArtifactLinks?.[0];
+  const excelSkillPayload =
+    reply?.metadata?.skillPayload?.kind === 'excel_translation_skill_v1'
+      ? reply.metadata.skillPayload
+      : null;
   const previewUrl =
     (primaryArtifactLink?.primary === 'annotated_preview'
       ? primaryArtifactLink.annotatedPreviewUrl
@@ -458,7 +467,11 @@ export function Workspace() {
     primaryArtifactLink?.tableStylePdfUrl ??
     primaryArtifactLink?.bilingualXlsxUrl ??
     primaryArtifactLink?.annotatedPreviewUrl ??
+    excelSkillPayload?.downloadUrl ??
     null;
+  const canOpenTranslationResult = Boolean(
+    translationHtml || previewUrl || (currentTask && !excelSkillPayload)
+  );
   const guidanceText = isPending
     ? '正在处理文档：1. 抽取内容 2. 整理段落 3. 分段翻译 4. 生成结果与 PDF。'
     : uploadedFileCount === 0
@@ -491,7 +504,7 @@ export function Workspace() {
       return;
     }
 
-    if (!currentTask) {
+    if (!currentTask || excelSkillPayload) {
       return;
     }
 
@@ -1125,7 +1138,7 @@ export function Workspace() {
                   <button
                     className="primary-button"
                     type="button"
-                    disabled={!translationHtml && !previewUrl && !currentTask}
+                    disabled={!canOpenTranslationResult}
                     onClick={openTranslationResult}
                   >
                     页面查看
@@ -1162,7 +1175,7 @@ export function Workspace() {
 
             <div className="answer-card answer-callout" data-testid="artifact-links">
               <h3>翻译结果入口</h3>
-              {reply?.metadata?.skillPayload?.disclosure ? (
+              {reply?.metadata?.skillPayload?.kind === 'pdf_translation_skill_v1' && reply.metadata.skillPayload.disclosure ? (
                 <div
                   className={`disclosure-banner disclosure-banner--${
                     reply.metadata.skillPayload.disclosure.humanReviewRequired ? 'pending' : 'approved'
@@ -1178,7 +1191,26 @@ export function Workspace() {
                 表格类（TP/BOM）优先提供双语 Excel；线稿/批注类优先提供预览页。链接由服务端生成，与下方 JSON 一致。
               </p>
 
-              {reply?.metadata?.pdfArtifactLinks?.length ? (
+              {excelSkillPayload?.downloadUrl ? (
+                <ul className="confirmation-list">
+                  <li className="confirmation-item">
+                    <div className="confirmation-header">
+                      <strong>{excelSkillPayload.translatedFileName || excelSkillPayload.fileName}</strong>
+                      <span className="tag">Excel · 双语翻译</span>
+                    </div>
+
+                    <div className="result-actions" style={{ marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
+                      <a
+                        className="primary-button"
+                        href={excelSkillPayload.downloadUrl}
+                        download
+                      >
+                        下载双语 Excel
+                      </a>
+                    </div>
+                  </li>
+                </ul>
+              ) : reply?.metadata?.pdfArtifactLinks?.length ? (
                 <ul className="confirmation-list">
                   {reply.metadata.pdfArtifactLinks.map((link) => (
                     <li key={link.fileName} className="confirmation-item">

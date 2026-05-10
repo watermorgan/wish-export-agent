@@ -12,6 +12,8 @@ import { parseFullResult, type ParsedStepResult } from '@/lib/assistant/parser';
 import { buildFeedbackSourceReference, type FeedbackSourceReference } from '@/lib/assistant/feedback-source';
 import { buildExtractedPdfResultFromText } from '@/lib/assistant/file-extractor';
 import { maybeRunRealFeedbackTranslation } from '@/lib/assistant/feedback-translation';
+import { translateExcelFile } from '@/lib/assistant/excel-translation-pipeline';
+import type { ExcelTranslationSkillPayload } from '@/lib/assistant/types';
 import type {
   ArtifactField,
   ArtifactSection,
@@ -715,6 +717,164 @@ export async function runAssistant(request: AssistantRequest, signal?: AbortSign
       }),
       signal
     );
+  }
+
+  // Excel translation bypass — similar to PDF pipeline bypass
+  const excelFile = request.files.find(
+    (file) => file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')
+  );
+  const isExcelTranslationTask =
+    taskType === 'feedback' &&
+    selectedSkills.some((skill) => skill.id === 'excel-translator') &&
+    Boolean(excelFile?.storagePath);
+
+  if (isExcelTranslationTask && excelFile?.storagePath) {
+    console.log(`[execution] Excel translation bypass for ${excelFile.name}`);
+    try {
+      const excelResult = await translateExcelFile({
+        filePath: excelFile.storagePath,
+        fileName: excelFile.name,
+        translationModelOverride: request.translationModelOverride ?? request.modelOverride
+      });
+
+      const hasZeroCoverageHardFailure =
+        excelResult.totalCells > 0 &&
+        excelResult.translatedCells === 0 &&
+        (excelResult.translationBatchErrors?.length ?? 0) > 0;
+
+      if (excelResult.success && !hasZeroCoverageHardFailure) {
+        const excelSkillPayload: ExcelTranslationSkillPayload = {
+          kind: 'excel_translation_skill_v1',
+          fileName: excelFile.name,
+          taskType: 'feedback',
+          summary: `Excel 翻译完成：${excelResult.sheets.length} 个 sheet，${excelResult.translatedCells}/${excelResult.totalCells} 个单元格已翻译，耗时 ${excelResult.executionTimeMs}ms。`,
+          reviewRequired: true,
+          translatedFileName: excelResult.translatedFileName,
+          translatedFilePath: excelResult.translatedFilePath,
+          sheets: excelResult.sheets.map((s) => ({
+            sheetName: s.sheetName,
+            rowCount: s.rowCount,
+            columnCount: s.columnCount,
+            translatedCells: s.translatedCells,
+            failedCells: s.failedCells
+          })),
+          totalCells: excelResult.totalCells,
+          translatedCells: excelResult.translatedCells,
+          failedCells: excelResult.failedCells,
+          executionTimeMs: excelResult.executionTimeMs,
+          parseFailedBatches: excelResult.parseFailedBatches ?? 0,
+          translationBatchErrors: excelResult.translationBatchErrors ?? []
+        };
+
+        const excelArtifact: ArtifactSection = {
+          title: 'Excel 翻译结果',
+          kind: 'list',
+          summary: excelSkillPayload.summary,
+          fields: [
+            {
+              label: '翻译文件',
+              value: excelResult.translatedFileName,
+              citation: excelFile.name,
+              structuredData: excelSkillPayload
+            }
+          ]
+        };
+
+        const baseReply = buildExecutionBaseReply({
+          taskType,
+          taskTypeLabel,
+          request,
+          selectedSkills,
+          selectedTemplate,
+          executionPlan,
+          pendingConfirmations,
+          validationIssues,
+          accumulatedArtifacts: [excelArtifact],
+          providerHits: ['excel-pipeline'],
+          modelHits: [request.translationModelOverride ?? request.modelOverride ?? 'translation-model'],
+          skippedLegacySteps: selectedSkills.map((s) => s.id)
+        });
+
+        return {
+          ...baseReply,
+          status: 'pending_user_confirmation',
+          statusLabel: '待人工确认',
+          summary: excelSkillPayload.summary,
+          metadata: {
+            ...(baseReply.metadata ?? {}),
+            needsHumanReview: true,
+            skillPayload: excelSkillPayload,
+            translationMode: 'real' as const
+          }
+        };
+      } else {
+        const failureReason =
+          excelResult.error ??
+          excelResult.translationBatchErrors?.[0]?.replace(/^batch \d+:\s*/i, '').trim() ??
+          '未知错误';
+        const blockedReply = buildBlockedExecutionReply(request, {
+          taskType,
+          taskTypeLabel,
+          selectedSkills,
+          selectedTemplate,
+          validationIssues,
+          blocked: true,
+          executionPlan,
+          pendingConfirmations
+        });
+        return {
+          ...blockedReply,
+          status: 'failed',
+          statusLabel: '执行失败',
+          summary: `Excel 翻译失败：${failureReason}`,
+          riskAlerts: [failureReason],
+          metadata: {
+            needsHumanReview: true,
+            translationMode: 'real' as const,
+            skillPayload: {
+              kind: 'excel_translation_skill_v1',
+              fileName: excelFile.name,
+              taskType: 'feedback',
+              summary: `Excel 翻译失败：${failureReason}`,
+              reviewRequired: true,
+              translatedFileName: excelResult.translatedFileName,
+              translatedFilePath: excelResult.translatedFilePath,
+              sheets: excelResult.sheets,
+              totalCells: excelResult.totalCells,
+              translatedCells: excelResult.translatedCells,
+              failedCells: excelResult.failedCells,
+              executionTimeMs: excelResult.executionTimeMs,
+              parseFailedBatches: excelResult.parseFailedBatches ?? 0,
+              translationBatchErrors: excelResult.translationBatchErrors ?? [],
+              error: failureReason
+            } satisfies ExcelTranslationSkillPayload
+          }
+        };
+      }
+    } catch (error) {
+      console.error('[execution] Excel translation failed:', error);
+      const blockedReply = buildBlockedExecutionReply(request, {
+        taskType,
+        taskTypeLabel,
+        selectedSkills,
+        selectedTemplate,
+        validationIssues,
+        blocked: true,
+        executionPlan,
+        pendingConfirmations
+      });
+      return {
+        ...blockedReply,
+        status: 'failed',
+        statusLabel: '执行失败',
+        summary: `Excel 翻译异常：${error instanceof Error ? error.message : '未知错误'}`,
+        riskAlerts: [error instanceof Error ? error.message : '未知错误'],
+        metadata: {
+          needsHumanReview: true,
+          translationMode: 'real' as const
+        }
+      };
+    }
   }
 
   // Real LLM Orchestration Loop

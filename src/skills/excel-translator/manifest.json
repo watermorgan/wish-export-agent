@@ -1,0 +1,11 @@
+{
+  "id": "excel-translator",
+  "name": "Excel 翻译",
+  "purpose": "对 Excel (.xlsx) 文件进行批量翻译，在原表最后一列追加中文翻译。",
+  "inputRequirements": ["Excel 文件路径", "翻译指令"],
+  "outputSchema": ["双语 Excel 文件", "翻译统计", "excel_translation_skill_v1"],
+  "reviewCheckpoints": ["专业术语", "否定表达", "责任归属"],
+  "composableWith": [],
+  "riskLevel": "medium",
+  "taskTypes": ["feedback"]
+}

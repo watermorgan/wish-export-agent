@@ -5,6 +5,8 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 const execFileAsync = promisify(execFile);
 
@@ -93,8 +95,6 @@ export async function extractPdfTextFromBuffer(
     cleanup?: boolean;
   }
 ): Promise<ExtractedPdfResult> {
-  const { mkdir, writeFile } = await import('node:fs/promises');
-  const { dirname } = await import('node:path');
   await mkdir(dirname(tempPath), { recursive: true });
   await writeFile(tempPath, buffer);
   try {
@@ -166,6 +166,22 @@ export async function enrichUploadedFile(file: File) {
       return {
         ...uploaded,
         contentText: (await file.text()).replace(/\r\n/g, '\n').replace(/\u0000/g, '').trim()
+      };
+    }
+
+    if (
+      file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      file.name.toLowerCase().endsWith('.xlsx') ||
+      file.name.toLowerCase().endsWith('.xls')
+    ) {
+      const tempPath = `${process.cwd()}/.tmp/${Date.now()}-${file.name.replace(/[^\w.-]+/g, '_')}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
+      await mkdir(dirname(tempPath), { recursive: true });
+      await writeFile(tempPath, buffer);
+      return {
+        ...uploaded,
+        storagePath: tempPath,
+        contentText: `Excel file: ${file.name}`
       };
     }
   } catch (error) {
