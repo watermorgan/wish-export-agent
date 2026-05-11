@@ -1,0 +1,19 @@
+{
+  "id": "fb-20260509-001",
+  "category": "general_quality",
+  "priority": "medium",
+  "status": "wont_fix",
+  "source": {
+    "taskId": "task_1778331831608_r5q5oy",
+    "fileName": "dingtalk-file-1778331822114-7wifan.xlsx"
+  },
+  "reporter": "unknown",
+  "reportedAt": "2026-05-09T14:03:39.059Z",
+  "tags": [],
+  "resolution": {
+    "action": "wont_fix",
+    "detail": "Case lacks source text, current translation, expected translation, or reproduction detail. Excel artifact routing and skill-payload retrieval are covered by the product tests; reopen with concrete cell-level evidence if the issue recurs.",
+    "resolvedAt": "2026-05-11T06:24:53.761Z",
+    "resolvedBy": "codex"
+  }
+}

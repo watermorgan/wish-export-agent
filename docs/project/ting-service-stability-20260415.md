@@ -117,6 +117,13 @@ Ting 实际使用的 MCP server 文件路径是：
 - `pid`
 - `port`
 - `taskStoreMode`
+- `taskStorePersistence`
+
+健康语义：
+
+- 无数据库配置时，`taskStoreMode=fallback-only` 表示任务状态写入本地 `.tmp/task-store-fallback.json`，这是演示期的预期 local-file 持久化模式，不再默认视为 degraded。
+- 生产环境如果必须依赖数据库任务存储，应设置 `TASK_STORE_REQUIRE_DATABASE=1`；此时缺少可用数据库会返回 degraded，并在 `readiness.degradedReasons` 中给出 `task-store-database-required`。
+- 已配置数据库但 task store 因冷却/不可用进入本地回退时，会返回 `taskStoreMode=database-unavailable-fallback`，用于区分“预期无 DB 演示模式”和“配置了 DB 但当前不可用”。
 
 便于快速判断“服务是否真在跑，以及当前是什么存储模式”。
 
@@ -147,6 +154,14 @@ npm run service:preflight
 - 服务能连
 - taskId 不丢
 - annotated PDF 能回
+
+如果从演示期切到生产部署，先配置数据库连接，再加：
+
+```bash
+TASK_STORE_REQUIRE_DATABASE=1
+```
+
+这样 `/api/health` 才会把缺失/不可用的数据库明确标为 degraded。
 
 ### 推荐验收顺序
 
