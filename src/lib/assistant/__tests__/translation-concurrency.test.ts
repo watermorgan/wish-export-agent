@@ -17,7 +17,8 @@ test('mergeBModelBatchExecutionResult matches serial merge semantics', () => {
     retranslatePasses: 0,
     retranslatedSegmentCount: 0,
     visionSecondStagePasses: 0,
-    visionSecondStageSegmentCount: 0
+    visionSecondStageSegmentCount: 0,
+    modelUnavailable: false
   };
 
   __translationPipelineInternals.mergeBModelBatchExecutionResult(translated, stats, {
@@ -30,7 +31,8 @@ test('mergeBModelBatchExecutionResult matches serial merge semantics', () => {
     lastErrorKind: 'none',
     providerHits: ['translation-model'],
     activeModel: 'model-b',
-    stopDueRateLimit: false
+    stopDueRateLimit: false,
+    stopDueModelUnavailable: false
   });
 
   assert.equal(translated.get('seg-1'), '中文1');

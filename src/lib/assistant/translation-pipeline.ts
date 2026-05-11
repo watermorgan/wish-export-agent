@@ -191,6 +191,8 @@ const EXPORT_ROOT = process.env.ASSISTANT_EXPORT_DIR ?? path.join('.tmp', 'expor
 const BUSINESS_PREVIEW_THRESHOLD_PCT = Number(
   process.env.BUSINESS_PREVIEW_THRESHOLD_PCT ?? '30'
 );
+const MODEL_UNAVAILABLE_CONSECUTIVE_THRESHOLD = 3;
+const MODEL_UNAVAILABLE_USER_MESSAGE = '翻译服务不可用，请检查网络或 VPN 连接后重试。';
 const PDF_CJK_FONT_CANDIDATES = [
   process.env.ASSISTANT_PDF_CJK_FONT?.trim() || '',
   '/Library/Fonts/Arial Unicode.ttf',
@@ -1776,6 +1778,7 @@ type BModelBatchStats = {
   retranslatedSegmentCount: number;
   visionSecondStagePasses: number;
   visionSecondStageSegmentCount: number;
+  modelUnavailable: boolean;
 };
 
 function shouldAttemptTranslationFallback(
@@ -1796,6 +1799,7 @@ type BModelBatchExecutionResult = {
   providerHits: string[];
   activeModel?: string;
   stopDueRateLimit: boolean;
+  stopDueModelUnavailable: boolean;
 };
 
 type BatchPromptMode = 'default' | 'retranslate' | 'vision_recover';
@@ -1839,6 +1843,10 @@ function mergeBModelBatchExecutionResult(
   if (result.activeModel) {
     stats.activeModel = result.activeModel;
   }
+}
+
+function isModelUnavailableErrorKind(kind: BModelBatchStats['lastErrorKind']) {
+  return kind === 'http' || kind === 'timeout';
 }
 
 function buildTranslationBatchPrompt(
@@ -3141,7 +3149,8 @@ async function translateSegmentsWithModelB(
     retranslatePasses: 0,
     retranslatedSegmentCount: 0,
     visionSecondStagePasses: 0,
-    visionSecondStageSegmentCount: 0
+    visionSecondStageSegmentCount: 0,
+    modelUnavailable: false
   };
   if (!configured || segments.length === 0) {
     stats.lastErrorKind = configured ? 'none' : 'not_configured';
@@ -3226,10 +3235,15 @@ async function translateSegmentsWithModelB(
       strategy.modelOverride ??
       stats.activeModel;
     let stopDueRateLimit = false;
+    let stopDueModelUnavailable = false;
 
     function emptyBatchExecutionResult(
       lastErrorKind: BModelBatchStats['lastErrorKind'] = 'none',
-      activeModelForBatch?: string
+      activeModelForBatch?: string,
+      stopFlags: {
+        stopDueRateLimit?: boolean;
+        stopDueModelUnavailable?: boolean;
+      } = {}
     ): BModelBatchExecutionResult {
       return {
         translated: new Map(),
@@ -3238,7 +3252,8 @@ async function translateSegmentsWithModelB(
         lastErrorKind,
         providerHits: [],
         activeModel: activeModelForBatch,
-        stopDueRateLimit: true
+        stopDueRateLimit: Boolean(stopFlags.stopDueRateLimit),
+        stopDueModelUnavailable: Boolean(stopFlags.stopDueModelUnavailable)
       };
     }
 
@@ -3340,7 +3355,8 @@ async function translateSegmentsWithModelB(
                   : strategy.providerPrefix
             ],
             activeModel: activeModelForBatch,
-            stopDueRateLimit: false
+            stopDueRateLimit: false,
+            stopDueModelUnavailable: false
           };
         } catch (error) {
           const kind = classifyBModelError(error);
@@ -3380,7 +3396,8 @@ async function translateSegmentsWithModelB(
               lastErrorKind,
               providerHits: [],
               activeModel: activeModelForBatch,
-              stopDueRateLimit: true
+              stopDueRateLimit: true,
+              stopDueModelUnavailable: false
             };
           }
           if (kind !== 'timeout' && kind !== 'http') {
@@ -3391,7 +3408,8 @@ async function translateSegmentsWithModelB(
               lastErrorKind,
               providerHits: [],
               activeModel: activeModelForBatch,
-              stopDueRateLimit: false
+              stopDueRateLimit: false,
+              stopDueModelUnavailable: false
             };
           }
           if (transportRetriesUsed >= transportRetryLimit) {
@@ -3402,7 +3420,8 @@ async function translateSegmentsWithModelB(
               lastErrorKind,
               providerHits: [],
               activeModel: activeModelForBatch,
-              stopDueRateLimit: false
+              stopDueRateLimit: false,
+              stopDueModelUnavailable: isModelUnavailableErrorKind(kind)
             };
           }
           transportRetriesUsed += 1;
@@ -3429,6 +3448,7 @@ async function translateSegmentsWithModelB(
       const passAbortController = new AbortController();
       if (signal?.aborted) { passAbortController.abort(); }
       signal?.addEventListener('abort', () => passAbortController.abort(), { once: true });
+      let consecutiveTransportFail = 0;
       const passConcurrency =
         options.concurrencyOverride ??
         (options.promptMode === 'default' ? concurrency : 1);
@@ -3443,7 +3463,16 @@ async function translateSegmentsWithModelB(
             options,
             passAbortController.signal
           );
+          if (result.jsonOk > 0) {
+            consecutiveTransportFail = 0;
+          } else if (result.stopDueModelUnavailable) {
+            consecutiveTransportFail += 1;
+          }
           if (result.stopDueRateLimit) {
+            passAbortController.abort();
+          }
+          if (consecutiveTransportFail >= MODEL_UNAVAILABLE_CONSECUTIVE_THRESHOLD) {
+            stopDueModelUnavailable = true;
             passAbortController.abort();
           }
           return result;
@@ -3459,6 +3488,9 @@ async function translateSegmentsWithModelB(
         passJsonOk += result.jsonOk;
         if (result.stopDueRateLimit) {
           stopDueRateLimit = true;
+        }
+        if (result.stopDueModelUnavailable) {
+          stopDueModelUnavailable = true;
         }
       }
 
@@ -3523,7 +3555,13 @@ async function translateSegmentsWithModelB(
         lastErrorKind: stats.lastErrorKind,
         translatedSegments: translated.size
       });
-      return { stopDueRateLimit: stats.lastErrorKind === 'rate_limited' };
+      if (stopDueModelUnavailable) {
+        stats.modelUnavailable = true;
+      }
+      return {
+        stopDueRateLimit: stats.lastErrorKind === 'rate_limited',
+        stopDueModelUnavailable
+      };
     }
 
     if (rateLimitRecoveryEnabled && stopDueRateLimit) {
@@ -3606,7 +3644,7 @@ async function translateSegmentsWithModelB(
       }
     }
 
-    if (retranslateEnabled && !stopDueRateLimit) {
+    if (retranslateEnabled && !stopDueRateLimit && !stopDueModelUnavailable) {
       for (let pass = 1; pass <= retranslateMaxPasses; pass += 1) {
         const untranslatedSegments = scopedSegments.filter((segment) => !translated.has(segment.id));
         if (untranslatedSegments.length === 0) {
@@ -3642,6 +3680,7 @@ async function translateSegmentsWithModelB(
     if (
       visionSecondStageEnabled &&
       !stopDueRateLimit &&
+      !stopDueModelUnavailable &&
       typeof maxSegmentsForTranslation === 'number' &&
       maxSegmentsForTranslation > 0 &&
       segments.length > scopedSegments.length
@@ -3678,7 +3717,10 @@ async function translateSegmentsWithModelB(
       }
     }
 
-    return { stopDueRateLimit };
+    if (stopDueModelUnavailable) {
+      stats.modelUnavailable = true;
+    }
+    return { stopDueRateLimit, stopDueModelUnavailable };
   }
 
   const primary = await executeTranslationStrategy({
@@ -3688,6 +3730,7 @@ async function translateSegmentsWithModelB(
 
   const shouldTryFallback =
     Boolean(fallbackConfig) &&
+    !primary.stopDueModelUnavailable &&
     shouldAttemptTranslationFallback(translated.size, stats);
 
   if (fallbackConfig && shouldTryFallback) {
@@ -3696,7 +3739,8 @@ async function translateSegmentsWithModelB(
       primaryModel: activeModel,
       fallbackModel: fallbackConfig.model,
       lastErrorKind: stats.lastErrorKind,
-      primaryStoppedByRateLimit: primary.stopDueRateLimit
+      primaryStoppedByRateLimit: primary.stopDueRateLimit,
+      primaryStoppedByModelUnavailable: primary.stopDueModelUnavailable
     });
     await executeTranslationStrategy({
       modelOverride: fallbackConfig.model,
@@ -3715,6 +3759,7 @@ export const __translationPipelineInternals = {
   mergeBModelBatchExecutionResult,
   selectBilingualBundleSegments,
   shouldAttemptTranslationFallback,
+  translateSegmentsWithModelB,
   normalizeFashionTranslation,
   shouldUseInlineAnnotatedNote
 };
@@ -3915,6 +3960,56 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
     }
   }
 
+  if (bModelStats.modelUnavailable && translatedMap.size === 0) {
+    const coverage = summarizeTranslationCoverage(segments, documentMainType, skippedTranslationPages);
+    logPipelineDebug('pipeline.b_model_unavailable', {
+      pipelineId,
+      fileName: input.fileName,
+      batchAttempts: bModelStats.batchAttempts,
+      lastErrorKind: bModelStats.lastErrorKind
+    });
+    return {
+      fileName: path.basename(input.fileName),
+      success: false,
+      documentMainType,
+      outputStrategy,
+      diagnostics: {
+        earlyGatePages: built.diagnostics.earlyGatePages,
+        lowConfidencePages: built.diagnostics.lowConfidencePages,
+        secondPassRequired: built.diagnostics.secondPassRequired,
+        secondPassExecuted: built.diagnostics.secondPassExecuted,
+        aModelTriggered,
+        aModelExecuted,
+        aModelFallbackUsed,
+        aModelActiveModel,
+        visionTargetPages,
+        visionPageBlockCounts,
+        visionPageRawBlockCounts,
+        visionPageErrors,
+        bModelExecuted: false,
+        bModelApiConfigured: bModelStats.configured,
+        bModelBatchAttempts: bModelStats.batchAttempts,
+        bModelBatchJsonOk: bModelStats.batchJsonOk,
+        bModelLastErrorKind: bModelStats.lastErrorKind,
+        bModelFallbackUsed: bModelStats.fallbackUsed,
+        bModelActiveModel: bModelStats.activeModel,
+        translatedSegmentCount: coverage.translatedSegmentCount,
+        translationCoveragePct: coverage.translationCoveragePct,
+        businessSegmentCount: coverage.businessSegmentCount,
+        translatedBusinessSegmentCount: coverage.translatedBusinessSegmentCount,
+        businessTranslationCoveragePct: coverage.businessTranslationCoveragePct,
+        businessPreviewThresholdPct: coverage.businessPreviewThresholdPct,
+        isBusinessPreviewReady: coverage.isBusinessPreviewReady,
+        skippedTranslationPages: Array.from(skippedTranslationPages).sort((left, right) => left - right),
+        previewSuppressedReason: coverage.previewSuppressedReason,
+        lowInfoTranslationCount: 0
+      },
+      segments,
+      outputs: {},
+      error: MODEL_UNAVAILABLE_USER_MESSAGE
+    };
+  }
+
   // Phase 2: Translate remaining text_layer segments that the main model skipped.
   // These are typically short header/footer blocks (DOSSIER STYLE, STYLISTE, etc.)
   // that the batch model tends to omit from its JSON output.
@@ -3923,7 +4018,7 @@ export async function runPdfTranslationPipeline(input: PipelineInput): Promise<P
       !segment.zh?.trim() &&
       segment.extractionMeta.sourceType === 'text_layer'
   );
-  if (untranslatedTextLayerSegments.length > 0) {
+  if (untranslatedTextLayerSegments.length > 0 && !bModelStats.modelUnavailable) {
     logPipelineDebug('pipeline.text_layer_supplement_start', {
       pipelineId,
       fileName: input.fileName,
