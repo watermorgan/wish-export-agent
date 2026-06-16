@@ -16,6 +16,8 @@
     "service:reapply-dingtalk-hotpatch": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/reapply-openclaw-dingtalk-hotpatch.mjs",
     "service:openclaw-dreaming": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/toggle-openclaw-dreaming.mjs",
     "service:preflight": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/preflight-ting-stack.mjs",
+    "model:use:minimax": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/switch-model-profile.mjs minimax",
+    "model:use:qwen-local": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH node scripts/switch-model-profile.mjs qwen-local",
     "lint": "eslint .",
     "extract:test": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/test-extraction.ts",
     "extract:eval": "PATH=/Users/weitao/.nvm/versions/node/v20.20.0/bin:$PATH npx tsx scripts/eval-extraction-dataset.ts data/20260315 data/20260324",
