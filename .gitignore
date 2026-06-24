@@ -53,6 +53,9 @@ docs/project/pdf-pipeline-smoke-report*.json
 
 # Local agent runtime state and temporary outputs
 .omx/
+.ai-control/*
+!.ai-control/README.md
+.ai-sandbox/
 tmp/
 
 # Local ad-hoc datasets (keep test02 rules above)

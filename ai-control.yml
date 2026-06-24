@@ -1,0 +1,9 @@
+project_id: export-agent
+platform_version: 0.1.0
+authority_root: docs
+derived_root: .ai-control/derived
+runtime_root: .ai-control/runtime
+raw_root: .ai-control/raw
+candidate_root: .ai-control/candidates
+sandbox_root: .ai-sandbox
+worktree_root: .worktrees
