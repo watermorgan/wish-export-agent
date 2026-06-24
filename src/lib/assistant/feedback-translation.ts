@@ -1236,9 +1236,11 @@ async function buildPipelineFallbackReply(
     ? mode === 'primary'
       ? `已完成 ${pipelineResult.diagnostics.translatedSegmentCount} 个识别块的原文保留式双语翻译。`
       : `意见翻译主链已降级到 PDF pipeline。${coverageText}。`
-    : mode === 'primary'
-      ? '当前 PDF pipeline 未产出可用中文结果。'
-      : '意见翻译主链已降级到 PDF pipeline，但当前模型未产出可用中文结果。';
+    : pipelineResult.error
+      ? pipelineResult.error
+      : mode === 'primary'
+        ? '当前 PDF pipeline 未产出可用中文结果。'
+        : '意见翻译主链已降级到 PDF pipeline，但当前模型未产出可用中文结果。';
 
   const skillPayload = buildPdfTranslationSkillPayload({
     sourceFile,
@@ -1298,10 +1300,15 @@ async function buildPipelineFallbackReply(
             '先打开预览页检查原文与中文位置关系。',
             '若覆盖率仍低，再继续调翻译模型和分段策略。'
           ]
-        : [
-            '当前主链没有拿到可用中文，建议先更换更稳定的翻译模型。',
-            '保留本次 PDF pipeline 产物作为诊断样本。'
-          ],
+        : pipelineResult.error
+          ? [
+              '请检查网络或 VPN 连接是否正常，确认后重新提交翻译。',
+              '如问题持续，请联系技术人员排查翻译服务。'
+            ]
+          : [
+              '当前主链没有拿到可用中文，建议先更换更稳定的翻译模型。',
+              '保留本次 PDF pipeline 产物作为诊断样本。'
+            ],
     pendingConfirmations,
     riskAlerts: pendingConfirmations.map((item) => `${item.label}：${item.reason}`),
     artifacts: [...reply.artifacts, fallbackArtifact, skillArtifact],
